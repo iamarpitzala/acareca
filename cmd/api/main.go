@@ -19,11 +19,16 @@ func main() {
 
 	cfg := config.NewConfig()
 
-	database, err := db.DBConn(cfg)
+	dbConn, err := db.DBConn(cfg)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
-	defer database.Close()
+	defer dbConn.Close()
+
+	if err := db.RunMigrations(dbConn.DB); err != nil {
+		log.Fatalf("failed to run migrations: %v", err)
+	}
+	log.Println("migrations applied successfully")
 
 	r := gin.Default()
 
@@ -35,7 +40,7 @@ func main() {
 
 	v1 := r.Group("/api/v1")
 
-	authRepo := auth.NewRepository(database)
+	authRepo := auth.NewRepository(dbConn)
 	authSvc := auth.NewService(authRepo, cfg)
 	authHandler := auth.NewHandler(authSvc)
 	auth.RegisterRoutes(v1, authHandler)

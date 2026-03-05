@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE TABLE tbl_user (
-    id            VARCHAR(40) PRIMARY KEY DEFAULT gen_random_uuid(),
+CREATE TABLE IF NOT EXISTS tbl_user (
+    id            VARCHAR(40) PRIMARY KEY NOT NULL UNIQUE,
     email         VARCHAR(255) UNIQUE NOT NULL,
     password      VARCHAR(100) NOT NULL,                             -- Argon2id; NULL = invited-only
     first_name    VARCHAR(255) NOT NULL,
@@ -19,5 +19,5 @@ CREATE TABLE tbl_user (
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TABLE tbl_user;
+DROP TABLE IF EXISTS tbl_user;
 -- +goose StatementEnd

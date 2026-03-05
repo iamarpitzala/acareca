@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS tbl_auth_provider (
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
 
-    deleted_at        TIMESTAMPTZ  NULL,
+    deleted_at        TIMESTAMPTZ  NULL
 
 );
 -- +goose StatementEnd
