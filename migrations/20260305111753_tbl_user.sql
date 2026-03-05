@@ -20,6 +20,3 @@ CREATE TABLE tbl_user (
 -- +goose StatementBegin
 DROP TABLE tbl_user;
 -- +goose StatementEnd
-feat: added user module with basic auth functionality
-
-Enhance project setup by adding new dependencies in go.mod, updating README for better clarity on project structure and setup, and refactoring database connection logic for improved concurrency handling.

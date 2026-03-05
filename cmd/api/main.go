@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	cfg := config.Load()
+	cfg := config.NewConfig()
 
 	database, err := db.DBConn(cfg)
 	if err != nil {
@@ -28,7 +28,7 @@ func main() {
 	v1 := r.Group("/api/v1")
 
 	authRepo := auth.NewRepository(database)
-	authSvc := auth.NewService(authRepo, cfg.JWTSecret)
+	authSvc := auth.NewService(authRepo, cfg)
 	authHandler := auth.NewHandler(authSvc)
 	auth.RegisterRoutes(v1, authHandler)
 

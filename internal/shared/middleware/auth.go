@@ -8,13 +8,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
+	"github.com/iamarpitzala/acareca/pkg/config"
 )
 
 const UserIDKey = "userID"
 
 var errUnauthorized = errors.New("unauthorized")
 
-func Auth(jwtSecret string) gin.HandlerFunc {
+func Auth(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
@@ -28,7 +29,7 @@ func Auth(jwtSecret string) gin.HandlerFunc {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, errUnauthorized
 			}
-			return []byte(jwtSecret), nil
+			return []byte(cfg.JWTSecret), nil
 		})
 		if err != nil || !token.Valid {
 			response.Error(c, http.StatusUnauthorized, errUnauthorized)

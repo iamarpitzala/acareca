@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/iamarpitzala/acareca/internal/shared/util"
+	"github.com/iamarpitzala/acareca/pkg/config"
 )
 
 var (
@@ -22,12 +21,12 @@ type Service interface {
 }
 
 type service struct {
-	repo      Repository
-	jwtSecret string
+	repo Repository
+	cfg  *config.Config
 }
 
-func NewService(repo Repository, jwtSecret string) Service {
-	return &service{repo: repo, jwtSecret: jwtSecret}
+func NewService(repo Repository, cfg *config.Config) Service {
+	return &service{repo: repo, cfg: cfg}
 }
 
 func (s *service) Register(ctx context.Context, req *RqUser) (*RsUser, error) {
@@ -35,14 +34,14 @@ func (s *service) Register(ctx context.Context, req *RqUser) (*RsUser, error) {
 		return nil, ErrEmailTaken
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	hashedPassword, err := util.GenerateHash(req.Password)
 	if err != nil {
 		return nil, fmt.Errorf("hash password: %w", err)
 	}
 
 	u := req.ToDBModel()
-	u.ID = uuid.New().String()
-	u.Password = string(hash)
+	u.ID = util.NewUUID()
+	u.Password = hashedPassword
 
 	created, err := s.repo.CreateUser(ctx, u)
 	if err != nil {
@@ -58,7 +57,7 @@ func (s *service) Login(ctx context.Context, req *RqLogin) (*RsToken, error) {
 		return nil, ErrInvalidPassword
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+	if err := util.CompareHash(user.Password, req.Password); err != nil {
 		return nil, ErrInvalidPassword
 	}
 
@@ -68,12 +67,12 @@ func (s *service) Login(ctx context.Context, req *RqLogin) (*RsToken, error) {
 		}
 	}
 
-	accessToken, err := s.signToken(user.ID, 15*time.Minute)
+	accessToken, err := util.SignToken(user.ID, 15*time.Minute, s.cfg.JWTSecret)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, err := s.signToken(user.ID, 7*24*time.Hour)
+	refreshToken, err := util.SignToken(user.ID, 7*24*time.Hour, s.cfg.JWTSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -83,18 +82,4 @@ func (s *service) Login(ctx context.Context, req *RqLogin) (*RsToken, error) {
 		RefreshToken: refreshToken,
 		IsSuperadmin: user.IsSuperadmin,
 	}, nil
-}
-
-func (s *service) signToken(userID string, ttl time.Duration) (string, error) {
-	claims := jwt.MapClaims{
-		"sub": userID,
-		"exp": time.Now().Add(ttl).Unix(),
-		"iat": time.Now().Unix(),
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := token.SignedString([]byte(s.jwtSecret))
-	if err != nil {
-		return "", fmt.Errorf("sign token: %w", err)
-	}
-	return signed, nil
 }

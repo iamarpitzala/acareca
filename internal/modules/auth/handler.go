@@ -5,29 +5,21 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-playground/validator/v10"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
+	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
 
 type Handler struct {
-	svc      Service
-	validate *validator.Validate
+	svc Service
 }
 
 func NewHandler(svc Service) *Handler {
-	return &Handler{
-		svc:      svc,
-		validate: validator.New(),
-	}
+	return &Handler{svc: svc}
 }
 
 func (h *Handler) Register(c *gin.Context) {
 	var req RqUser
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, err)
-		return
-	}
-	if err := h.validate.Struct(req); err != nil {
+	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
@@ -47,11 +39,7 @@ func (h *Handler) Register(c *gin.Context) {
 
 func (h *Handler) Login(c *gin.Context) {
 	var req RqLogin
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, err)
-		return
-	}
-	if err := h.validate.Struct(req); err != nil {
+	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}

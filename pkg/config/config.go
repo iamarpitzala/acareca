@@ -15,7 +15,15 @@ type Config struct {
 	JWTSecret  string
 }
 
-func Load() *Config {
+func getEnv(key, fallback string) string {
+	val := os.Getenv(key)
+	if val == "" {
+		return fallback
+	}
+	return val
+}
+
+func NewConfig() *Config {
 	return &Config{
 		DBHost:     getEnv("DB_HOST", "localhost"),
 		DBPort:     getEnv("DB_PORT", "5432"),
@@ -28,9 +36,34 @@ func Load() *Config {
 	}
 }
 
-func getEnv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
+func (c *Config) GetDBHost() string {
+	return c.DBHost
+}
+
+func (c *Config) GetDBPort() string {
+	return c.DBPort
+}
+
+func (c *Config) GetDBUser() string {
+	return c.DBUser
+}
+
+func (c *Config) GetDBPassword() string {
+	return c.DBPassword
+}
+
+func (c *Config) GetDBName() string {
+	return c.DBName
+}
+
+func (c *Config) GetDBSSLMode() string {
+	return c.DBSSLMode
+}
+
+func (c *Config) GetServerPort() string {
+	return c.ServerPort
+}
+
+func (c *Config) GetJWTSecret() string {
+	return c.JWTSecret
 }
