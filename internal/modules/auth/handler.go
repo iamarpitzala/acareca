@@ -9,15 +9,22 @@ import (
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
 
-type Handler struct {
+type IHandler interface {
+	Register(c *gin.Context)
+	Login(c *gin.Context)
+	GoogleAuthURL(c *gin.Context)
+	GoogleCallback(c *gin.Context)
+}
+
+type handler struct {
 	svc Service
 }
 
-func NewHandler(svc Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc Service) IHandler {
+	return &handler{svc: svc}
 }
 
-func (h *Handler) Register(c *gin.Context) {
+func (h *handler) Register(c *gin.Context) {
 	var req RqUser
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
@@ -37,7 +44,7 @@ func (h *Handler) Register(c *gin.Context) {
 	response.JSON(c, http.StatusCreated, user)
 }
 
-func (h *Handler) Login(c *gin.Context) {
+func (h *handler) Login(c *gin.Context) {
 	var req RqLogin
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
@@ -58,14 +65,14 @@ func (h *Handler) Login(c *gin.Context) {
 }
 
 // GoogleLogin returns the Google OAuth consent-screen URL.
-func (h *Handler) GoogleLogin(c *gin.Context) {
+func (h *handler) GoogleLogin(c *gin.Context) {
 	state := util.NewUUID()
 	result := h.svc.GoogleAuthURL(state)
 	response.JSON(c, http.StatusOK, result)
 }
 
 // GoogleCallback handles the redirect from Google after the user consents.
-func (h *Handler) GoogleCallback(c *gin.Context) {
+func (h *handler) GoogleCallback(c *gin.Context) {
 	code := c.Query("code")
 	if code == "" {
 		response.Error(c, http.StatusBadRequest, errors.New("missing oauth code"))
@@ -79,4 +86,11 @@ func (h *Handler) GoogleCallback(c *gin.Context) {
 	}
 
 	response.JSON(c, http.StatusOK, token)
+}
+
+// GoogleAuthURL implements [IHandler].
+func (h *handler) GoogleAuthURL(c *gin.Context) {
+	state := util.NewUUID()
+	result := h.svc.GoogleAuthURL(state)
+	response.JSON(c, http.StatusOK, result)
 }

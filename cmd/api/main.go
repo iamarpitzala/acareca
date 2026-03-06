@@ -5,10 +5,10 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/iamarpitzala/acareca/internal/modules/auth"
 	"github.com/iamarpitzala/acareca/internal/shared/db"
 	"github.com/iamarpitzala/acareca/internal/shared/middleware"
 	"github.com/iamarpitzala/acareca/pkg/config"
+	"github.com/iamarpitzala/acareca/route"
 	"github.com/joho/godotenv"
 )
 
@@ -38,12 +38,7 @@ func main() {
 
 	r.Use(middleware.ClientInfo())
 
-	v1 := r.Group("/api/v1")
-
-	authRepo := auth.NewRepository(dbConn)
-	authSvc := auth.NewService(authRepo, cfg)
-	authHandler := auth.NewHandler(authSvc)
-	auth.RegisterRoutes(v1, authHandler)
+	route.RegisterRoutes(r, cfg)
 
 	log.Printf("server starting on :%s", cfg.ServerPort)
 	if err := r.Run(":" + cfg.ServerPort); err != nil {
