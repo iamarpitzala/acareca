@@ -3,7 +3,6 @@ package method
 import (
 	"context"
 	"errors"
-	"fmt"
 )
 
 type IService interface {
@@ -25,8 +24,10 @@ func (s *service) Calculate(ctx context.Context, taxType TaxTreatment, input *In
 		return s.exclusive(ctx, input)
 	case TaxTreatmentManual:
 		return s.manual(ctx, input)
+	case TaxTreatmentZero:
+		return s.zero(ctx, input)
 	default:
-		return nil, fmt.Errorf("invalid tax type: %s", taxType)
+		return nil, nil
 	}
 }
 
@@ -58,5 +59,13 @@ func (s *service) manual(_ context.Context, input *Input) (*Result, error) {
 		Amount:      input.Amount,
 		GstAmount:   gstAmount,
 		TotalAmount: input.Amount + gstAmount,
+	}, nil
+}
+
+func (s *service) zero(_ context.Context, input *Input) (*Result, error) {
+	return &Result{
+		Amount:      input.Amount,
+		GstAmount:   0,
+		TotalAmount: input.Amount,
 	}, nil
 }

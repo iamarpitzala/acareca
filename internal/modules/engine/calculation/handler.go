@@ -9,7 +9,8 @@ import (
 )
 
 type IHandler interface {
-	Calculate(c *gin.Context)
+	NetResult(c *gin.Context)
+	GrossResult(c *gin.Context)
 }
 
 type handler struct {
@@ -20,21 +21,32 @@ func NewHandler(svc Service) IHandler {
 	return &handler{svc: svc}
 }
 
-// GetEngine implements [IHandler].
-func (h *handler) Calculate(c *gin.Context) {
+// NetResult implements [IHandler].
+func (h *handler) NetResult(c *gin.Context) {
 	var entry Entry
 	if err := util.BindAndValidate(c, &entry); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	result, err := h.svc.Calculate(c.Request.Context(), &entry)
+	result, err := h.svc.NetResult(c.Request.Context(), &entry)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, gin.H{
-		"income":  result.Income,
-		"expense": result.Expense,
-		"result":  result.Result,
-	})
+	response.JSON(c, http.StatusOK, result)
+}
+
+// GrossResult implements [IHandler].
+func (h *handler) GrossResult(c *gin.Context) {
+	var entry Entry
+	if err := util.BindAndValidate(c, &entry); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+	result, err := h.svc.GrossResult(c.Request.Context(), &entry)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+	response.JSON(c, http.StatusOK, result)
 }

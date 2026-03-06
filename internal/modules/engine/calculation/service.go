@@ -8,7 +8,8 @@ import (
 )
 
 type Service interface {
-	Calculate(ctx context.Context, entry *Entry) (*Result, error)
+	NetResult(ctx context.Context, entry *Entry) (*Result, error)
+	GrossResult(ctx context.Context, entry *Entry) (*GrossResult, error)
 	TaxCalculate(ctx context.Context, taxType method.TaxTreatment, input *Input) (*method.Result, error)
 }
 
@@ -28,7 +29,7 @@ func (s *service) TaxCalculate(ctx context.Context, taxType method.TaxTreatment,
 	})
 }
 
-func (s *service) Calculate(ctx context.Context, entry *Entry) (*Result, error) {
+func (s *service) NetResult(ctx context.Context, entry *Entry) (*Result, error) {
 	var incomeTotals []float64
 	var expenseTotals []float64
 	var netResult float64
@@ -57,5 +58,23 @@ func (s *service) Calculate(ctx context.Context, entry *Entry) (*Result, error) 
 		Income:  incomeTotals,
 		Expense: expenseTotals,
 		Result:  netResult,
+	}, nil
+}
+
+func (s *service) GrossResult(ctx context.Context, entry *Entry) (*GrossResult, error) {
+	netResult, err := s.NetResult(ctx, entry)
+	if err != nil {
+		return nil, fmt.Errorf("calculate net result: %w", err)
+	}
+	serviceFee := netResult.Result * 0.6
+	gstServiceFee := serviceFee * 0.1
+	totalServiceFee := serviceFee + gstServiceFee
+	remittedAmount := netResult.Result - totalServiceFee
+	return &GrossResult{
+		NetResult:       netResult.Result,
+		ServiceFee:      serviceFee,
+		GstServiceFee:   gstServiceFee,
+		TotalServiceFee: totalServiceFee,
+		RemittedAmount:  remittedAmount,
 	}, nil
 }
