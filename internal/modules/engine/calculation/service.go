@@ -45,17 +45,28 @@ func (s *service) calcInputs(ctx context.Context, inputs []Input, label string) 
 }
 
 func (s *service) NetResult(ctx context.Context, entry *Entry) (*Result, error) {
-	incomeTotals, incomeSum, _, err := s.calcInputs(ctx, entry.Income, "income")
+	_, _, incomeResults, err := s.calcInputs(ctx, entry.Income, "income")
 	if err != nil {
 		return nil, err
 	}
-	expenseTotals, expenseSum, _, err := s.calcInputs(ctx, entry.Expense, "expense")
+
+	incomeSum := 0.0
+	for _, r := range incomeResults {
+		incomeSum += r.Amount
+	}
+	incomeGST := 0.0
+	for _, r := range incomeResults {
+		incomeGST += r.GstAmount
+	}
+	incomeSum -= incomeGST
+
+	_, expenseSum, _, err := s.calcInputs(ctx, entry.Expense, "expense")
 	if err != nil {
 		return nil, err
 	}
 	return &Result{
-		Income:  incomeTotals,
-		Expense: expenseTotals,
+		Income:  []float64{incomeSum},
+		Expense: []float64{expenseSum},
 		Result:  incomeSum - expenseSum,
 	}, nil
 }
