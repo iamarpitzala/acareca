@@ -39,7 +39,7 @@ func NewRepository(db *sqlx.DB) Repository {
 func (r *repository) CreateUser(ctx context.Context, user *User) (*User, error) {
 	query := `
 		INSERT INTO tbl_user (id, email, password, first_name, last_name, phone, is_superadmin)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		VALUES ($1, $2, NULLIF($3, ''), $4, $5, $6, COALESCE($7, FALSE))
 		RETURNING id, email, password, first_name, last_name, phone, is_superadmin, created_at, updated_at
 	`
 	var u User
@@ -91,7 +91,7 @@ func (r *repository) UpsertAuthProvider(ctx context.Context, p *AuthProvider) (*
 			(id, user_id, provider,
 			 access_token, refresh_token, token_expires_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT (provider) DO UPDATE SET
+		ON CONFLICT (user_id, provider) DO UPDATE SET
 			access_token     = EXCLUDED.access_token,
 			refresh_token    = EXCLUDED.refresh_token,
 			token_expires_at = EXCLUDED.token_expires_at

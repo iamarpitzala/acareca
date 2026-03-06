@@ -1,21 +1,21 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS tbl_auth_provider (
-    id                VARCHAR(40)  PRIMARY KEY NOT NULL UNIQUE,
+    id                VARCHAR(40) PRIMARY KEY,
 
-    user_id           VARCHAR(40)  NOT NULL REFERENCES tbl_user(id),
+    user_id           VARCHAR(40) NOT NULL REFERENCES tbl_user(id),
 
-    provider          VARCHAR(50)  NOT NULL,
+    provider          VARCHAR(50) NOT NULL,
 
     access_token      TEXT,
     refresh_token     TEXT,
     token_expires_at  TIMESTAMPTZ,
 
-    created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    updated_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at        TIMESTAMPTZ,
 
-    deleted_at        TIMESTAMPTZ  NULL
-
+    CONSTRAINT uq_auth_provider_user_provider UNIQUE (user_id, provider)
 );
 -- +goose StatementEnd
 

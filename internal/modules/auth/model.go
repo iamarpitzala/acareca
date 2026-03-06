@@ -5,7 +5,7 @@ import "time"
 type User struct {
 	ID           string     `db:"id"`
 	Email        string     `db:"email"`
-	Password     string     `db:"password"`
+	Password     *string    `db:"password"`
 	FirstName    string     `db:"first_name"`
 	LastName     string     `db:"last_name"`
 	Phone        *string    `db:"phone"`

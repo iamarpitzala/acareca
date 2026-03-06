@@ -3,7 +3,7 @@
 CREATE TABLE IF NOT EXISTS tbl_user (
     id            VARCHAR(40) PRIMARY KEY NOT NULL UNIQUE,
     email         VARCHAR(255) UNIQUE NOT NULL,
-    password      VARCHAR(100) NOT NULL,                             -- Argon2id; NULL = invited-only
+    password      VARCHAR(100),                                      -- Argon2id; NULL = OAuth-only user
     first_name    VARCHAR(255) NOT NULL,
     last_name     VARCHAR(255) NOT NULL,
     phone         VARCHAR(20),                             -- E.164 format

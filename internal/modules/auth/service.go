@@ -62,7 +62,7 @@ func (s *service) Register(ctx context.Context, req *RqUser) (*RsUser, error) {
 
 	u := req.ToDBModel()
 	u.ID = util.NewUUID()
-	u.Password = hashedPassword
+	u.Password = &hashedPassword
 
 	created, err := s.repo.CreateUser(ctx, u)
 	if err != nil {
@@ -78,11 +78,11 @@ func (s *service) Login(ctx context.Context, req *RqLogin) (*RsToken, error) {
 		return nil, ErrInvalidPassword
 	}
 
-	if user.Password == "" {
+	if user.Password == nil || *user.Password == "" {
 		return nil, ErrOAuthOnly
 	}
 
-	if err := util.CompareHash(req.Password, user.Password); err != nil {
+	if err := util.CompareHash(req.Password, *user.Password); err != nil {
 		return nil, ErrInvalidPassword
 	}
 
