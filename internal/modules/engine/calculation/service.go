@@ -61,20 +61,41 @@ func (s *service) NetResult(ctx context.Context, entry *Entry) (*Result, error) 
 }
 
 func (s *service) GrossResult(ctx context.Context, entry *Entry) (*GrossResult, error) {
-	_, grossPatientFees, _, err := s.calcInputs(ctx, entry.Income, "income")
+	_, _, incResults, err := s.calcInputs(ctx, entry.Income, "income")
 	if err != nil {
 		return nil, err
 	}
+	incomeSum := 0.0
+	for _, r := range incResults {
+		incomeSum += r.Amount
+	}
+	incomeGST := 0.0
+	for _, r := range incResults {
+		incomeGST += r.GstAmount
+	}
+	incomeSum -= incomeGST
 
 	_, _, expResults, err := s.calcInputs(ctx, entry.Expense, "expense")
 	if err != nil {
 		return nil, err
 	}
-	var labBase, clinicExpenseGST float64
+
+	expenseGST := 0.0
+	expenseSum := 0.0
+	paidByClinicSum := 0.0
+	paidByOwnerSum := 0.0
 	for i, exp := range entry.Expense {
-		if exp.PaidBy != nil && *exp.PaidBy == PaidByClinic {
-			labBase += expResults[i].Amount
-			clinicExpenseGST += expResults[i].GstAmount
+		if exp.PaidBy == nil {
+			continue
+		}
+		switch *exp.PaidBy {
+		case PaidByClinic:
+			paidByClinicSum += expResults[i].Amount
+			expenseSum += expResults[i].Amount
+			expenseGST += expResults[i].GstAmount
+		case PaidByOwner:
+			expenseSum += expResults[i].TotalAmount
+			paidByOwnerSum += expenseSum
 		}
 	}
 
@@ -82,19 +103,25 @@ func (s *service) GrossResult(ctx context.Context, entry *Entry) (*GrossResult, 
 	if err != nil {
 		return nil, err
 	}
+	otherCostsSum += expenseGST
 
-	otherCostsSum += clinicExpenseGST
+	clinicShare := 0.0
+	if entry.ClinicShare != nil {
+		clinicShare = *entry.ClinicShare
+	}
 
-	netAmount := grossPatientFees - labBase
-	serviceFee := netAmount * (*entry.ClinicShare / 100)
+	netAmount := incomeSum - expenseSum
+	serviceFee := netAmount * (clinicShare / 100)
 	gstServiceFee := serviceFee * 0.1
 	totalServiceFee := serviceFee + gstServiceFee
+
+	remittedAmount := netAmount - totalServiceFee - otherCostsSum + incomeGST + paidByOwnerSum
 
 	return &GrossResult{
 		NetAmount:       netAmount,
 		ServiceFee:      serviceFee,
 		GstServiceFee:   gstServiceFee,
 		TotalServiceFee: totalServiceFee,
-		RemittedAmount:  netAmount - totalServiceFee - otherCostsSum,
+		RemittedAmount:  remittedAmount,
 	}, nil
 }
