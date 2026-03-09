@@ -48,25 +48,16 @@ func (s *service) calcInputs(ctx context.Context, inputs []Input, label string) 
 }
 
 func (s *service) NetAmount(ctx context.Context, entry *Entry) (*NetAmountResult, error) {
-	_, _, incomeResults, err := s.calcInputs(ctx, entry.Income, "income")
+	_, incomeSum, _, err := s.calcInputs(ctx, entry.Income, "income")
 	if err != nil {
 		return nil, err
 	}
-
-	incomeSum := 0.0
-	for _, r := range incomeResults {
-		incomeSum += r.Amount
-	}
-	incomeGST := 0.0
-	for _, r := range incomeResults {
-		incomeGST += r.GstAmount
-	}
-	incomeSum -= incomeGST
 
 	_, expenseSum, _, err := s.calcInputs(ctx, entry.Expense, "expense")
 	if err != nil {
 		return nil, err
 	}
+
 	return &NetAmountResult{
 		Income:  []float64{util.Round(incomeSum, 2)},
 		Expense: []float64{util.Round(expenseSum, 2)},
@@ -142,10 +133,24 @@ func (s *service) GrossResult(ctx context.Context, entry *Entry) (*GrossResult, 
 
 // NetResult implements [Service].
 func (s *service) NetResult(ctx context.Context, entry *Entry) (*NetResult, error) {
-	netAmount, err := s.NetAmount(ctx, entry)
+	_, _, incResults, err := s.calcInputs(ctx, entry.Income, "income")
 	if err != nil {
 		return nil, err
 	}
+	var incomeSum, expenseSum float64
+	for _, r := range incResults {
+		incomeSum += r.Amount
+	}
+
+	_, _, expResults, err := s.calcInputs(ctx, entry.Expense, "expense")
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range expResults {
+		expenseSum += r.Amount
+	}
+
+	netAmount := incomeSum - expenseSum
 
 	ownerShare := 0.0
 	if entry.OwnerShare != nil {
@@ -157,7 +162,7 @@ func (s *service) NetResult(ctx context.Context, entry *Entry) (*NetResult, erro
 		superDecimal = *entry.SuperComponent / 100
 	}
 
-	totalRemuneration := netAmount.Result * (ownerShare / 100)
+	totalRemuneration := netAmount * (ownerShare / 100)
 
 	commissionBase := totalRemuneration
 	var superAmount float64
@@ -170,7 +175,7 @@ func (s *service) NetResult(ctx context.Context, entry *Entry) (*NetResult, erro
 	totalCommission := commissionBase + gstCommission
 
 	netResult := NetResult{
-		NetAmount:       util.Round(netAmount.Result, 2),
+		NetAmount:       util.Round(netAmount, 2),
 		Commission:      util.Round(totalRemuneration, 2),
 		GstCommission:   util.Round(gstCommission, 2),
 		TotalCommission: util.Round(totalCommission, 2),
