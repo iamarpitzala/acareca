@@ -9,6 +9,7 @@ import (
 )
 
 type IHandler interface {
+	NetAmount(c *gin.Context)
 	NetResult(c *gin.Context)
 	GrossResult(c *gin.Context)
 }
@@ -19,6 +20,21 @@ type handler struct {
 
 func NewHandler(svc Service) IHandler {
 	return &handler{svc: svc}
+}
+
+// NetAmount implements [IHandler].
+func (h *handler) NetAmount(c *gin.Context) {
+	var entry Entry
+	if err := util.BindAndValidate(c, &entry); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+	result, err := h.svc.NetAmount(c.Request.Context(), &entry)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+	response.JSON(c, http.StatusOK, result)
 }
 
 // NetResult implements [IHandler].

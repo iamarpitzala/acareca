@@ -9,7 +9,8 @@ import (
 )
 
 type Service interface {
-	NetResult(ctx context.Context, entry *Entry) (*Result, error)
+	NetAmount(ctx context.Context, entry *Entry) (*NetAmountResult, error)
+	NetResult(ctx context.Context, entry *Entry) (*NetResult, error)
 	GrossResult(ctx context.Context, entry *Entry) (*GrossResult, error)
 	TaxCalculate(ctx context.Context, taxType method.TaxTreatment, input *Input) (*method.Result, error)
 }
@@ -45,7 +46,7 @@ func (s *service) calcInputs(ctx context.Context, inputs []Input, label string) 
 	return
 }
 
-func (s *service) NetResult(ctx context.Context, entry *Entry) (*Result, error) {
+func (s *service) NetAmount(ctx context.Context, entry *Entry) (*NetAmountResult, error) {
 	_, _, incomeResults, err := s.calcInputs(ctx, entry.Income, "income")
 	if err != nil {
 		return nil, err
@@ -65,10 +66,10 @@ func (s *service) NetResult(ctx context.Context, entry *Entry) (*Result, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &Result{
-		Income:  []float64{incomeSum},
-		Expense: []float64{expenseSum},
-		Result:  incomeSum - expenseSum,
+	return &NetAmountResult{
+		Income:  []float64{util.Round(incomeSum, 2)},
+		Expense: []float64{util.Round(expenseSum, 2)},
+		Result:  util.Round(incomeSum-expenseSum, 2),
 	}, nil
 }
 
@@ -136,4 +137,58 @@ func (s *service) GrossResult(ctx context.Context, entry *Entry) (*GrossResult, 
 		TotalServiceFee: util.Round(totalServiceFee, 2),
 		RemittedAmount:  util.Round(remittedAmount, 2),
 	}, nil
+}
+
+// NetResult implements [Service].
+func (s *service) NetResult(ctx context.Context, entry *Entry) (*NetResult, error) {
+	netAmount, err := s.NetAmount(ctx, entry)
+	if err != nil {
+		return nil, err
+	}
+
+	ownerShare := 0.0
+	if entry.OwnerShare != nil {
+		ownerShare = *entry.OwnerShare
+	}
+
+	superRate := 0.0
+	if entry.SuperComponent != nil {
+		superRate = *entry.SuperComponent
+	}
+
+	totalRemuneration := netAmount.Result * (ownerShare / 100)
+
+	superDecimal := superRate / 100
+
+	commissionBase := totalRemuneration / (1 + superDecimal)
+
+	superAmount := commissionBase * superDecimal
+
+	gstCommission := commissionBase * 0.10
+
+	totalCommission := commissionBase + gstCommission
+
+	var netResult NetResult
+	netResult.NetAmount = util.Round(netAmount.Result, 2)
+	netResult.Commission = util.Round(totalRemuneration, 2)
+
+	if superRate > 0 {
+		superAmount := util.Round(superAmount, 2)
+		netResult.SuperComponent = &superAmount
+	}
+	if commissionBase > 0 {
+		commissionBase := util.Round(commissionBase, 2)
+		netResult.SuperComponentCommission = &commissionBase
+	}
+	if totalRemuneration > 0 {
+		totalRemuneration := util.Round(totalRemuneration, 2)
+		netResult.TotalRemuneration = &totalRemuneration
+	}
+	if gstCommission > 0 {
+		gstCommission := util.Round(gstCommission, 2)
+		netResult.GstCommission = gstCommission
+	}
+	netResult.TotalCommission = util.Round(totalCommission, 2)
+
+	return &netResult, nil
 }
