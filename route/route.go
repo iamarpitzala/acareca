@@ -9,6 +9,8 @@ import (
 	"github.com/iamarpitzala/acareca/internal/modules/auth"
 	"github.com/iamarpitzala/acareca/internal/modules/engine/calculation"
 	"github.com/iamarpitzala/acareca/internal/modules/engine/method"
+	tentant "github.com/iamarpitzala/acareca/internal/modules/tentant/setting"
+	tentantSub "github.com/iamarpitzala/acareca/internal/modules/tentant/subscription"
 	"github.com/iamarpitzala/acareca/internal/shared/db"
 	"github.com/iamarpitzala/acareca/internal/shared/middleware"
 	"github.com/iamarpitzala/acareca/pkg/config"
@@ -39,10 +41,20 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 		return u.IsSuperadmin != nil && *u.IsSuperadmin, nil
 	}
 	adminGroup := v1.Group("/admin")
-	subscriptionGroup := adminGroup.Group("/subscriptions")
+	subscriptionGroup := adminGroup.Group("/subscription")
 	subscriptionGroup.Use(middleware.Auth(cfg), middleware.RequireSuperadmin(superadminCheck))
 	subscriptionRepo := subscription.NewRepository(dbConn)
 	subscriptionSvc := subscription.NewService(subscriptionRepo)
 	subscriptionHandler := subscription.NewHandler(subscriptionSvc)
 	subscription.RegisterRoutes(subscriptionGroup, subscriptionHandler)
+
+	tentantRepo := tentant.NewRepository(dbConn)
+	tentantSvc := tentant.NewService(tentantRepo)
+	tentantHandler := tentant.NewHandler(tentantSvc)
+	tentantGroup := v1.Group("/tentant")
+	tentant.RegisterRoutes(tentantGroup, tentantHandler)
+	tentantSubRepo := tentantSub.NewRepository(dbConn)
+	tentantSubSvc := tentantSub.NewService(tentantSubRepo)
+	tentantSubHandler := tentantSub.NewHandler(tentantSubSvc)
+	tentantSub.RegisterRoutes(tentantGroup.Group("/:id/subscription"), tentantSubHandler)
 }
