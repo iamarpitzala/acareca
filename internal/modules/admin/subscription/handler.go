@@ -1,0 +1,108 @@
+package subscription
+
+import (
+	"errors"
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"github.com/iamarpitzala/acareca/internal/shared/response"
+	"github.com/iamarpitzala/acareca/internal/shared/util"
+)
+
+type IHandler interface {
+	CreateSubscription(c *gin.Context)
+	GetSubscription(c *gin.Context)
+	ListSubscriptions(c *gin.Context)
+	UpdateSubscription(c *gin.Context)
+	DeleteSubscription(c *gin.Context)
+}
+
+type handler struct {
+	svc Service
+}
+
+func NewHandler(svc Service) IHandler {
+	return &handler{svc: svc}
+}
+
+func (h *handler) CreateSubscription(c *gin.Context) {
+	var req RqCreateSubscription
+	if err := util.BindAndValidate(c, &req); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+	created, err := h.svc.CreateSubscription(c.Request.Context(), &req)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+	response.JSON(c, http.StatusCreated, created)
+}
+
+func (h *handler) GetSubscription(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, errors.New("invalid id"))
+		return
+	}
+	sub, err := h.svc.GetSubscription(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			response.Error(c, http.StatusNotFound, err)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+	response.JSON(c, http.StatusOK, sub)
+}
+
+func (h *handler) ListSubscriptions(c *gin.Context) {
+	list, err := h.svc.ListSubscriptions(c.Request.Context())
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+	response.JSON(c, http.StatusOK, list)
+}
+
+func (h *handler) UpdateSubscription(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, errors.New("invalid id"))
+		return
+	}
+	var req RqUpdateSubscription
+	if err := util.BindAndValidate(c, &req); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+	updated, err := h.svc.UpdateSubscription(c.Request.Context(), id, &req)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			response.Error(c, http.StatusNotFound, err)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+	response.JSON(c, http.StatusOK, updated)
+}
+
+func (h *handler) DeleteSubscription(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, errors.New("invalid id"))
+		return
+	}
+	if err := h.svc.DeleteSubscription(c.Request.Context(), id); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			response.Error(c, http.StatusNotFound, err)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+	response.JSON(c, http.StatusOK, gin.H{"message": "deleted"})
+}
