@@ -5,8 +5,8 @@ CREATE TABLE IF NOT EXISTS tbl_financial_settings (
     financial_year_id   UUID NOT NULL REFERENCES tbl_financial_year(id), -- example: ab290cajdh
     lock_date           DATE,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-)
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 -- +goose Down
---
+DROP TABLE IF EXISTS tbl_financial_settings;

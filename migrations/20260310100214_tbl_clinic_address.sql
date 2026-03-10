@@ -8,9 +8,8 @@ CREATE TABLE IF NOT EXISTS tbl_clinic_address (
    postcode         VARCHAR(4),
    is_primary       BOOLEAN NOT NULL DEFAULT FALSE,
    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-   updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-)
-
+   updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 -- +goose Down
---
+DROP TABLE IF EXISTS tbl_clinic_address;

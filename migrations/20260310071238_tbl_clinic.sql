@@ -1,4 +1,5 @@
 -- +goose Up
+
 CREATE TABLE IF NOT EXISTS tbl_clinic (
     id              UUID PRIMARY KEY NOT NULL UNIQUE DEFAULT uuid_generate_v4(), 
     practice_id     VARCHAR(40) NOT NULL, 
@@ -10,5 +11,7 @@ CREATE TABLE IF NOT EXISTS tbl_clinic (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(), 
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at      TIMESTAMPTZ                       -- Soft delete
-) -- +goose Down
---
+);
+
+-- +goose Down
+DROP TABLE IF EXISTS tbl_clinic;
