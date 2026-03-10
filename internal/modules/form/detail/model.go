@@ -7,8 +7,8 @@ import (
 type RqFormDetail struct {
 	Name        string  `json:"name" validate:"required"`
 	Description *string `json:"description" validate:"omitempty"`
-	Status      string  `json:"status" validate:"required,oneof=active inactive"`
-	Method      string  `json:"method" validate:"required"`
+	Status      string  `json:"status" validate:"required,oneof=ACTIVE INACTIVE"`
+	Method      string  `json:"method" validate:"required,oneof=INDEPENDENT_CONTRACTOR SERVICE_FEE"`
 	OwnerShare  int     `json:"owner_share" validate:"required,min=0,max=100"`
 	ClinicShare int     `json:"clinic_share" validate:"required,min=0,max=100"`
 }
@@ -17,8 +17,8 @@ type RqUpdateFormDetail struct {
 	ID          uuid.UUID `json:"id" validate:"required"`
 	Name        *string   `json:"name" validate:"omitempty"`
 	Description *string   `json:"description" validate:"omitempty"`
-	Status      *string   `json:"status" validate:"omitempty,oneof=active inactive"`
-	Method      *string   `json:"method" validate:"omitempty"`
+	Status      *string   `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	Method      *string   `json:"method" validate:"omitempty,oneof=INDEPENDENT_CONTRACTOR SERVICE_FEE"`
 	OwnerShare  *int      `json:"owner_share" validate:"omitempty,min=0,max=100"`
 	ClinicShare *int      `json:"clinic_share" validate:"omitempty,min=0,max=100"`
 }
@@ -100,7 +100,7 @@ type RsFormDetail struct {
 }
 
 type Filter struct {
-	Status   *string   `form:"status" validate:"omitempty,oneof=active inactive"`
-	Method   *string   `form:"method" validate:"omitempty"`
+	Status   *string   `form:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	Method   *string   `form:"method" validate:"omitempty,oneof=INDEPENDENT_CONTRACTOR SERVICE_FEE"`
 	ClinicID uuid.UUID `form:"clinic_id" validate:"required"`
 }
