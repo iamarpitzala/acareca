@@ -20,8 +20,8 @@ type Repository interface {
 	Update(ctx context.Context, t *Practitioner) (*Practitioner, error)
 	Delete(ctx context.Context, id int) error
 
-	GetSettingByTentantID(ctx context.Context, tentantID int) (*TentantSetting, error)
-	UpsertSetting(ctx context.Context, s *TentantSetting) (*TentantSetting, error)
+	GetSettingByPractitionerID(ctx context.Context, practitionerID int) (*PractitionerSetting, error)
+	UpsertSetting(ctx context.Context, s *PractitionerSetting) (*PractitionerSetting, error)
 }
 
 type repository struct {
@@ -89,7 +89,7 @@ func (r *repository) List(ctx context.Context) ([]*Practitioner, error) {
 	`
 	var list []*Practitioner
 	if err := r.db.SelectContext(ctx, &list, query); err != nil {
-		return nil, fmt.Errorf("list tentants: %w", err)
+		return nil, fmt.Errorf("list practitioners: %w", err)
 	}
 	return list, nil
 }
@@ -124,14 +124,14 @@ func (r *repository) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
-func (r *repository) GetSettingByTentantID(ctx context.Context, tentantID int) (*TentantSetting, error) {
+func (r *repository) GetSettingByPractitionerID(ctx context.Context, practitionerID int) (*PractitionerSetting, error) {
 	query := `
-		SELECT id, tentant_id, timezone, logo, color, created_at, updated_at, deleted_at
+		SELECT id, practitioner_id, timezone, logo, color, created_at, updated_at, deleted_at
 		FROM tbl_practitioner_setting
-		WHERE tentant_id = $1 AND deleted_at IS NULL
+		WHERE practitioner_id = $1 AND deleted_at IS NULL
 	`
-	var s TentantSetting
-	if err := r.db.QueryRowxContext(ctx, query, tentantID).StructScan(&s); err != nil {
+	var s PractitionerSetting
+	if err := r.db.QueryRowxContext(ctx, query, practitionerID).StructScan(&s); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -140,31 +140,31 @@ func (r *repository) GetSettingByTentantID(ctx context.Context, tentantID int) (
 	return &s, nil
 }
 
-func (r *repository) UpsertSetting(ctx context.Context, s *TentantSetting) (*TentantSetting, error) {
+func (r *repository) UpsertSetting(ctx context.Context, s *PractitionerSetting) (*PractitionerSetting, error) {
 	// Try update first if record exists
-	_, err := r.GetSettingByTentantID(ctx, s.TentantID)
+	_, err := r.GetSettingByPractitionerID(ctx, s.PractitionerID)
 	if err == nil {
 		query := `
 			UPDATE tbl_practitioner_setting
 			SET timezone = $2, logo = $3, color = $4, updated_at = $5
-			WHERE tentant_id = $1 AND deleted_at IS NULL
-			RETURNING id, tentant_id, timezone, logo, color, created_at, updated_at, deleted_at
+			WHERE practitioner_id = $1 AND deleted_at IS NULL
+			RETURNING id, practitioner_id, timezone, logo, color, created_at, updated_at, deleted_at
 		`
-		var out TentantSetting
-		if err := r.db.QueryRowxContext(ctx, query, s.TentantID, s.Timezone, s.Logo, s.Color, s.UpdatedAt).StructScan(&out); err != nil {
+		var out PractitionerSetting
+		if err := r.db.QueryRowxContext(ctx, query, s.PractitionerID, s.Timezone, s.Logo, s.Color, s.UpdatedAt).StructScan(&out); err != nil {
 			return nil, fmt.Errorf("update practitioner setting: %w", err)
 		}
 		return &out, nil
 	}
 	// Insert new
 	query := `
-		INSERT INTO tbl_practitioner_setting (tentant_id, timezone, logo, color, created_at, updated_at)
+		INSERT INTO tbl_practitioner_setting (practitioner_id, timezone, logo, color, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, tentant_id, timezone, logo, color, created_at, updated_at, deleted_at
+		RETURNING id, practitioner_id, timezone, logo, color, created_at, updated_at, deleted_at
 	`
 	now := time.Now()
-	var out TentantSetting
-	if err := r.db.QueryRowxContext(ctx, query, s.TentantID, s.Timezone, s.Logo, s.Color, now, now).StructScan(&out); err != nil {
+	var out PractitionerSetting
+	if err := r.db.QueryRowxContext(ctx, query, s.PractitionerID, s.Timezone, s.Logo, s.Color, now, now).StructScan(&out); err != nil {
 		return nil, fmt.Errorf("create practitioner setting: %w", err)
 	}
 	return &out, nil

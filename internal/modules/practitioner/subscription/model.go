@@ -13,10 +13,10 @@ const (
 	StatusExpired   Status = "expired"
 )
 
-// TentantSubscription matches tbl_practitioner_subscription.
-type TentantSubscription struct {
+// PractitionerSubscription matches tbl_practitioner_subscription.
+type PractitionerSubscription struct {
 	ID             int        `db:"id"`
-	TentantID      int        `db:"tentant_id"`
+	PractitionerID int        `db:"practitioner_id"`
 	SubscriptionID int        `db:"subscription_id"`
 	StartDate      time.Time  `db:"start_date"`
 	EndDate        time.Time  `db:"end_date"`
@@ -26,23 +26,23 @@ type TentantSubscription struct {
 	DeletedAt      *time.Time `db:"deleted_at"`
 }
 
-// RqCreateTentantSubscription request to create a practitioner subscription.
-type RqCreateTentantSubscription struct {
+// RqCreatePractitionerSubscription request to create a practitioner subscription.
+type RqCreatePractitionerSubscription struct {
 	SubscriptionID int     `json:"subscription_id" validate:"required,min=1"`
 	StartDate      string  `json:"start_date" validate:"required"` // RFC3339
 	EndDate        string  `json:"end_date" validate:"required"`
 	Status         *Status `json:"status" validate:"omitempty,oneof=active past_due cancelled paused expired"`
 }
 
-// RqUpdateTentantSubscription request to update (e.g. status).
-type RqUpdateTentantSubscription struct {
+// RqUpdatePractitionerSubscription request to update (e.g. status).
+type RqUpdatePractitionerSubscription struct {
 	Status *Status `json:"status" validate:"omitempty,oneof=active past_due cancelled paused expired"`
 }
 
-// RsTentantSubscription response.
-type RsTentantSubscription struct {
+// RsPractitionerSubscription response.
+type RsPractitionerSubscription struct {
 	ID             int       `json:"id"`
-	TentantID      int       `json:"tentant_id"`
+	PractitionerID int       `json:"practitioner_id"`
 	SubscriptionID int       `json:"subscription_id"`
 	StartDate      time.Time `json:"start_date"`
 	EndDate        time.Time `json:"end_date"`
@@ -51,10 +51,10 @@ type RsTentantSubscription struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 
-func (s *TentantSubscription) ToRs() *RsTentantSubscription {
-	return &RsTentantSubscription{
+func (s *PractitionerSubscription) ToRs() *RsPractitionerSubscription {
+	return &RsPractitionerSubscription{
 		ID:             s.ID,
-		TentantID:      s.TentantID,
+		PractitionerID: s.PractitionerID,
 		SubscriptionID: s.SubscriptionID,
 		StartDate:      s.StartDate,
 		EndDate:        s.EndDate,

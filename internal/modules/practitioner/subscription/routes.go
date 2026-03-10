@@ -7,15 +7,15 @@ import (
 )
 
 func RegisterRoutes(rg *gin.RouterGroup, h IHandler) {
-	rg.Use(MiddlewareTentantID())
-	rg.GET("", h.ListByTentantID)
+	rg.Use(MiddlewarePractitionerID())
+	rg.GET("", h.ListByPractitionerID)
 	rg.POST("", h.Create)
 	rg.GET("/:sub_id", h.GetByID)
 	rg.PATCH("/:sub_id", h.Update)
 	rg.DELETE("/:sub_id", h.Delete)
 }
 
-func MiddlewareTentantID() gin.HandlerFunc {
+func MiddlewarePractitionerID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		idStr := c.Param("id")
 		if idStr == "" {
@@ -27,7 +27,7 @@ func MiddlewareTentantID() gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		c.Set(tentantIDKey, id)
+		c.Set(practitionerIDKey, id)
 		c.Next()
 	}
 }

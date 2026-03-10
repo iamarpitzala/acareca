@@ -11,12 +11,12 @@ import (
 )
 
 type IHandler interface {
-	CreateTentant(c *gin.Context)
-	GetTentant(c *gin.Context)
-	GetTentantByUserID(c *gin.Context)
-	ListTentants(c *gin.Context)
-	UpdateTentant(c *gin.Context)
-	DeleteTentant(c *gin.Context)
+	CreatePractitioner(c *gin.Context)
+	GetPractitioner(c *gin.Context)
+	GetPractitionerByUserID(c *gin.Context)
+	ListPractitioners(c *gin.Context)
+	UpdatePractitioner(c *gin.Context)
+	DeletePractitioner(c *gin.Context)
 	GetSetting(c *gin.Context)
 	UpsertSetting(c *gin.Context)
 }
@@ -29,7 +29,7 @@ func NewHandler(svc Service) IHandler {
 	return &handler{svc: svc}
 }
 
-func parseTentantID(c *gin.Context) (int, bool) {
+func parsePractitionerID(c *gin.Context) (int, bool) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, errors.New("invalid practitioner id"))
@@ -38,13 +38,13 @@ func parseTentantID(c *gin.Context) (int, bool) {
 	return id, true
 }
 
-func (h *handler) CreateTentant(c *gin.Context) {
-	var req RqCreateTentant
+func (h *handler) CreatePractitioner(c *gin.Context) {
+	var req RqCreatePractitioner
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	created, err := h.svc.CreateTentant(c.Request.Context(), &req)
+	created, err := h.svc.CreatePractitioner(c.Request.Context(), &req)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
@@ -52,12 +52,12 @@ func (h *handler) CreateTentant(c *gin.Context) {
 	response.JSON(c, http.StatusCreated, created)
 }
 
-func (h *handler) GetTentant(c *gin.Context) {
-	id, ok := parseTentantID(c)
+func (h *handler) GetPractitioner(c *gin.Context) {
+	id, ok := parsePractitionerID(c)
 	if !ok {
 		return
 	}
-	t, err := h.svc.GetTentant(c.Request.Context(), id)
+	t, err := h.svc.GetPractitioner(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
@@ -69,13 +69,13 @@ func (h *handler) GetTentant(c *gin.Context) {
 	response.JSON(c, http.StatusOK, t)
 }
 
-func (h *handler) GetTentantByUserID(c *gin.Context) {
+func (h *handler) GetPractitionerByUserID(c *gin.Context) {
 	userID := c.Param("user_id")
 	if userID == "" {
 		response.Error(c, http.StatusBadRequest, errors.New("user_id required"))
 		return
 	}
-	t, err := h.svc.GetTentantByUserID(c.Request.Context(), userID)
+	t, err := h.svc.GetPractitionerByUserID(c.Request.Context(), userID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
@@ -87,8 +87,8 @@ func (h *handler) GetTentantByUserID(c *gin.Context) {
 	response.JSON(c, http.StatusOK, t)
 }
 
-func (h *handler) ListTentants(c *gin.Context) {
-	list, err := h.svc.ListTentants(c.Request.Context())
+func (h *handler) ListPractitioners(c *gin.Context) {
+	list, err := h.svc.ListPractitioners(c.Request.Context())
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
@@ -96,17 +96,17 @@ func (h *handler) ListTentants(c *gin.Context) {
 	response.JSON(c, http.StatusOK, list)
 }
 
-func (h *handler) UpdateTentant(c *gin.Context) {
-	id, ok := parseTentantID(c)
+func (h *handler) UpdatePractitioner(c *gin.Context) {
+	id, ok := parsePractitionerID(c)
 	if !ok {
 		return
 	}
-	var req RqUpdateTentant
+	var req RqUpdatePractitioner
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	updated, err := h.svc.UpdateTentant(c.Request.Context(), id, &req)
+	updated, err := h.svc.UpdatePractitioner(c.Request.Context(), id, &req)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
@@ -118,12 +118,12 @@ func (h *handler) UpdateTentant(c *gin.Context) {
 	response.JSON(c, http.StatusOK, updated)
 }
 
-func (h *handler) DeleteTentant(c *gin.Context) {
-	id, ok := parseTentantID(c)
+func (h *handler) DeletePractitioner(c *gin.Context) {
+	id, ok := parsePractitionerID(c)
 	if !ok {
 		return
 	}
-	if err := h.svc.DeleteTentant(c.Request.Context(), id); err != nil {
+	if err := h.svc.DeletePractitioner(c.Request.Context(), id); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
@@ -135,7 +135,7 @@ func (h *handler) DeleteTentant(c *gin.Context) {
 }
 
 func (h *handler) GetSetting(c *gin.Context) {
-	id, ok := parseTentantID(c)
+	id, ok := parsePractitionerID(c)
 	if !ok {
 		return
 	}
@@ -152,11 +152,11 @@ func (h *handler) GetSetting(c *gin.Context) {
 }
 
 func (h *handler) UpsertSetting(c *gin.Context) {
-	id, ok := parseTentantID(c)
+	id, ok := parsePractitionerID(c)
 	if !ok {
 		return
 	}
-	var req RqUpsertTentantSetting
+	var req RqUpsertPractitionerSetting
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return

@@ -6,10 +6,10 @@ import (
 )
 
 type Service interface {
-	Create(ctx context.Context, tentantID int, req *RqCreateTentantSubscription) (*RsTentantSubscription, error)
-	GetByID(ctx context.Context, id int) (*RsTentantSubscription, error)
-	ListByTentantID(ctx context.Context, tentantID int) ([]*RsTentantSubscription, error)
-	Update(ctx context.Context, id int, req *RqUpdateTentantSubscription) (*RsTentantSubscription, error)
+	Create(ctx context.Context, practitionerID int, req *RqCreatePractitionerSubscription) (*RsPractitionerSubscription, error)
+	GetByID(ctx context.Context, id int) (*RsPractitionerSubscription, error)
+	ListByPractitionerID(ctx context.Context, practitionerID int) ([]*RsPractitionerSubscription, error)
+	Update(ctx context.Context, id int, req *RqUpdatePractitionerSubscription) (*RsPractitionerSubscription, error)
 	Delete(ctx context.Context, id int) error
 }
 
@@ -21,7 +21,7 @@ func NewService(repo Repository) Service {
 	return &service{repo: repo}
 }
 
-func (s *service) Create(ctx context.Context, tentantID int, req *RqCreateTentantSubscription) (*RsTentantSubscription, error) {
+func (s *service) Create(ctx context.Context, practitionerID int, req *RqCreatePractitionerSubscription) (*RsPractitionerSubscription, error) {
 	start, err := time.Parse(time.RFC3339, req.StartDate)
 	if err != nil {
 		return nil, err
@@ -34,8 +34,8 @@ func (s *service) Create(ctx context.Context, tentantID int, req *RqCreateTentan
 	if req.Status != nil {
 		status = *req.Status
 	}
-	sub := &TentantSubscription{
-		TentantID:      tentantID,
+	sub := &PractitionerSubscription{
+		PractitionerID: practitionerID,
 		SubscriptionID: req.SubscriptionID,
 		StartDate:      start,
 		EndDate:        end,
@@ -48,7 +48,7 @@ func (s *service) Create(ctx context.Context, tentantID int, req *RqCreateTentan
 	return created.ToRs(), nil
 }
 
-func (s *service) GetByID(ctx context.Context, id int) (*RsTentantSubscription, error) {
+func (s *service) GetByID(ctx context.Context, id int) (*RsPractitionerSubscription, error) {
 	sub, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -56,19 +56,19 @@ func (s *service) GetByID(ctx context.Context, id int) (*RsTentantSubscription, 
 	return sub.ToRs(), nil
 }
 
-func (s *service) ListByTentantID(ctx context.Context, tentantID int) ([]*RsTentantSubscription, error) {
-	list, err := s.repo.ListByTentantID(ctx, tentantID)
+func (s *service) ListByPractitionerID(ctx context.Context, practitionerID int) ([]*RsPractitionerSubscription, error) {
+	list, err := s.repo.ListByPractitionerID(ctx, practitionerID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*RsTentantSubscription, len(list))
+	out := make([]*RsPractitionerSubscription, len(list))
 	for i := range list {
 		out[i] = list[i].ToRs()
 	}
 	return out, nil
 }
 
-func (s *service) Update(ctx context.Context, id int, req *RqUpdateTentantSubscription) (*RsTentantSubscription, error) {
+func (s *service) Update(ctx context.Context, id int, req *RqUpdatePractitionerSubscription) (*RsPractitionerSubscription, error) {
 	existing, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err

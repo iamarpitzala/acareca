@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS tbl_practitioner (
 
 CREATE TABLE IF NOT EXISTS tbl_practitioner_setting   (
     id            SERIAL PRIMARY KEY,
-    tentant_id    INTEGER NOT NULL REFERENCES tbl_practitioner(id),
+    practitioner_id    INTEGER NOT NULL REFERENCES tbl_practitioner(id),
     timezone      VARCHAR(255) NOT NULL DEFAULT 'Australia/Sydney',
     logo          VARCHAR(255),
     color         VARCHAR(7) NOT NULL DEFAULT '#000000',

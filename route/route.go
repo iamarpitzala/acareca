@@ -11,7 +11,7 @@ import (
 	"github.com/iamarpitzala/acareca/internal/modules/engine/calculation"
 	"github.com/iamarpitzala/acareca/internal/modules/engine/method"
 	practitioner "github.com/iamarpitzala/acareca/internal/modules/practitioner/setting"
-	tentantSub "github.com/iamarpitzala/acareca/internal/modules/practitioner/subscription"
+	practitionerSub "github.com/iamarpitzala/acareca/internal/modules/practitioner/subscription"
 	"github.com/iamarpitzala/acareca/internal/shared/db"
 	"github.com/iamarpitzala/acareca/internal/shared/middleware"
 	"github.com/iamarpitzala/acareca/pkg/config"
@@ -26,15 +26,15 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	}
 	authRepo := auth.NewRepository(dbConn)
 	subscriptionRepo := subscription.NewRepository(dbConn)
-	tentantRepo := practitioner.NewRepository(dbConn)
-	tentantSubRepo := tentantSub.NewRepository(dbConn)
+	practitionerRepo := practitioner.NewRepository(dbConn)
+	practitionerSubRepo := practitionerSub.NewRepository(dbConn)
 
 	onUserCreated := func(ctx context.Context, userID string) error {
-		existing, err := tentantRepo.GetByUserID(ctx, userID)
+		existing, err := practitionerRepo.GetByUserID(ctx, userID)
 		if err == nil && existing != nil {
 			return nil
 		}
-		t, err := tentantRepo.Create(ctx, &practitioner.Practitioner{UserID: userID})
+		t, err := practitionerRepo.Create(ctx, &practitioner.Practitioner{UserID: userID})
 		if err != nil {
 			log.Printf("onboarding: create practitioner for user %s: %v", userID, err)
 			return err
@@ -46,12 +46,12 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 		}
 		start := time.Now()
 		end := start.AddDate(0, 0, trial.DurationDays)
-		_, err = tentantSubRepo.Create(ctx, &tentantSub.TentantSubscription{
-			TentantID:      t.ID,
+		_, err = practitionerSubRepo.Create(ctx, &practitionerSub.PractitionerSubscription{
+			PractitionerID: t.ID,
 			SubscriptionID: trial.ID,
 			StartDate:      start,
 			EndDate:        end,
-			Status:         tentantSub.StatusActive,
+			Status:         practitionerSub.StatusActive,
 		})
 		if err != nil {
 			log.Printf("onboarding: create trial subscription for practitioner %d: %v", t.ID, err)
@@ -83,11 +83,11 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	subscriptionHandler := subscription.NewHandler(subscriptionSvc)
 	subscription.RegisterRoutes(subscriptionGroup, subscriptionHandler)
 
-	tentantSvc := practitioner.NewService(tentantRepo)
-	tentantHandler := practitioner.NewHandler(tentantSvc)
-	tentantGroup := v1.Group("/practitioner")
-	practitioner.RegisterRoutes(tentantGroup, tentantHandler)
-	tentantSubSvc := tentantSub.NewService(tentantSubRepo)
-	tentantSubHandler := tentantSub.NewHandler(tentantSubSvc)
-	tentantSub.RegisterRoutes(tentantGroup.Group("/:id/subscription"), tentantSubHandler)
+	practitionerSvc := practitioner.NewService(practitionerRepo)
+	practitionerHandler := practitioner.NewHandler(practitionerSvc)
+	practitionerGroup := v1.Group("/practitioner")
+	practitioner.RegisterRoutes(practitionerGroup, practitionerHandler)
+	practitionerSubSvc := practitionerSub.NewService(practitionerSubRepo)
+	practitionerSubHandler := practitionerSub.NewHandler(practitionerSubSvc)
+	practitionerSub.RegisterRoutes(practitionerGroup.Group("/:id/subscription"), practitionerSubHandler)
 }

@@ -4,7 +4,7 @@
 CREATE TYPE practitioner_subscription_status AS ENUM ('active', 'past_due', 'cancelled', 'paused', 'expired');
 CREATE TABLE IF NOT EXISTS tbl_practitioner_subscription (
     id            SERIAL PRIMARY KEY,
-    tentant_id    INTEGER NOT NULL REFERENCES tbl_practitioner(id),
+    practitioner_id    INTEGER NOT NULL REFERENCES tbl_practitioner(id),
     subscription_id INTEGER NOT NULL,
     start_date    TIMESTAMPTZ NOT NULL,
     end_date      TIMESTAMPTZ NOT NULL,
