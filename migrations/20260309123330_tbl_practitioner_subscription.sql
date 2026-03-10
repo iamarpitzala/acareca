@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS tbl_practitioner_subscription (
     deleted_at TIMESTAMPTZ
 );
 
+
 -- +goose StatementEnd
 
 -- +goose Down
