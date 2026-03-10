@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
@@ -13,7 +14,7 @@ import (
 type IHandler interface {
 	Create(c *gin.Context)
 	GetByID(c *gin.Context)
-	ListByTentantID(c *gin.Context)
+	ListByPractitionerID(c *gin.Context)
 	Update(c *gin.Context)
 	Delete(c *gin.Context)
 }
@@ -26,19 +27,19 @@ func NewHandler(svc Service) IHandler {
 	return &handler{svc: svc}
 }
 
-// tentantIDFromCtx is set by routes when mounting under /tentants/:id/subscriptions
-const tentantIDKey = "tentant_id"
+// practitionerIDFromCtx is set by routes when mounting under /practitioner/:id/subscription
+const practitionerIDKey = "practitioner_id"
 
-func getTentantID(c *gin.Context) (int, bool) {
-	idStr, exists := c.Get(tentantIDKey)
+func getPractitionerID(c *gin.Context) (uuid.UUID, bool) {
+	idVal, exists := c.Get(practitionerIDKey)
 	if !exists {
 		response.Error(c, http.StatusBadRequest, errors.New("practitioner id not in context"))
-		return 0, false
+		return uuid.Nil, false
 	}
-	id, ok := idStr.(int)
+	id, ok := idVal.(uuid.UUID)
 	if !ok {
 		response.Error(c, http.StatusInternalServerError, errors.New("invalid practitioner id type"))
-		return 0, false
+		return uuid.Nil, false
 	}
 	return id, true
 }
@@ -53,16 +54,16 @@ func parseID(c *gin.Context, param string) (int, bool) {
 }
 
 func (h *handler) Create(c *gin.Context) {
-	tentantID, ok := getTentantID(c)
+	practitionerID, ok := getPractitionerID(c)
 	if !ok {
 		return
 	}
-	var req RqCreateTentantSubscription
+	var req RqCreatePractitionerSubscription
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	created, err := h.svc.Create(c.Request.Context(), tentantID, &req)
+	created, err := h.svc.Create(c.Request.Context(), practitionerID, &req)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
@@ -87,12 +88,12 @@ func (h *handler) GetByID(c *gin.Context) {
 	response.JSON(c, http.StatusOK, sub)
 }
 
-func (h *handler) ListByTentantID(c *gin.Context) {
-	tentantID, ok := getTentantID(c)
+func (h *handler) ListByPractitionerID(c *gin.Context) {
+	practitionerID, ok := getPractitionerID(c)
 	if !ok {
 		return
 	}
-	list, err := h.svc.ListByTentantID(c.Request.Context(), tentantID)
+	list, err := h.svc.ListByPractitionerID(c.Request.Context(), practitionerID)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
@@ -105,7 +106,7 @@ func (h *handler) Update(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var req RqUpdateTentantSubscription
+	var req RqUpdatePractitionerSubscription
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
