@@ -1,9 +1,9 @@
 -- +goose Up
 -- +goose StatementBegin
 
-CREATE TYPE form_status AS ENUM ('draft', 'published', 'archived');
+CREATE TYPE form_status AS ENUM ('DRAFT', 'PUBLISHED', 'ARCHIVED');
 
-CREATE TYPE calculation_method AS ENUM('independent_contractor', 'service_and_facility');
+CREATE TYPE calculation_method AS ENUM('INDEPENDENT_CONTRACTOR', 'SERVICE_FEE');
 
 CREATE TABLE IF NOT EXISTS tbl_form(
     id UUID PRIMARY KEY NOT NULL UNIQUE DEFAULT uuid_generate_v4(),
