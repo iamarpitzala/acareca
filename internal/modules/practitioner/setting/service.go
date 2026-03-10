@@ -79,8 +79,8 @@ func applyUpdate(t *Practitioner, req *RqUpdatePractitioner) {
 	if req.ABN != nil {
 		t.ABN = req.ABN
 	}
-	if req.Verifed != nil {
-		t.Verifed = *req.Verifed
+	if req.verified != nil {
+		t.verified = *req.verified
 	}
 	t.UpdatedAt = time.Now()
 }

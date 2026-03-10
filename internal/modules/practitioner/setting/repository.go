@@ -34,14 +34,14 @@ func NewRepository(db *sqlx.DB) Repository {
 
 func (r *repository) Create(ctx context.Context, t *Practitioner) (*Practitioner, error) {
 	query := `
-		INSERT INTO tbl_practitioner (user_id, abn, verifed, created_at, updated_at)
+		INSERT INTO tbl_practitioner (user_id, abn, verified, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, user_id, abn, verifed, created_at, updated_at, deleted_at
+		RETURNING id, user_id, abn, verified, created_at, updated_at, deleted_at
 	`
 	now := time.Now()
 	var out Practitioner
 	if err := r.db.QueryRowxContext(ctx, query,
-		t.UserID, t.ABN, t.Verifed, now, now,
+		t.UserID, t.ABN, t.verified, now, now,
 	).StructScan(&out); err != nil {
 		return nil, fmt.Errorf("create practitioner: %w", err)
 	}
@@ -50,7 +50,7 @@ func (r *repository) Create(ctx context.Context, t *Practitioner) (*Practitioner
 
 func (r *repository) GetByID(ctx context.Context, id int) (*Practitioner, error) {
 	query := `
-		SELECT id, user_id, abn, verifed, created_at, updated_at, deleted_at
+		SELECT id, user_id, abn, verified, created_at, updated_at, deleted_at
 		FROM tbl_practitioner
 		WHERE id = $1 AND deleted_at IS NULL
 	`
@@ -66,7 +66,7 @@ func (r *repository) GetByID(ctx context.Context, id int) (*Practitioner, error)
 
 func (r *repository) GetByUserID(ctx context.Context, userID string) (*Practitioner, error) {
 	query := `
-		SELECT id, user_id, abn, verifed, created_at, updated_at, deleted_at
+		SELECT id, user_id, abn, verified, created_at, updated_at, deleted_at
 		FROM tbl_practitioner
 		WHERE user_id = $1 AND deleted_at IS NULL
 	`
@@ -82,7 +82,7 @@ func (r *repository) GetByUserID(ctx context.Context, userID string) (*Practitio
 
 func (r *repository) List(ctx context.Context) ([]*Practitioner, error) {
 	query := `
-		SELECT id, user_id, abn, verifed, created_at, updated_at, deleted_at
+		SELECT id, user_id, abn, verified, created_at, updated_at, deleted_at
 		FROM tbl_practitioner
 		WHERE deleted_at IS NULL
 		ORDER BY id
@@ -97,12 +97,12 @@ func (r *repository) List(ctx context.Context) ([]*Practitioner, error) {
 func (r *repository) Update(ctx context.Context, t *Practitioner) (*Practitioner, error) {
 	query := `
 		UPDATE tbl_practitioner
-		SET abn = $2, verifed = $3, updated_at = $4
+		SET abn = $2, verified = $3, updated_at = $4
 		WHERE id = $1 AND deleted_at IS NULL
-		RETURNING id, user_id, abn, verifed, created_at, updated_at, deleted_at
+		RETURNING id, user_id, abn, verified, created_at, updated_at, deleted_at
 	`
 	var out Practitioner
-	if err := r.db.QueryRowxContext(ctx, query, t.ID, t.ABN, t.Verifed, t.UpdatedAt).StructScan(&out); err != nil {
+	if err := r.db.QueryRowxContext(ctx, query, t.ID, t.ABN, t.verified, t.UpdatedAt).StructScan(&out); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}

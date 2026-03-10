@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS tbl_practitioner (
     id            SERIAL PRIMARY KEY,
     user_id       VARCHAR(40) NOT NULL,
     abn           VARCHAR(20),
-    verifed       BOOLEAN NOT NULL DEFAULT FALSE,
+    verified       BOOLEAN NOT NULL DEFAULT FALSE,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at    TIMESTAMPTZ

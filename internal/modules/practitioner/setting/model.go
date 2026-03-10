@@ -7,7 +7,7 @@ type Practitioner struct {
 	ID        int        `db:"id"`
 	UserID    string     `db:"user_id"`
 	ABN       *string    `db:"abn"`
-	Verifed   bool       `db:"verifed"`
+	verified  bool       `db:"verified"`
 	CreatedAt time.Time  `db:"created_at"`
 	UpdatedAt time.Time  `db:"updated_at"`
 	DeletedAt *time.Time `db:"deleted_at"`
@@ -27,27 +27,27 @@ type PractitionerSetting struct {
 
 // RqCreatePractitioner request to create a practitioner.
 type RqCreatePractitioner struct {
-	UserID  string  `json:"user_id" validate:"required"`
-	ABN     *string `json:"abn" validate:"omitempty,max=20"`
-	Verifed *bool   `json:"verifed"`
+	UserID   string  `json:"user_id" validate:"required"`
+	ABN      *string `json:"abn" validate:"omitempty,max=20"`
+	verified *bool   `json:"verified"`
 }
 
 func (r *RqCreatePractitioner) ToPractitioner() *Practitioner {
 	verified := false
-	if r.Verifed != nil {
-		verified = *r.Verifed
+	if r.verified != nil {
+		verified = *r.verified
 	}
 	return &Practitioner{
-		UserID:  r.UserID,
-		ABN:     r.ABN,
-		Verifed: verified,
+		UserID:   r.UserID,
+		ABN:      r.ABN,
+		verified: verified,
 	}
 }
 
 // RqUpdatePractitioner request to update a practitioner.
 type RqUpdatePractitioner struct {
-	ABN     *string `json:"abn" validate:"omitempty,max=20"`
-	Verifed *bool   `json:"verifed"`
+	ABN      *string `json:"abn" validate:"omitempty,max=20"`
+	verified *bool   `json:"verified"`
 }
 
 // RqUpsertPractitionerSetting request to create or update practitioner settings.
@@ -62,7 +62,7 @@ type RsPractitioner struct {
 	ID        int       `json:"id"`
 	UserID    string    `json:"user_id"`
 	ABN       *string   `json:"abn,omitempty"`
-	Verifed   bool      `json:"verifed"`
+	verified  bool      `json:"verified"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -72,7 +72,7 @@ func (t *Practitioner) ToRs() *RsPractitioner {
 		ID:        t.ID,
 		UserID:    t.UserID,
 		ABN:       t.ABN,
-		Verifed:   t.Verifed,
+		verified:  t.verified,
 		CreatedAt: t.CreatedAt,
 		UpdatedAt: t.UpdatedAt,
 	}
