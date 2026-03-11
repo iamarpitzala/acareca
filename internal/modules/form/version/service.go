@@ -10,6 +10,7 @@ import (
 type IService interface {
 	Create(ctx context.Context, formID, clinicID uuid.UUID, req *RqFormVersion, userID uuid.UUID) (*RsFormVersion, error)
 	Get(ctx context.Context, id, clinicID uuid.UUID) (*RsFormVersion, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*RsFormVersion, error)
 	Update(ctx context.Context, id, clinicID uuid.UUID, req *RqUpdateFormVersion) (*RsFormVersion, error)
 	Delete(ctx context.Context, id, clinicID uuid.UUID) error
 	List(ctx context.Context, formID, clinicID uuid.UUID) ([]*RsFormVersion, error)
@@ -53,6 +54,15 @@ func (s *service) Get(ctx context.Context, id, clinicID uuid.UUID) (*RsFormVersi
 	}
 	if clinic.ID != clinicID {
 		return nil, ErrForbidden
+	}
+	return v.ToRs(), nil
+}
+
+// GetByID returns the version by ID without clinic check. Used when resolving form from version (e.g. form status check).
+func (s *service) GetByID(ctx context.Context, id uuid.UUID) (*RsFormVersion, error) {
+	v, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return nil, err
 	}
 	return v.ToRs(), nil
 }

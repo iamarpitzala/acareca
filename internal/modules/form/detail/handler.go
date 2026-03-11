@@ -1,6 +1,7 @@
 package detail
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -72,7 +73,7 @@ func (h *handler) GetForm(c *gin.Context) {
 
 	form, err := h.svc.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
 		}
@@ -116,6 +117,14 @@ func (h *handler) UpdateForm(c *gin.Context) {
 	req.ID = id
 	updated, err := h.svc.Update(c.Request.Context(), &req, practitionerID)
 	if err != nil {
+		if errors.Is(err, ErrFormArchived) || errors.Is(err, ErrFormPublishedRestricted) {
+			response.Error(c, http.StatusConflict, err)
+			return
+		}
+		if errors.Is(err, ErrNotFound) {
+			response.Error(c, http.StatusNotFound, err)
+			return
+		}
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}

@@ -47,6 +47,10 @@ func (h *handler) Create(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, err)
 			return
 		}
+		if errors.Is(err, ErrFormNotDraft) || errors.Is(err, ErrFormArchived) || errors.Is(err, ErrFormPublishedRestricted) {
+			response.Error(c, http.StatusConflict, err)
+			return
+		}
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
@@ -93,6 +97,10 @@ func (h *handler) Update(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, err)
 			return
 		}
+		if errors.Is(err, ErrFormNotDraft) || errors.Is(err, ErrFormArchived) || errors.Is(err, ErrFormPublishedRestricted) {
+			response.Error(c, http.StatusConflict, err)
+			return
+		}
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
@@ -110,7 +118,7 @@ func (h *handler) Delete(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, err)
 			return
 		}
-		if errors.Is(err, ErrFieldHasSubmittedEntries) {
+		if errors.Is(err, ErrFieldHasSubmittedEntries) || errors.Is(err, ErrFormNotDraft) || errors.Is(err, ErrFormArchived) || errors.Is(err, ErrFormPublishedRestricted) {
 			response.Error(c, http.StatusConflict, err)
 			return
 		}
@@ -159,7 +167,7 @@ func (h *handler) Sync(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, err)
 			return
 		}
-		if errors.Is(err, ErrFieldHasSubmittedEntries) {
+		if errors.Is(err, ErrFieldHasSubmittedEntries) || errors.Is(err, ErrFormNotDraft) || errors.Is(err, ErrFormArchived) || errors.Is(err, ErrFormPublishedRestricted) {
 			response.Error(c, http.StatusConflict, err)
 			return
 		}

@@ -98,7 +98,7 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 
 	formEntryRepo := formentry.NewRepository(dbConn)
 	formFieldRepo := formfield.NewRepository(dbConn)
-	formFieldSvc := formfield.NewService(formFieldRepo, coaSvc, clinicSvc, practitionerSvc, formEntryRepo)
+	formFieldSvc := formfield.NewService(formFieldRepo, coaSvc, clinicSvc, practitionerSvc, formEntryRepo, formVersionSvc, formDetailSvc)
 	formFieldHandler := formfield.NewHandler(formFieldSvc)
 	formfield.RegisterRoutes(formIdGroup.Group("/field"), formFieldHandler)
 

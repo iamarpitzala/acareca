@@ -8,7 +8,9 @@ import (
 	"github.com/iamarpitzala/acareca/internal/modules/business/clinic"
 	"github.com/iamarpitzala/acareca/internal/modules/business/coa"
 	"github.com/iamarpitzala/acareca/internal/modules/business/practitioner"
+	"github.com/iamarpitzala/acareca/internal/modules/form/detail"
 	"github.com/iamarpitzala/acareca/internal/modules/form/entry"
+	"github.com/iamarpitzala/acareca/internal/modules/form/version"
 )
 
 type IService interface {
@@ -23,6 +25,9 @@ type IService interface {
 var ErrCoaNotFound = errors.New("chart of account not found or does not belong to this practice")
 var ErrFieldWrongVersion = errors.New("field does not belong to this form version")
 var ErrFieldHasSubmittedEntries = errors.New("cannot delete field: it has submitted entry values")
+var ErrFormNotDraft = errors.New("only forms in DRAFT status can be edited; publish or archive prevents field changes")
+var ErrFormArchived = errors.New("form is archived and cannot be edited")
+var ErrFormPublishedRestricted = errors.New("published form allows only name and description updates")
 
 type Service struct {
 	repo            IRepository
@@ -30,21 +35,45 @@ type Service struct {
 	clinicSvc       clinic.Service
 	practitionerSvc practitioner.IService
 	entryRepo       entry.IRepository
+	versionSvc      version.IService
+	detailSvc       detail.IService
 }
 
-func NewService(repo IRepository, coaSvc coa.Service, clinicSvc clinic.Service, practitionerSvc practitioner.IService, entryRepo entry.IRepository) IService {
+func NewService(repo IRepository, coaSvc coa.Service, clinicSvc clinic.Service, practitionerSvc practitioner.IService, entryRepo entry.IRepository, versionSvc version.IService, detailSvc detail.IService) IService {
 	return &Service{
 		repo:            repo,
 		coaSvc:          coaSvc,
 		clinicSvc:       clinicSvc,
 		practitionerSvc: practitionerSvc,
 		entryRepo:       entryRepo,
+		versionSvc:      versionSvc,
+		detailSvc:       detailSvc,
 	}
+}
+
+func (s *Service) formStatusByVersionID(ctx context.Context, versionID uuid.UUID) (string, error) {
+	v, err := s.versionSvc.GetByID(ctx, versionID)
+	if err != nil {
+		return "", err
+	}
+	form, err := s.detailSvc.GetByID(ctx, v.FormId)
+	if err != nil {
+		return "", err
+	}
+	return form.Status, nil
 }
 
 // Create implements [IService].
 func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, practitionerID uuid.UUID, req *RqFormField) (*RsFormField, error) {
-
+	if s.detailSvc != nil && s.versionSvc != nil {
+		status, err := s.formStatusByVersionID(ctx, formVersionID)
+		if err != nil {
+			return nil, err
+		}
+		if status != detail.StatusDraft {
+			return nil, ErrFormNotDraft
+		}
+	}
 	coaID, err := uuid.Parse(req.CoaID)
 	if err != nil {
 		return nil, err
@@ -77,7 +106,24 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, req *RqUpdateFormFie
 	if err != nil {
 		return nil, err
 	}
-	clinic, err := s.clinicSvc.GetClinicByID(ctx, existing.FormVersionID)
+	if s.detailSvc != nil && s.versionSvc != nil {
+		status, err := s.formStatusByVersionID(ctx, existing.FormVersionID)
+		if err != nil {
+			return nil, err
+		}
+		if status != detail.StatusDraft {
+			return nil, ErrFormNotDraft
+		}
+	}
+	v, err := s.versionSvc.GetByID(ctx, existing.FormVersionID)
+	if err != nil {
+		return nil, err
+	}
+	form, err := s.detailSvc.GetByID(ctx, v.FormId)
+	if err != nil {
+		return nil, err
+	}
+	clinic, err := s.clinicSvc.GetClinicByID(ctx, form.ClinicID)
 	if err != nil {
 		return nil, err
 	}
@@ -117,8 +163,21 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, req *RqUpdateFormFie
 	return updated.ToRs(), nil
 }
 
-// Delete implements [IService]. Rejects delete if the field has SUBMITTED entry values.
+// Delete implements [IService]. Rejects delete if form is not DRAFT or if the field has SUBMITTED entry values.
 func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
+	existing, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if s.detailSvc != nil && s.versionSvc != nil {
+		status, err := s.formStatusByVersionID(ctx, existing.FormVersionID)
+		if err != nil {
+			return err
+		}
+		if status != detail.StatusDraft {
+			return ErrFormNotDraft
+		}
+	}
 	if s.entryRepo != nil {
 		has, err := s.entryRepo.HasSubmittedEntryValuesForField(ctx, id)
 		if err != nil {
@@ -146,6 +205,15 @@ func (s *Service) ListByFormVersionID(ctx context.Context, formVersionID uuid.UU
 
 // BulkSyncFields implements [IService]. Runs delete → update → create in one transaction (repo uses util.RunInTransaction).
 func (s *Service) BulkSyncFields(ctx context.Context, formVersionID uuid.UUID, practitionerID uuid.UUID, req *RqBulkSyncFields) (*RsBulkSyncFields, error) {
+	if s.detailSvc != nil && s.versionSvc != nil {
+		status, err := s.formStatusByVersionID(ctx, formVersionID)
+		if err != nil {
+			return nil, err
+		}
+		if status != detail.StatusDraft {
+			return nil, ErrFormNotDraft
+		}
+	}
 	out := &RsBulkSyncFields{
 		Created: make([]RsFormField, 0, len(req.Create)),
 		Updated: make([]RsFormField, 0, len(req.Update)),

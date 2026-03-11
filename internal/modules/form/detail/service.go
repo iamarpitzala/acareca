@@ -2,10 +2,14 @@ package detail
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/iamarpitzala/acareca/internal/modules/form/version"
 )
+
+var ErrFormArchived = errors.New("form is archived and cannot be updated")
+var ErrFormPublishedRestricted = errors.New("published form allows only name and description updates")
 
 type IService interface {
 	Create(ctx context.Context, d *RqFormDetail, clinicID uuid.UUID, practitionerID uuid.UUID) (*RsFormDetail, error)
@@ -58,11 +62,19 @@ func (s *Service) ListForm(ctx context.Context, filter Filter) ([]*RsFormDetail,
 	return rs, nil
 }
 
-// Update implements [IService].
 func (s *Service) Update(ctx context.Context, d *RqUpdateFormDetail, practitionerID uuid.UUID) (*RsFormDetail, error) {
 	existing, err := s.repo.GetByID(ctx, d.ID)
 	if err != nil {
 		return nil, err
+	}
+
+	if existing.Status == StatusArchived {
+		return nil, ErrFormArchived
+	}
+	if existing.Status == StatusPublished {
+		if d.Status != nil || d.Method != nil || d.OwnerShare != nil || d.ClinicShare != nil {
+			return nil, ErrFormPublishedRestricted
+		}
 	}
 
 	if d.Name != nil {
@@ -71,17 +83,19 @@ func (s *Service) Update(ctx context.Context, d *RqUpdateFormDetail, practitione
 	if d.Description != nil {
 		existing.Description = d.Description
 	}
-	if d.Status != nil {
-		existing.Status = *d.Status
-	}
-	if d.Method != nil {
-		existing.Method = *d.Method
-	}
-	if d.OwnerShare != nil {
-		existing.OwnerShare = *d.OwnerShare
-	}
-	if d.ClinicShare != nil {
-		existing.ClinicShare = *d.ClinicShare
+	if existing.Status != StatusPublished {
+		if d.Status != nil {
+			existing.Status = *d.Status
+		}
+		if d.Method != nil {
+			existing.Method = *d.Method
+		}
+		if d.OwnerShare != nil {
+			existing.OwnerShare = *d.OwnerShare
+		}
+		if d.ClinicShare != nil {
+			existing.ClinicShare = *d.ClinicShare
+		}
 	}
 
 	updated, err := s.repo.Update(ctx, existing)

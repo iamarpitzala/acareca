@@ -4,6 +4,12 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	StatusDraft     = "DRAFT"
+	StatusPublished = "PUBLISHED"
+	StatusArchived  = "ARCHIVED"
+)
+
 type RqFormDetail struct {
 	Name        string  `json:"name" validate:"required"`
 	Description *string `json:"description" validate:"omitempty"`
