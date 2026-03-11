@@ -80,7 +80,7 @@ func (c *ChartOfAccount) ToRs() RsChartOfAccount {
 	}
 }
 
-type RqCreateChartOfAccount struct {
+type RqCreateChartOfAccountOfAccount struct {
 	Practice_id   string `json:"practice_id" validate:"omitempty,uuid"` // optional; use path practice_idId when present
 	AccountTypeID int16  `json:"account_type_id" validate:"required,min=1"`
 	AccountTaxID  int16  `json:"account_tax_id" validate:"required,min=1"`
@@ -89,7 +89,7 @@ type RqCreateChartOfAccount struct {
 	IsSystem      *bool  `json:"is_system"`
 }
 
-type RqUpdateChartOfAccount struct {
+type RqUpdateCharOfAccountOfAccount struct {
 	AccountTypeID *int16  `json:"account_type_id" validate:"omitempty,min=1"`
 	AccountTaxID  *int16  `json:"account_tax_id" validate:"omitempty,min=1"`
 	Code          *int16  `json:"code" validate:"omitempty,gte=100,lte=9999"`
