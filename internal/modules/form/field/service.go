@@ -2,8 +2,11 @@ package field
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/modules/business/clinic"
+	"github.com/iamarpitzala/acareca/internal/modules/business/coa"
 )
 
 type IService interface {
@@ -14,16 +17,43 @@ type IService interface {
 	ListByFormVersionID(ctx context.Context, formVersionID uuid.UUID) ([]*RsFormField, error)
 }
 
+var ErrCoaNotFound = errors.New("chart of account not found or does not belong to this practice")
+
 type Service struct {
-	repo IRepository
+	repo      IRepository
+	coaSvc    coa.Service
+	clinicSvc clinic.Service
 }
 
-func NewService(repo IRepository) IService {
-	return &Service{repo: repo}
+func NewService(repo IRepository, coaSvc coa.Service, clinicSvc clinic.Service) IService {
+	return &Service{
+		repo:      repo,
+		coaSvc:    coaSvc,
+		clinicSvc: clinicSvc,
+	}
 }
 
 // Create implements [IService].
 func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, req *RqFormField) (*RsFormField, error) {
+	clinic, err := s.clinicSvc.GetClinicByID(ctx, formVersionID)
+	if err != nil {
+		return nil, err
+	}
+
+	coaID, err := uuid.Parse(req.CoaID)
+	if err != nil {
+		return nil, err
+	}
+	clinicID, err := uuid.Parse(clinic.PracticeID)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.coaSvc.GetChartByIDAndpractice_id(ctx, coaID, clinicID); err != nil {
+		if errors.Is(err, coa.ErrNotFound) {
+			return nil, ErrCoaNotFound
+		}
+		return nil, err
+	}
 	f := req.ToDB(formVersionID)
 	if err := s.repo.Create(ctx, f); err != nil {
 		return nil, err
@@ -46,6 +76,27 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, req *RqUpdateFormFie
 	if err != nil {
 		return nil, err
 	}
+	clinic, err := s.clinicSvc.GetClinicByID(ctx, existing.FormVersionID)
+	if err != nil {
+		return nil, err
+	}
+	if req.CoaID != nil {
+		coaID, err := uuid.Parse(*req.CoaID)
+		if err != nil {
+			return nil, err
+		}
+		clinicID, err := uuid.Parse(clinic.PracticeID)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := s.coaSvc.GetChartByIDAndpractice_id(ctx, coaID, clinicID); err != nil {
+			if errors.Is(err, coa.ErrNotFound) {
+				return nil, ErrCoaNotFound
+			}
+			return nil, err
+		}
+		existing.CoaID = coaID
+	}
 	if req.Label != nil {
 		existing.Label = *req.Label
 	}
@@ -57,10 +108,6 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, req *RqUpdateFormFie
 	}
 	if req.TaxType != nil {
 		existing.TaxType = *req.TaxType
-	}
-	if req.CoaID != nil {
-		coaID, _ := uuid.Parse(*req.CoaID)
-		existing.CoaID = coaID
 	}
 	updated, err := s.repo.Update(ctx, existing)
 	if err != nil {

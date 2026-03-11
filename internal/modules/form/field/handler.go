@@ -1,6 +1,7 @@
 package field
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -37,6 +38,10 @@ func (h *handler) Create(c *gin.Context) {
 	}
 	created, err := h.svc.Create(c.Request.Context(), versionID, &req)
 	if err != nil {
+		if errors.Is(err, ErrCoaNotFound) {
+			response.Error(c, http.StatusBadRequest, err)
+			return
+		}
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
@@ -77,6 +82,10 @@ func (h *handler) Update(c *gin.Context) {
 	if err != nil {
 		if err == ErrNotFound {
 			response.Error(c, http.StatusNotFound, err)
+			return
+		}
+		if errors.Is(err, ErrCoaNotFound) {
+			response.Error(c, http.StatusBadRequest, err)
 			return
 		}
 		response.Error(c, http.StatusInternalServerError, err)
