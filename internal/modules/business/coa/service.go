@@ -8,15 +8,15 @@ import (
 
 type Service interface {
 	ListAccountTypes(ctx context.Context) ([]AccountType, error)
-	GetAccountTypeByID(ctx context.Context, id int16) (*AccountType, error)
+	GetAccountType(ctx context.Context, id int16) (*AccountType, error)
 	ListAccountTaxes(ctx context.Context) ([]AccountTax, error)
-	GetAccountTaxByID(ctx context.Context, id int16) (*AccountTax, error)
+	GetAccountTax(ctx context.Context, id int16) (*AccountTax, error)
 
-	ListChartsBypractice_id(ctx context.Context, practice_id uuid.UUID) ([]RsChartOfAccount, error)
-	GetChartByIDAndpractice_id(ctx context.Context, id uuid.UUID, practice_id uuid.UUID) (*RsChartOfAccount, error)
-	CreateChart(ctx context.Context, practice_id uuid.UUID, req *RqCreateChartOfAccount) (*RsChartOfAccount, error)
-	UpdateChart(ctx context.Context, id uuid.UUID, practice_id uuid.UUID, req *RqUpdateChartOfAccount) (*RsChartOfAccount, error)
-	DeleteChart(ctx context.Context, id uuid.UUID, practice_id uuid.UUID) error
+	ListChartOfAccount(ctx context.Context, practice_id uuid.UUID) ([]RsChartOfAccount, error)
+	GetChartOfAccount(ctx context.Context, id uuid.UUID, practice_id uuid.UUID) (*RsChartOfAccount, error)
+	CreateChartOfAccount(ctx context.Context, practice_id uuid.UUID, req *RqCreateChartOfAccountOfAccount) (*RsChartOfAccount, error)
+	UpdateCharOfAccount(ctx context.Context, id uuid.UUID, practice_id uuid.UUID, req *RqUpdateCharOfAccountOfAccount) (*RsChartOfAccount, error)
+	DeleteChartOfAccount(ctx context.Context, id uuid.UUID, practice_id uuid.UUID) error
 }
 
 type service struct {
@@ -39,8 +39,8 @@ func (s *service) ListAccountTypes(ctx context.Context) ([]AccountType, error) {
 	return out, nil
 }
 
-func (s *service) GetAccountTypeByID(ctx context.Context, id int16) (*AccountType, error) {
-	a, err := s.repo.GetAccountTypeByID(ctx, id)
+func (s *service) GetAccountType(ctx context.Context, id int16) (*AccountType, error) {
+	a, err := s.repo.GetAccountType(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -60,8 +60,8 @@ func (s *service) ListAccountTaxes(ctx context.Context) ([]AccountTax, error) {
 	return out, nil
 }
 
-func (s *service) GetAccountTaxByID(ctx context.Context, id int16) (*AccountTax, error) {
-	a, err := s.repo.GetAccountTaxByID(ctx, id)
+func (s *service) GetAccountTax(ctx context.Context, id int16) (*AccountTax, error) {
+	a, err := s.repo.GetAccountTax(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -69,8 +69,8 @@ func (s *service) GetAccountTaxByID(ctx context.Context, id int16) (*AccountTax,
 	return &rs, nil
 }
 
-func (s *service) ListChartsBypractice_id(ctx context.Context, practice_id uuid.UUID) ([]RsChartOfAccount, error) {
-	list, err := s.repo.ListChartsBypractice_id(ctx, practice_id)
+func (s *service) ListChartOfAccount(ctx context.Context, practice_id uuid.UUID) ([]RsChartOfAccount, error) {
+	list, err := s.repo.ListChartOfAccount(ctx, practice_id)
 	if err != nil {
 		return nil, err
 	}
@@ -81,8 +81,8 @@ func (s *service) ListChartsBypractice_id(ctx context.Context, practice_id uuid.
 	return out, nil
 }
 
-func (s *service) GetChartByIDAndpractice_id(ctx context.Context, id uuid.UUID, practice_id uuid.UUID) (*RsChartOfAccount, error) {
-	c, err := s.repo.GetChartByIDAndpractice_id(ctx, id, practice_id)
+func (s *service) GetChartOfAccount(ctx context.Context, id uuid.UUID, practice_id uuid.UUID) (*RsChartOfAccount, error) {
+	c, err := s.repo.GetChartOfAccount(ctx, id, practice_id)
 	if err != nil {
 		return nil, err
 	}
@@ -90,16 +90,16 @@ func (s *service) GetChartByIDAndpractice_id(ctx context.Context, id uuid.UUID, 
 	return &rs, nil
 }
 
-func (s *service) CreateChart(ctx context.Context, practice_id uuid.UUID, req *RqCreateChartOfAccount) (*RsChartOfAccount, error) {
+func (s *service) CreateChartOfAccount(ctx context.Context, practice_id uuid.UUID, req *RqCreateChartOfAccountOfAccount) (*RsChartOfAccount, error) {
 	// (code, practice_id) must be unique per user
 	existing, _ := s.repo.GetChartByCodeAndpractice_id(ctx, req.Code, practice_id, nil)
 	if existing != nil {
 		return nil, ErrCodeExists
 	}
-	if _, err := s.repo.GetAccountTypeByID(ctx, req.AccountTypeID); err != nil {
+	if _, err := s.repo.GetAccountType(ctx, req.AccountTypeID); err != nil {
 		return nil, err
 	}
-	if _, err := s.repo.GetAccountTaxByID(ctx, req.AccountTaxID); err != nil {
+	if _, err := s.repo.GetAccountTax(ctx, req.AccountTaxID); err != nil {
 		return nil, err
 	}
 	isSystem := false
@@ -114,7 +114,7 @@ func (s *service) CreateChart(ctx context.Context, practice_id uuid.UUID, req *R
 		Name:          req.Name,
 		IsSystem:      isSystem,
 	}
-	created, err := s.repo.CreateChart(ctx, chart)
+	created, err := s.repo.CreateChartOfAccount(ctx, chart)
 	if err != nil {
 		return nil, err
 	}
@@ -122,8 +122,8 @@ func (s *service) CreateChart(ctx context.Context, practice_id uuid.UUID, req *R
 	return &rs, nil
 }
 
-func (s *service) UpdateChart(ctx context.Context, id uuid.UUID, practice_id uuid.UUID, req *RqUpdateChartOfAccount) (*RsChartOfAccount, error) {
-	existing, err := s.repo.GetChartByIDAndpractice_id(ctx, id, practice_id)
+func (s *service) UpdateCharOfAccount(ctx context.Context, id uuid.UUID, practice_id uuid.UUID, req *RqUpdateCharOfAccountOfAccount) (*RsChartOfAccount, error) {
+	existing, err := s.repo.GetChartOfAccount(ctx, id, practice_id)
 	if err != nil {
 		return nil, err
 	}
@@ -137,13 +137,13 @@ func (s *service) UpdateChart(ctx context.Context, id uuid.UUID, practice_id uui
 		}
 	}
 	if req.AccountTypeID != nil {
-		if _, err := s.repo.GetAccountTypeByID(ctx, *req.AccountTypeID); err != nil {
+		if _, err := s.repo.GetAccountType(ctx, *req.AccountTypeID); err != nil {
 			return nil, err
 		}
 		existing.AccountTypeID = *req.AccountTypeID
 	}
 	if req.AccountTaxID != nil {
-		if _, err := s.repo.GetAccountTaxByID(ctx, *req.AccountTaxID); err != nil {
+		if _, err := s.repo.GetAccountTax(ctx, *req.AccountTaxID); err != nil {
 			return nil, err
 		}
 		existing.AccountTaxID = *req.AccountTaxID
@@ -154,7 +154,7 @@ func (s *service) UpdateChart(ctx context.Context, id uuid.UUID, practice_id uui
 	if req.Name != nil {
 		existing.Name = *req.Name
 	}
-	updated, err := s.repo.UpdateChart(ctx, existing)
+	updated, err := s.repo.UpdateCharOfAccount(ctx, existing)
 	if err != nil {
 		return nil, err
 	}
@@ -162,13 +162,13 @@ func (s *service) UpdateChart(ctx context.Context, id uuid.UUID, practice_id uui
 	return &rs, nil
 }
 
-func (s *service) DeleteChart(ctx context.Context, id uuid.UUID, practice_id uuid.UUID) error {
-	existing, err := s.repo.GetChartByIDAndpractice_id(ctx, id, practice_id)
+func (s *service) DeleteChartOfAccount(ctx context.Context, id uuid.UUID, practice_id uuid.UUID) error {
+	existing, err := s.repo.GetChartOfAccount(ctx, id, practice_id)
 	if err != nil {
 		return err
 	}
 	if existing.IsSystem {
 		return ErrSystemAccountProtected
 	}
-	return s.repo.DeleteChart(ctx, id, practice_id)
+	return s.repo.DeleteChartOfAccount(ctx, id, practice_id)
 }

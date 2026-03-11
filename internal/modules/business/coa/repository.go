@@ -18,16 +18,16 @@ var (
 
 type Repository interface {
 	ListAccountTypes(ctx context.Context) ([]*AccountType, error)
-	GetAccountTypeByID(ctx context.Context, id int16) (*AccountType, error)
+	GetAccountType(ctx context.Context, id int16) (*AccountType, error)
 	ListAccountTaxes(ctx context.Context) ([]*AccountTax, error)
-	GetAccountTaxByID(ctx context.Context, id int16) (*AccountTax, error)
+	GetAccountTax(ctx context.Context, id int16) (*AccountTax, error)
 
-	ListChartsBypractice_id(ctx context.Context, practice_id uuid.UUID) ([]*ChartOfAccount, error)
-	GetChartByIDAndpractice_id(ctx context.Context, id uuid.UUID, practice_id uuid.UUID) (*ChartOfAccount, error)
+	ListChartOfAccount(ctx context.Context, practice_id uuid.UUID) ([]*ChartOfAccount, error)
+	GetChartOfAccount(ctx context.Context, id uuid.UUID, practice_id uuid.UUID) (*ChartOfAccount, error)
 	GetChartByCodeAndpractice_id(ctx context.Context, code int16, practice_id uuid.UUID, excludeID *uuid.UUID) (*ChartOfAccount, error)
-	CreateChart(ctx context.Context, c *ChartOfAccount) (*ChartOfAccount, error)
-	UpdateChart(ctx context.Context, c *ChartOfAccount) (*ChartOfAccount, error)
-	DeleteChart(ctx context.Context, id uuid.UUID, practice_id uuid.UUID) error
+	CreateChartOfAccount(ctx context.Context, c *ChartOfAccount) (*ChartOfAccount, error)
+	UpdateCharOfAccount(ctx context.Context, c *ChartOfAccount) (*ChartOfAccount, error)
+	DeleteChartOfAccount(ctx context.Context, id uuid.UUID, practice_id uuid.UUID) error
 }
 
 type repository struct {
@@ -64,7 +64,7 @@ func (r *repository) ListAccountTaxes(ctx context.Context) ([]*AccountTax, error
 	return list, nil
 }
 
-func (r *repository) GetAccountTypeByID(ctx context.Context, id int16) (*AccountType, error) {
+func (r *repository) GetAccountType(ctx context.Context, id int16) (*AccountType, error) {
 	query := `
 		SELECT id, name, created_at, updated_at
 		FROM tbl_account_type
@@ -80,7 +80,7 @@ func (r *repository) GetAccountTypeByID(ctx context.Context, id int16) (*Account
 	return &a, nil
 }
 
-func (r *repository) GetAccountTaxByID(ctx context.Context, id int16) (*AccountTax, error) {
+func (r *repository) GetAccountTax(ctx context.Context, id int16) (*AccountTax, error) {
 	query := `
 		SELECT id, name, rate, is_taxable, created_at, updated_at
 		FROM tbl_account_tax
@@ -96,7 +96,7 @@ func (r *repository) GetAccountTaxByID(ctx context.Context, id int16) (*AccountT
 	return &a, nil
 }
 
-func (r *repository) ListChartsBypractice_id(ctx context.Context, practice_id uuid.UUID) ([]*ChartOfAccount, error) {
+func (r *repository) ListChartOfAccount(ctx context.Context, practice_id uuid.UUID) ([]*ChartOfAccount, error) {
 	query := `
 		SELECT id, practice_id, account_type_id, account_tax_id, code, name,
 		       is_system, created_at, updated_at, deleted_at
@@ -111,7 +111,7 @@ func (r *repository) ListChartsBypractice_id(ctx context.Context, practice_id uu
 	return list, nil
 }
 
-func (r *repository) GetChartByIDAndpractice_id(ctx context.Context, id uuid.UUID, practice_id uuid.UUID) (*ChartOfAccount, error) {
+func (r *repository) GetChartOfAccount(ctx context.Context, id uuid.UUID, practice_id uuid.UUID) (*ChartOfAccount, error) {
 	query := `
 		SELECT id, practice_id, account_type_id, account_tax_id, code, name,
 		       is_system, created_at, updated_at, deleted_at
@@ -151,7 +151,7 @@ func (r *repository) GetChartByCodeAndpractice_id(ctx context.Context, code int1
 	return &c, nil
 }
 
-func (r *repository) CreateChart(ctx context.Context, c *ChartOfAccount) (*ChartOfAccount, error) {
+func (r *repository) CreateChartOfAccount(ctx context.Context, c *ChartOfAccount) (*ChartOfAccount, error) {
 	query := `
 		INSERT INTO tbl_chart_of_accounts (practice_id, account_type_id, account_tax_id, code, name, is_system)
 		VALUES ($1, $2, $3, $4, $5, $6)
@@ -167,7 +167,7 @@ func (r *repository) CreateChart(ctx context.Context, c *ChartOfAccount) (*Chart
 	return &out, nil
 }
 
-func (r *repository) UpdateChart(ctx context.Context, c *ChartOfAccount) (*ChartOfAccount, error) {
+func (r *repository) UpdateCharOfAccount(ctx context.Context, c *ChartOfAccount) (*ChartOfAccount, error) {
 	query := `
 		UPDATE tbl_chart_of_accounts
 		SET account_type_id = $2, account_tax_id = $3, code = $4, name = $5, updated_at = now()
@@ -187,7 +187,7 @@ func (r *repository) UpdateChart(ctx context.Context, c *ChartOfAccount) (*Chart
 	return &out, nil
 }
 
-func (r *repository) DeleteChart(ctx context.Context, id uuid.UUID, practice_id uuid.UUID) error {
+func (r *repository) DeleteChartOfAccount(ctx context.Context, id uuid.UUID, practice_id uuid.UUID) error {
 	query := `UPDATE tbl_chart_of_accounts SET deleted_at = now(), updated_at = now() WHERE id = $1 AND practice_id = $2 AND deleted_at IS NULL`
 	res, err := r.db.ExecContext(ctx, query, id, practice_id)
 	if err != nil {

@@ -13,15 +13,15 @@ import (
 
 type IHandler interface {
 	ListAccountTypes(c *gin.Context)
-	GetAccountTypeByID(c *gin.Context)
+	GetAccountType(c *gin.Context)
 	ListAccountTaxes(c *gin.Context)
-	GetAccountTaxByID(c *gin.Context)
+	GetAccountTax(c *gin.Context)
 
-	ListChartsBypractice_id(c *gin.Context)
-	GetChartByIDAndpractice_id(c *gin.Context)
-	CreateChart(c *gin.Context)
-	UpdateChart(c *gin.Context)
-	DeleteChart(c *gin.Context)
+	ListChartOfAccount(c *gin.Context)
+	GetChartOfAccount(c *gin.Context)
+	CreateChartOfAccount(c *gin.Context)
+	UpdateCharOfAccount(c *gin.Context)
+	DeleteChartOfAccount(c *gin.Context)
 }
 
 type handler struct {
@@ -41,13 +41,13 @@ func (h *handler) ListAccountTypes(c *gin.Context) {
 	response.JSON(c, http.StatusOK, list)
 }
 
-func (h *handler) GetAccountTypeByID(c *gin.Context) {
+func (h *handler) GetAccountType(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 16)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	one, err := h.svc.GetAccountTypeByID(c.Request.Context(), int16(id))
+	one, err := h.svc.GetAccountType(c.Request.Context(), int16(id))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
@@ -68,13 +68,13 @@ func (h *handler) ListAccountTaxes(c *gin.Context) {
 	response.JSON(c, http.StatusOK, list)
 }
 
-func (h *handler) GetAccountTaxByID(c *gin.Context) {
+func (h *handler) GetAccountTax(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 16)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	one, err := h.svc.GetAccountTaxByID(c.Request.Context(), int16(id))
+	one, err := h.svc.GetAccountTax(c.Request.Context(), int16(id))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
@@ -86,21 +86,12 @@ func (h *handler) GetAccountTaxByID(c *gin.Context) {
 	response.JSON(c, http.StatusOK, one)
 }
 
-func (h *handler) parsepractice_idID(c *gin.Context) (uuid.UUID, bool) {
-	id, err := uuid.Parse(c.Param("practice_idId"))
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, errors.New("invalid practice_idId"))
-		return uuid.Nil, false
-	}
-	return id, true
-}
-
-func (h *handler) ListChartsBypractice_id(c *gin.Context) {
-	practice_id, ok := h.parsepractice_idID(c)
+func (h *handler) ListChartOfAccount(c *gin.Context) {
+	practice_id, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
-	list, err := h.svc.ListChartsBypractice_id(c.Request.Context(), practice_id)
+	list, err := h.svc.ListChartOfAccount(c.Request.Context(), practice_id)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
@@ -108,8 +99,8 @@ func (h *handler) ListChartsBypractice_id(c *gin.Context) {
 	response.JSON(c, http.StatusOK, list)
 }
 
-func (h *handler) GetChartByIDAndpractice_id(c *gin.Context) {
-	practice_id, ok := h.parsepractice_idID(c)
+func (h *handler) GetChartOfAccount(c *gin.Context) {
+	practice_id, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
@@ -118,7 +109,7 @@ func (h *handler) GetChartByIDAndpractice_id(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	chart, err := h.svc.GetChartByIDAndpractice_id(c.Request.Context(), id, practice_id)
+	chart, err := h.svc.GetChartOfAccount(c.Request.Context(), id, practice_id)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
@@ -130,17 +121,17 @@ func (h *handler) GetChartByIDAndpractice_id(c *gin.Context) {
 	response.JSON(c, http.StatusOK, chart)
 }
 
-func (h *handler) CreateChart(c *gin.Context) {
-	practice_id, ok := h.parsepractice_idID(c)
+func (h *handler) CreateChartOfAccount(c *gin.Context) {
+	practice_id, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
-	var req RqCreateChartOfAccount
+	var req RqCreateChartOfAccountOfAccount
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	created, err := h.svc.CreateChart(c.Request.Context(), practice_id, &req)
+	created, err := h.svc.CreateChartOfAccount(c.Request.Context(), practice_id, &req)
 	if err != nil {
 		if errors.Is(err, ErrCodeExists) {
 			response.Error(c, http.StatusConflict, err)
@@ -156,8 +147,8 @@ func (h *handler) CreateChart(c *gin.Context) {
 	response.JSON(c, http.StatusCreated, created)
 }
 
-func (h *handler) UpdateChart(c *gin.Context) {
-	practice_id, ok := h.parsepractice_idID(c)
+func (h *handler) UpdateCharOfAccount(c *gin.Context) {
+	practice_id, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
@@ -166,12 +157,12 @@ func (h *handler) UpdateChart(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var req RqUpdateChartOfAccount
+	var req RqUpdateCharOfAccountOfAccount
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	updated, err := h.svc.UpdateChart(c.Request.Context(), id, practice_id, &req)
+	updated, err := h.svc.UpdateCharOfAccount(c.Request.Context(), id, practice_id, &req)
 	if err != nil {
 		if errors.Is(err, ErrCodeExists) {
 			response.Error(c, http.StatusConflict, err)
@@ -191,8 +182,8 @@ func (h *handler) UpdateChart(c *gin.Context) {
 	response.JSON(c, http.StatusOK, updated)
 }
 
-func (h *handler) DeleteChart(c *gin.Context) {
-	practice_id, ok := h.parsepractice_idID(c)
+func (h *handler) DeleteChartOfAccount(c *gin.Context) {
+	practice_id, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
@@ -201,7 +192,7 @@ func (h *handler) DeleteChart(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	if err := h.svc.DeleteChart(c.Request.Context(), id, practice_id); err != nil {
+	if err := h.svc.DeleteChartOfAccount(c.Request.Context(), id, practice_id); err != nil {
 		if errors.Is(err, ErrSystemAccountProtected) {
 			response.Error(c, http.StatusForbidden, err)
 			return

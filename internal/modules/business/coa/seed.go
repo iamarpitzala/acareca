@@ -96,7 +96,7 @@ func SeedDefaultsForPractitioner(ctx context.Context, repo Repository, practitio
 			Name:          row.Name,
 			IsSystem:      row.IsSystem,
 		}
-		_, err := repo.CreateChart(ctx, chart)
+		_, err := repo.CreateChartOfAccount(ctx, chart)
 		if err != nil {
 			log.Printf("coa: seed default %d for practitioner %s: %v", row.Code, practitionerID, err)
 			return err
