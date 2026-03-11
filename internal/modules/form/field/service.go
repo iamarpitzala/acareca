@@ -44,11 +44,11 @@ func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, req *RqFo
 	if err != nil {
 		return nil, err
 	}
-	clinicID, err := uuid.Parse(clinic.PracticeID)
+	practiceID, err := uuid.Parse(clinic.PracticeID)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.coaSvc.GetChartByIDAndpractice_id(ctx, coaID, clinicID); err != nil {
+	if _, err := s.coaSvc.GetChartOfAccount(ctx, coaID, practiceID); err != nil {
 		if errors.Is(err, coa.ErrNotFound) {
 			return nil, ErrCoaNotFound
 		}
@@ -85,11 +85,11 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, req *RqUpdateFormFie
 		if err != nil {
 			return nil, err
 		}
-		clinicID, err := uuid.Parse(clinic.PracticeID)
+		practiceID, err := uuid.Parse(clinic.PracticeID)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := s.coaSvc.GetChartByIDAndpractice_id(ctx, coaID, clinicID); err != nil {
+		if _, err := s.coaSvc.GetChartOfAccount(ctx, coaID, practiceID); err != nil {
 			if errors.Is(err, coa.ErrNotFound) {
 				return nil, ErrCoaNotFound
 			}

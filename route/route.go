@@ -112,8 +112,8 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 
 	// clinic
 	clinicRepo := clinic.NewRepository(dbConn)
-	clinciSvc := clinic.NewService(clinicRepo)
-	clinicHandler := clinic.NewHandler(clinciSvc)
+	clinicSvc := clinic.NewService(clinicRepo)
+	clinicHandler := clinic.NewHandler(clinicSvc)
 	clinicGroup := v1.Group("/clinic")
 	clinic.RegisterRoutes(clinicGroup, clinicHandler)
 
@@ -124,7 +124,7 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	// form (detail + version + field + entry) – clinic-scoped
 	formDetailRepo := formdetail.NewRepository(dbConn)
 	formVersionRepo := formversion.NewRepository(dbConn)
-	formVersionSvc := formversion.NewService(formVersionRepo, clinic.NewService(clinicRepo))
+	formVersionSvc := formversion.NewService(formVersionRepo, clinicSvc)
 	formDetailSvc := formdetail.NewService(formDetailRepo, formVersionSvc)
 	formDetailHandler := formdetail.NewHandler(formDetailSvc)
 
@@ -139,7 +139,7 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	formversion.RegisterRoutes(formVersionGroup, formVersionHandler)
 
 	formFieldRepo := formfield.NewRepository(dbConn)
-	formFieldSvc := formfield.NewService(formFieldRepo, coaSvc, clinciSvc)
+	formFieldSvc := formfield.NewService(formFieldRepo, coaSvc, clinicSvc)
 	formFieldHandler := formfield.NewHandler(formFieldSvc)
 	formfield.RegisterRoutes(formIdGroup.Group("/field"), formFieldHandler)
 
