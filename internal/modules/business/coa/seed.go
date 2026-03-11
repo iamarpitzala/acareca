@@ -37,7 +37,6 @@ func SeedDefaultsForPractitioner(ctx context.Context, repo Repository, practitio
 			AccountTaxID:   row.AccountTaxID,
 			Code:           row.Code,
 			Name:           row.Name,
-			Description:    nil,
 			IsSystem:       true,
 			SystemProvider: true,
 			IsActive:       true,

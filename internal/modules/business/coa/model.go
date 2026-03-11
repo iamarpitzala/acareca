@@ -9,7 +9,6 @@ import (
 type AccountType struct {
 	ID          int16     `db:"id"`
 	Name        string    `db:"name"`
-	Description *string   `db:"description"`
 	CreatedAt   time.Time `db:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at"`
 }
@@ -20,7 +19,6 @@ type AccountTax struct {
 	Rate        float64   `db:"rate"`
 	BASField    *string   `db:"bas_field"`
 	IsTaxable   bool      `db:"is_taxable"`
-	Description *string   `db:"description"`
 	CreatedAt   time.Time `db:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at"`
 }
@@ -32,7 +30,6 @@ func (a *AccountTax) ToRs() AccountTax {
 		Rate:        a.Rate,
 		BASField:    a.BASField,
 		IsTaxable:   a.IsTaxable,
-		Description: a.Description,
 		CreatedAt:   a.CreatedAt,
 		UpdatedAt:   a.UpdatedAt,
 	}
@@ -41,13 +38,10 @@ func (a *AccountType) ToRs() AccountType {
 	return AccountType{
 		ID:          a.ID,
 		Name:        a.Name,
-		Description: a.Description,
 		CreatedAt:   a.CreatedAt,
 		UpdatedAt:   a.UpdatedAt,
 	}
 }
-
-// Chart of Accounts (tbl_chart_of_accounts)
 
 type ChartOfAccount struct {
 	ID              uuid.UUID  `db:"id"`
@@ -56,7 +50,6 @@ type ChartOfAccount struct {
 	AccountTaxID    int16      `db:"account_tax_id"`
 	Code            string     `db:"code"`
 	Name            string     `db:"name"`
-	Description     *string    `db:"description"`
 	IsSystem        bool       `db:"is_system"`
 	SystemProvider  bool       `db:"system_provider"` // true = default (e.g. on practitioner create), false = user-created
 	IsActive        bool       `db:"is_active"`
@@ -72,7 +65,6 @@ type RsChartOfAccount struct {
 	AccountTaxID   int16     `json:"account_tax_id"`
 	Code           string    `json:"code"`
 	Name           string    `json:"name"`
-	Description    *string   `json:"description,omitempty"`
 	IsSystem       bool      `json:"is_system"`
 	SystemProvider bool      `json:"system_provider"`
 	IsActive       bool      `json:"is_active"`
@@ -88,7 +80,6 @@ func (c *ChartOfAccount) ToRs() RsChartOfAccount {
 		AccountTaxID:   c.AccountTaxID,
 		Code:           c.Code,
 		Name:           c.Name,
-		Description:    c.Description,
 		IsSystem:       c.IsSystem,
 		SystemProvider: c.SystemProvider,
 		IsActive:       c.IsActive,
@@ -103,7 +94,6 @@ type RqCreateChartOfAccount struct {
 	AccountTaxID  int16   `json:"account_tax_id" validate:"required,min=1"`
 	Code          string  `json:"code" validate:"required,max=10"`
 	Name          string  `json:"name" validate:"required,max=255"`
-	Description   *string `json:"description"`
 	IsSystem      *bool   `json:"is_system"`
 	IsActive      *bool   `json:"is_active"`
 }
@@ -113,6 +103,5 @@ type RqUpdateChartOfAccount struct {
 	AccountTaxID  *int16  `json:"account_tax_id" validate:"omitempty,min=1"`
 	Code          *string `json:"code" validate:"omitempty,max=10"`
 	Name          *string `json:"name" validate:"omitempty,max=255"`
-	Description   *string `json:"description"`
 	IsActive      *bool   `json:"is_active"`
 }

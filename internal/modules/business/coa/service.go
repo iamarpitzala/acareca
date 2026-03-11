@@ -116,7 +116,6 @@ func (s *service) CreateChart(ctx context.Context, createdBy uuid.UUID, req *RqC
 		AccountTaxID:   req.AccountTaxID,
 		Code:           req.Code,
 		Name:           req.Name,
-		Description:    req.Description,
 		IsSystem:       isSystem,
 		SystemProvider: false, // user-created via API
 		IsActive:       isActive,
@@ -163,9 +162,6 @@ func (s *service) UpdateChart(ctx context.Context, id uuid.UUID, createdBy uuid.
 	}
 	if req.Name != nil {
 		existing.Name = *req.Name
-	}
-	if req.Description != nil {
-		existing.Description = req.Description
 	}
 	if req.IsActive != nil {
 		existing.IsActive = *req.IsActive
