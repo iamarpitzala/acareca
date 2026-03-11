@@ -18,6 +18,7 @@ type RqFormFieldItem struct {
 	PaymentResponsibility string     `json:"payment_responsibility" validate:"required,oneof=OWNER CLINIC"`
 	TaxType               string     `json:"tax_type" validate:"required,oneof=INCLUSIVE EXCLUSIVE MANUAL"`
 	CoaID                 string     `json:"coa_id" validate:"required,uuid"`
+	SortOrder             *int       `json:"sort_order" validate:"omitempty,min=0"`
 }
 
 // RqCreateFormWithFields creates a form (default DRAFT), version 1, and the given fields in one request.

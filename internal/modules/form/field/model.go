@@ -30,6 +30,7 @@ type RqFormField struct {
 	PaymentResponsibility string `json:"payment_responsibility" validate:"required,oneof=OWNER CLINIC"`
 	TaxType               string `json:"tax_type" validate:"required,oneof=INCLUSIVE EXCLUSIVE MANUAL"`
 	CoaID                 string `json:"coa_id" validate:"required,uuid"`
+	SortOrder             *int   `json:"sort_order" validate:"omitempty,min=0"`
 }
 
 type RqUpdateFormField struct {
@@ -39,6 +40,7 @@ type RqUpdateFormField struct {
 	PaymentResponsibility *string   `json:"payment_responsibility" validate:"omitempty,oneof=OWNER CLINIC"`
 	TaxType               *string   `json:"tax_type" validate:"omitempty,oneof=INCLUSIVE EXCLUSIVE MANUAL"`
 	CoaID                 *string   `json:"coa_id" validate:"omitempty,uuid"`
+	SortOrder             *int      `json:"sort_order" validate:"omitempty,min=0"`
 }
 
 type FormField struct {
@@ -49,12 +51,17 @@ type FormField struct {
 	PaymentResponsibility string    `db:"payment_responsibility" json:"payment_responsibility"`
 	TaxType               string    `db:"tax_type" json:"tax_type"`
 	CoaID                 uuid.UUID `db:"coa_id" json:"coa_id"`
+	SortOrder             int       `db:"sort_order" json:"sort_order"`
 	CreatedAt             string    `db:"created_at" json:"created_at"`
 	UpdatedAt             string    `db:"updated_at" json:"updated_at"`
 }
 
 func (r *RqFormField) ToDB(formVersionID uuid.UUID) *FormField {
 	coaID, _ := uuid.Parse(r.CoaID)
+	sortOrder := 0
+	if r.SortOrder != nil {
+		sortOrder = *r.SortOrder
+	}
 	return &FormField{
 		ID:                    uuid.New(),
 		FormVersionID:         formVersionID,
@@ -63,6 +70,7 @@ func (r *RqFormField) ToDB(formVersionID uuid.UUID) *FormField {
 		PaymentResponsibility: r.PaymentResponsibility,
 		TaxType:               r.TaxType,
 		CoaID:                 coaID,
+		SortOrder:             sortOrder,
 	}
 }
 
@@ -75,6 +83,7 @@ func (d *FormField) ToRs() *RsFormField {
 		PaymentResponsibility: d.PaymentResponsibility,
 		TaxType:               d.TaxType,
 		CoaID:                 d.CoaID,
+		SortOrder:             d.SortOrder,
 		CreatedAt:             d.CreatedAt,
 		UpdatedAt:             d.UpdatedAt,
 	}
@@ -88,6 +97,7 @@ type RsFormField struct {
 	PaymentResponsibility string    `json:"payment_responsibility"`
 	TaxType               string    `json:"tax_type"`
 	CoaID                 uuid.UUID `json:"coa_id"`
+	SortOrder             int       `json:"sort_order"`
 	CreatedAt             string    `json:"created_at"`
 	UpdatedAt             string    `json:"updated_at"`
 }
@@ -100,16 +110,18 @@ type RqFormFieldUpdateItem struct {
 	PaymentResponsibility *string   `json:"payment_responsibility" validate:"omitempty,oneof=OWNER CLINIC"`
 	TaxType               *string   `json:"tax_type" validate:"omitempty,oneof=INCLUSIVE EXCLUSIVE MANUAL"`
 	CoaID                 *string   `json:"coa_id" validate:"omitempty,uuid"`
+	SortOrder             *int      `json:"sort_order" validate:"omitempty,min=0"`
 }
 
 // RqBulkSyncFields request for bulk create/update/delete of fields for one form version.
 type RqBulkSyncFields struct {
-	Create []RqFormField             `json:"create" validate:"omitempty,dive"`
-	Update []RqFormFieldUpdateItem   `json:"update" validate:"omitempty,dive"`
-	Delete []uuid.UUID               `json:"delete" validate:"omitempty,dive"`
+	Create []RqFormField           `json:"create" validate:"omitempty,dive"`
+	Update []RqFormFieldUpdateItem `json:"update" validate:"omitempty,dive"`
+	Delete []uuid.UUID             `json:"delete" validate:"omitempty,dive"`
 }
 
-// RsBulkSyncFields response after bulk sync.
+// RsBulkSyncFields is the standard bulk sync response: created, updated, and deleted arrays.
+// List endpoints return fields ordered by sort_order ASC, then created_at ASC.
 type RsBulkSyncFields struct {
 	Created []RsFormField `json:"created"`
 	Updated []RsFormField `json:"updated"`

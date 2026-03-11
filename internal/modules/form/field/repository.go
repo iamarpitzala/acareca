@@ -41,12 +41,12 @@ func NewRepository(db *sqlx.DB) IRepository {
 // Create implements [IRepository].
 func (r *Repository) Create(ctx context.Context, f *FormField) error {
 	query := `
-		INSERT INTO tbl_form_field (id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO tbl_form_field (id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, sort_order)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING created_at, updated_at
 	`
 	if err := r.db.QueryRowContext(ctx, query,
-		f.ID, f.FormVersionID, f.Label, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID,
+		f.ID, f.FormVersionID, f.Label, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.SortOrder,
 	).Scan(&f.CreatedAt, &f.UpdatedAt); err != nil {
 		return fmt.Errorf("create form field: %w", err)
 	}
@@ -55,11 +55,11 @@ func (r *Repository) Create(ctx context.Context, f *FormField) error {
 
 // GetByID implements [IRepository].
 func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*FormField, error) {
-	query := `SELECT id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, created_at, updated_at
+	query := `SELECT id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, sort_order, created_at, updated_at
 		FROM tbl_form_field WHERE id = $1 AND deleted_at IS NULL`
 	var f FormField
 	if err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&f.ID, &f.FormVersionID, &f.Label, &f.SectionType, &f.PaymentResponsibility, &f.TaxType, &f.CoaID, &f.CreatedAt, &f.UpdatedAt,
+		&f.ID, &f.FormVersionID, &f.Label, &f.SectionType, &f.PaymentResponsibility, &f.TaxType, &f.CoaID, &f.SortOrder, &f.CreatedAt, &f.UpdatedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -73,14 +73,14 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*FormField, err
 func (r *Repository) Update(ctx context.Context, f *FormField) (*FormField, error) {
 	query := `
 		UPDATE tbl_form_field
-		SET label = $1, section_type = $2, payment_responsibility = $3, tax_type = $4, coa_id = $5, updated_at = now()
-		WHERE id = $6 AND deleted_at IS NULL
-		RETURNING id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, created_at, updated_at
+		SET label = $1, section_type = $2, payment_responsibility = $3, tax_type = $4, coa_id = $5, sort_order = $6, updated_at = now()
+		WHERE id = $7 AND deleted_at IS NULL
+		RETURNING id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, sort_order, created_at, updated_at
 	`
 	var out FormField
 	if err := r.db.QueryRowContext(ctx, query,
-		f.Label, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.ID,
-	).Scan(&out.ID, &out.FormVersionID, &out.Label, &out.SectionType, &out.PaymentResponsibility, &out.TaxType, &out.CoaID, &out.CreatedAt, &out.UpdatedAt); err != nil {
+		f.Label, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.SortOrder, f.ID,
+	).Scan(&out.ID, &out.FormVersionID, &out.Label, &out.SectionType, &out.PaymentResponsibility, &out.TaxType, &out.CoaID, &out.SortOrder, &out.CreatedAt, &out.UpdatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -105,9 +105,9 @@ func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
 
 // ListByFormVersionID implements [IRepository].
 func (r *Repository) ListByFormVersionID(ctx context.Context, formVersionID uuid.UUID) ([]*FormField, error) {
-	query := `SELECT id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, created_at, updated_at
+	query := `SELECT id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, sort_order, created_at, updated_at
 		FROM tbl_form_field WHERE form_version_id = $1 AND deleted_at IS NULL
-		ORDER BY created_at ASC`
+		ORDER BY sort_order ASC, created_at ASC`
 	var list []*FormField
 	if err := r.db.SelectContext(ctx, &list, query, formVersionID); err != nil {
 		return nil, fmt.Errorf("list form fields: %w", err)
@@ -139,12 +139,12 @@ func (a *txRepoAdapter) Delete(ctx context.Context, id uuid.UUID) error { return
 
 func (r *Repository) createTx(ctx context.Context, tx *sqlx.Tx, f *FormField) error {
 	query := `
-		INSERT INTO tbl_form_field (id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO tbl_form_field (id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, sort_order)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING created_at, updated_at
 	`
 	if err := tx.QueryRowContext(ctx, query,
-		f.ID, f.FormVersionID, f.Label, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID,
+		f.ID, f.FormVersionID, f.Label, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.SortOrder,
 	).Scan(&f.CreatedAt, &f.UpdatedAt); err != nil {
 		return fmt.Errorf("create form field: %w", err)
 	}
@@ -152,11 +152,11 @@ func (r *Repository) createTx(ctx context.Context, tx *sqlx.Tx, f *FormField) er
 }
 
 func (r *Repository) getByIDTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID) (*FormField, error) {
-	query := `SELECT id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, created_at, updated_at
+	query := `SELECT id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, sort_order, created_at, updated_at
 		FROM tbl_form_field WHERE id = $1 AND deleted_at IS NULL`
 	var f FormField
 	if err := tx.QueryRowContext(ctx, query, id).Scan(
-		&f.ID, &f.FormVersionID, &f.Label, &f.SectionType, &f.PaymentResponsibility, &f.TaxType, &f.CoaID, &f.CreatedAt, &f.UpdatedAt,
+		&f.ID, &f.FormVersionID, &f.Label, &f.SectionType, &f.PaymentResponsibility, &f.TaxType, &f.CoaID, &f.SortOrder, &f.CreatedAt, &f.UpdatedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -169,14 +169,14 @@ func (r *Repository) getByIDTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID) (
 func (r *Repository) updateTx(ctx context.Context, tx *sqlx.Tx, f *FormField) (*FormField, error) {
 	query := `
 		UPDATE tbl_form_field
-		SET label = $1, section_type = $2, payment_responsibility = $3, tax_type = $4, coa_id = $5, updated_at = now()
-		WHERE id = $6 AND deleted_at IS NULL
-		RETURNING id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, created_at, updated_at
+		SET label = $1, section_type = $2, payment_responsibility = $3, tax_type = $4, coa_id = $5, sort_order = $6, updated_at = now()
+		WHERE id = $7 AND deleted_at IS NULL
+		RETURNING id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, sort_order, created_at, updated_at
 	`
 	var out FormField
 	if err := tx.QueryRowContext(ctx, query,
-		f.Label, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.ID,
-	).Scan(&out.ID, &out.FormVersionID, &out.Label, &out.SectionType, &out.PaymentResponsibility, &out.TaxType, &out.CoaID, &out.CreatedAt, &out.UpdatedAt); err != nil {
+		f.Label, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.SortOrder, f.ID,
+	).Scan(&out.ID, &out.FormVersionID, &out.Label, &out.SectionType, &out.PaymentResponsibility, &out.TaxType, &out.CoaID, &out.SortOrder, &out.CreatedAt, &out.UpdatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}

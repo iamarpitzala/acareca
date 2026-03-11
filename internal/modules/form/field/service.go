@@ -28,6 +28,10 @@ var ErrFieldHasSubmittedEntries = errors.New("cannot delete field: it has submit
 var ErrFormNotDraft = errors.New("only forms in DRAFT status can be edited; publish or archive prevents field changes")
 var ErrFormArchived = errors.New("form is archived and cannot be edited")
 var ErrFormPublishedRestricted = errors.New("published form allows only name and description updates")
+var ErrTooManyFields = errors.New("max fields per form version exceeded")
+
+// MaxFieldsPerVersion is the maximum number of fields allowed per form version.
+const MaxFieldsPerVersion = 200
 
 type Service struct {
 	repo            IRepository
@@ -73,6 +77,13 @@ func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, practitio
 		if status != detail.StatusDraft {
 			return nil, ErrFormNotDraft
 		}
+	}
+	current, err := s.repo.ListByFormVersionID(ctx, formVersionID)
+	if err != nil {
+		return nil, err
+	}
+	if len(current)+1 > MaxFieldsPerVersion {
+		return nil, ErrTooManyFields
 	}
 	coaID, err := uuid.Parse(req.CoaID)
 	if err != nil {
@@ -156,6 +167,9 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, req *RqUpdateFormFie
 	if req.TaxType != nil {
 		existing.TaxType = *req.TaxType
 	}
+	if req.SortOrder != nil {
+		existing.SortOrder = *req.SortOrder
+	}
 	updated, err := s.repo.Update(ctx, existing)
 	if err != nil {
 		return nil, err
@@ -204,6 +218,7 @@ func (s *Service) ListByFormVersionID(ctx context.Context, formVersionID uuid.UU
 }
 
 // BulkSyncFields implements [IService]. Runs delete → update → create in one transaction (repo uses util.RunInTransaction).
+// Rejects if total fields after sync would exceed MaxFieldsPerVersion. Delete policy: reject delete when field has SUBMITTED entry values (hard delete only when no submitted data).
 func (s *Service) BulkSyncFields(ctx context.Context, formVersionID uuid.UUID, practitionerID uuid.UUID, req *RqBulkSyncFields) (*RsBulkSyncFields, error) {
 	if s.detailSvc != nil && s.versionSvc != nil {
 		status, err := s.formStatusByVersionID(ctx, formVersionID)
@@ -214,13 +229,21 @@ func (s *Service) BulkSyncFields(ctx context.Context, formVersionID uuid.UUID, p
 			return nil, ErrFormNotDraft
 		}
 	}
+	current, err := s.repo.ListByFormVersionID(ctx, formVersionID)
+	if err != nil {
+		return nil, err
+	}
+	afterCount := len(current) - len(req.Delete) + len(req.Create)
+	if afterCount > MaxFieldsPerVersion {
+		return nil, ErrTooManyFields
+	}
 	out := &RsBulkSyncFields{
 		Created: make([]RsFormField, 0, len(req.Create)),
 		Updated: make([]RsFormField, 0, len(req.Update)),
 		Deleted: make([]uuid.UUID, 0, len(req.Delete)),
 	}
 
-	err := s.repo.RunInTransaction(ctx, func(ctx context.Context, r IRepositoryTx) error {
+	err = s.repo.RunInTransaction(ctx, func(ctx context.Context, r IRepositoryTx) error {
 		for _, id := range req.Delete {
 			existing, err := r.GetByID(ctx, id)
 			if err != nil {
@@ -276,6 +299,9 @@ func (s *Service) BulkSyncFields(ctx context.Context, formVersionID uuid.UUID, p
 			}
 			if item.TaxType != nil {
 				existing.TaxType = *item.TaxType
+			}
+			if item.SortOrder != nil {
+				existing.SortOrder = *item.SortOrder
 			}
 			updated, err := r.Update(ctx, existing)
 			if err != nil {

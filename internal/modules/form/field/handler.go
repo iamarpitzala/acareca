@@ -43,7 +43,7 @@ func (h *handler) Create(c *gin.Context) {
 	}
 	created, err := h.svc.Create(c.Request.Context(), versionID, practitionerID, &req)
 	if err != nil {
-		if errors.Is(err, ErrCoaNotFound) {
+		if errors.Is(err, ErrCoaNotFound) || errors.Is(err, ErrTooManyFields) {
 			response.Error(c, http.StatusBadRequest, err)
 			return
 		}
@@ -159,11 +159,7 @@ func (h *handler) Sync(c *gin.Context) {
 	}
 	result, err := h.svc.BulkSyncFields(c.Request.Context(), versionID, practitionerID, &req)
 	if err != nil {
-		if errors.Is(err, ErrCoaNotFound) {
-			response.Error(c, http.StatusBadRequest, err)
-			return
-		}
-		if errors.Is(err, ErrFieldWrongVersion) {
+		if errors.Is(err, ErrCoaNotFound) || errors.Is(err, ErrFieldWrongVersion) || errors.Is(err, ErrTooManyFields) {
 			response.Error(c, http.StatusBadRequest, err)
 			return
 		}

@@ -61,13 +61,17 @@ func (o *Orchestrator) CreateWithFields(ctx context.Context, clinicID uuid.UUID,
 	createList := make([]field.RqFormField, 0, len(req.Fields))
 	for i := range req.Fields {
 		f := &req.Fields[i]
-		createList = append(createList, field.RqFormField{
+		r := field.RqFormField{
 			Label:                 f.Label,
 			SectionType:           f.SectionType,
 			PaymentResponsibility: f.PaymentResponsibility,
 			TaxType:               f.TaxType,
 			CoaID:                 f.CoaID,
-		})
+		}
+		if f.SortOrder != nil {
+			r.SortOrder = f.SortOrder
+		}
+		createList = append(createList, r)
 	}
 	bulk, err := o.fieldSvc.BulkSyncFields(ctx, activeVersionID, practitionerID, &field.RqBulkSyncFields{
 		Create: createList,
@@ -139,22 +143,30 @@ func (o *Orchestrator) UpdateWithFields(ctx context.Context, formID uuid.UUID, c
 		f := &req.Fields[i]
 		if f.ID != nil {
 			keepIDs[*f.ID] = struct{}{}
-			updateList = append(updateList, field.RqFormFieldUpdateItem{
+			item := field.RqFormFieldUpdateItem{
 				ID:                    *f.ID,
 				Label:                 &f.Label,
 				SectionType:           &f.SectionType,
 				PaymentResponsibility: &f.PaymentResponsibility,
 				TaxType:               &f.TaxType,
 				CoaID:                 &f.CoaID,
-			})
+			}
+			if f.SortOrder != nil {
+				item.SortOrder = f.SortOrder
+			}
+			updateList = append(updateList, item)
 		} else {
-			createList = append(createList, field.RqFormField{
+			r := field.RqFormField{
 				Label:                 f.Label,
 				SectionType:           f.SectionType,
 				PaymentResponsibility: f.PaymentResponsibility,
 				TaxType:               f.TaxType,
 				CoaID:                 f.CoaID,
-			})
+			}
+			if f.SortOrder != nil {
+				r.SortOrder = f.SortOrder
+			}
+			createList = append(createList, r)
 		}
 	}
 	var deleteList []uuid.UUID
