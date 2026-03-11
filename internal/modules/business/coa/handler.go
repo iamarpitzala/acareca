@@ -121,6 +121,10 @@ func (h *handler) CreateChart(c *gin.Context) {
 	}
 	created, err := h.svc.CreateChart(c.Request.Context(), &req)
 	if err != nil {
+		if errors.Is(err, ErrCodeExists) {
+			response.Error(c, http.StatusConflict, err)
+			return
+		}
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusBadRequest, err)
 			return
@@ -144,6 +148,14 @@ func (h *handler) UpdateChart(c *gin.Context) {
 	}
 	updated, err := h.svc.UpdateChart(c.Request.Context(), id, &req)
 	if err != nil {
+		if errors.Is(err, ErrCodeExists) {
+			response.Error(c, http.StatusConflict, err)
+			return
+		}
+		if errors.Is(err, ErrSystemAccountProtected) {
+			response.Error(c, http.StatusForbidden, err)
+			return
+		}
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
@@ -161,6 +173,10 @@ func (h *handler) DeleteChart(c *gin.Context) {
 		return
 	}
 	if err := h.svc.DeleteChart(c.Request.Context(), id); err != nil {
+		if errors.Is(err, ErrSystemAccountProtected) {
+			response.Error(c, http.StatusForbidden, err)
+			return
+		}
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return

@@ -10,7 +10,11 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-var ErrNotFound = errors.New("coa not found")
+var (
+	ErrNotFound              = errors.New("coa not found")
+	ErrCodeExists            = errors.New("code already exists")
+	ErrSystemAccountProtected = errors.New("system account cannot be updated or deleted")
+)
 
 type Repository interface {
 	ListAccountTypes(ctx context.Context) ([]*AccountType, error)
@@ -20,6 +24,7 @@ type Repository interface {
 
 	ListCharts(ctx context.Context) ([]*ChartOfAccount, error)
 	GetChartByID(ctx context.Context, id uuid.UUID) (*ChartOfAccount, error)
+	GetChartByCode(ctx context.Context, code string, excludeID *uuid.UUID) (*ChartOfAccount, error)
 	CreateChart(ctx context.Context, c *ChartOfAccount) (*ChartOfAccount, error)
 	UpdateChart(ctx context.Context, c *ChartOfAccount) (*ChartOfAccount, error)
 	DeleteChart(ctx context.Context, id uuid.UUID) error
@@ -119,6 +124,29 @@ func (r *repository) GetChartByID(ctx context.Context, id uuid.UUID) (*ChartOfAc
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("get chart of account: %w", err)
+	}
+	return &c, nil
+}
+
+func (r *repository) GetChartByCode(ctx context.Context, code string, excludeID *uuid.UUID) (*ChartOfAccount, error) {
+	query := `
+		SELECT id, created_by, account_type_id, account_tax_id, code, name, description,
+		       is_system, is_active, created_at, updated_at, deleted_at
+		FROM tbl_chart_of_accounts
+		WHERE code = $1 AND deleted_at IS NULL
+	`
+	args := []interface{}{code}
+	if excludeID != nil {
+		query += ` AND id != $2`
+		args = append(args, *excludeID)
+	}
+	query += ` LIMIT 1`
+	var c ChartOfAccount
+	if err := r.db.QueryRowxContext(ctx, query, args...).StructScan(&c); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get chart by code: %w", err)
 	}
 	return &c, nil
 }

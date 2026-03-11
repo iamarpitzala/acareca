@@ -95,6 +95,11 @@ func (s *service) CreateChart(ctx context.Context, req *RqCreateChartOfAccount) 
 	if err != nil {
 		return nil, err
 	}
+	// Code must not already exist
+	existing, _ := s.repo.GetChartByCode(ctx, req.Code, nil)
+	if existing != nil {
+		return nil, ErrCodeExists
+	}
 	if _, err := s.repo.GetAccountTypeByID(ctx, req.AccountTypeID); err != nil {
 		return nil, err
 	}
@@ -132,6 +137,15 @@ func (s *service) UpdateChart(ctx context.Context, id uuid.UUID, req *RqUpdateCh
 	if err != nil {
 		return nil, err
 	}
+	if existing.IsSystem {
+		return nil, ErrSystemAccountProtected
+	}
+	if req.Code != nil && *req.Code != existing.Code {
+		other, _ := s.repo.GetChartByCode(ctx, *req.Code, &id)
+		if other != nil {
+			return nil, ErrCodeExists
+		}
+	}
 	if req.AccountTypeID != nil {
 		if _, err := s.repo.GetAccountTypeByID(ctx, *req.AccountTypeID); err != nil {
 			return nil, err
@@ -165,5 +179,12 @@ func (s *service) UpdateChart(ctx context.Context, id uuid.UUID, req *RqUpdateCh
 }
 
 func (s *service) DeleteChart(ctx context.Context, id uuid.UUID) error {
+	existing, err := s.repo.GetChartByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if existing.IsSystem {
+		return ErrSystemAccountProtected
+	}
 	return s.repo.DeleteChart(ctx, id)
 }
