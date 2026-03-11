@@ -15,6 +15,7 @@ type IHandler interface {
 	Update(c *gin.Context)
 	Delete(c *gin.Context)
 	List(c *gin.Context)
+	Sync(c *gin.Context)
 }
 
 type handler struct {
@@ -31,12 +32,16 @@ func (h *handler) Create(c *gin.Context) {
 	if !ok {
 		return
 	}
+	practitionerID, ok := util.GetPractitionerID(c)
+	if !ok {
+		return
+	}
 	var req RqFormField
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	created, err := h.svc.Create(c.Request.Context(), versionID, &req)
+	created, err := h.svc.Create(c.Request.Context(), versionID, practitionerID, &req)
 	if err != nil {
 		if errors.Is(err, ErrCoaNotFound) {
 			response.Error(c, http.StatusBadRequest, err)
@@ -123,4 +128,39 @@ func (h *handler) List(c *gin.Context) {
 		return
 	}
 	response.JSON(c, http.StatusOK, list)
+}
+
+// Sync implements [IHandler]. Bulk create/update/delete fields for a form version.
+func (h *handler) Sync(c *gin.Context) {
+	versionID, ok := util.ParseUuidID(c, "version_id")
+	if !ok {
+		return
+	}
+	practitionerID, ok := util.GetPractitionerID(c)
+	if !ok {
+		return
+	}
+	var req RqBulkSyncFields
+	if err := util.BindAndValidate(c, &req); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+	result, err := h.svc.BulkSyncFields(c.Request.Context(), versionID, practitionerID, &req)
+	if err != nil {
+		if errors.Is(err, ErrCoaNotFound) {
+			response.Error(c, http.StatusBadRequest, err)
+			return
+		}
+		if errors.Is(err, ErrFieldWrongVersion) {
+			response.Error(c, http.StatusBadRequest, err)
+			return
+		}
+		if err == ErrNotFound {
+			response.Error(c, http.StatusNotFound, err)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+	response.JSON(c, http.StatusOK, result)
 }

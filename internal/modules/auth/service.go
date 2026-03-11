@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/modules/business/practitioner"
 	"github.com/iamarpitzala/acareca/internal/shared/middleware"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 	"github.com/iamarpitzala/acareca/pkg/config"
@@ -34,13 +35,13 @@ type Service interface {
 }
 
 type service struct {
-	repo          Repository
-	cfg           *config.Config
-	oauthConfig   *oauth2.Config
-	onUserCreated OnUserCreated
+	repo            Repository
+	cfg             *config.Config
+	oauthConfig     *oauth2.Config
+	practitionerSvc practitioner.IService
 }
 
-func NewService(repo Repository, cfg *config.Config, onUserCreated OnUserCreated) Service {
+func NewService(repo Repository, cfg *config.Config, practitionerSvc practitioner.IService) Service {
 	oauthCfg := &oauth2.Config{
 		ClientID:     cfg.GoogleClientID,
 		ClientSecret: cfg.GoogleClientSecret,
@@ -51,7 +52,7 @@ func NewService(repo Repository, cfg *config.Config, onUserCreated OnUserCreated
 		},
 		Endpoint: google.Endpoint,
 	}
-	return &service{repo: repo, cfg: cfg, oauthConfig: oauthCfg, onUserCreated: onUserCreated}
+	return &service{repo: repo, cfg: cfg, oauthConfig: oauthCfg, practitionerSvc: practitionerSvc}
 }
 
 func (s *service) Register(ctx context.Context, req *RqUser) (*RsUser, error) {
@@ -71,9 +72,9 @@ func (s *service) Register(ctx context.Context, req *RqUser) (*RsUser, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	if s.onUserCreated != nil {
-		_ = s.onUserCreated(ctx, created.ID.String())
+	_, err = s.practitionerSvc.CreatePractitioner(ctx, &practitioner.RqCreatePractitioner{UserID: created.ID.String()})
+	if err != nil {
+		return nil, fmt.Errorf("create practitioner: %w", err)
 	}
 	return created.ToRsUser(), nil
 }
@@ -152,8 +153,11 @@ func (s *service) GoogleCallback(ctx context.Context, code string) (*RsToken, er
 		return nil, err
 	}
 
-	if isNewUser && s.onUserCreated != nil {
-		_ = s.onUserCreated(ctx, user.ID.String())
+	if isNewUser {
+		_, err = s.practitionerSvc.CreatePractitioner(ctx, &practitioner.RqCreatePractitioner{UserID: user.ID.String()})
+		if err != nil {
+			return nil, err
+		}
 	}
 	return s.issueTokens(ctx, user)
 }

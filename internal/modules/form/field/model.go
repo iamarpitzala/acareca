@@ -91,3 +91,27 @@ type RsFormField struct {
 	CreatedAt             string    `json:"created_at"`
 	UpdatedAt             string    `json:"updated_at"`
 }
+
+// RqFormFieldUpdateItem is a single field update in a bulk sync (id required).
+type RqFormFieldUpdateItem struct {
+	ID                    uuid.UUID `json:"id" validate:"required"`
+	Label                 *string   `json:"label" validate:"omitempty,max=255"`
+	SectionType           *string   `json:"section_type" validate:"omitempty,oneof=COLLECTION COST OTHER_COST"`
+	PaymentResponsibility *string   `json:"payment_responsibility" validate:"omitempty,oneof=OWNER CLINIC"`
+	TaxType               *string   `json:"tax_type" validate:"omitempty,oneof=INCLUSIVE EXCLUSIVE MANUAL"`
+	CoaID                 *string   `json:"coa_id" validate:"omitempty,uuid"`
+}
+
+// RqBulkSyncFields request for bulk create/update/delete of fields for one form version.
+type RqBulkSyncFields struct {
+	Create []RqFormField             `json:"create" validate:"omitempty,dive"`
+	Update []RqFormFieldUpdateItem   `json:"update" validate:"omitempty,dive"`
+	Delete []uuid.UUID               `json:"delete" validate:"omitempty,dive"`
+}
+
+// RsBulkSyncFields response after bulk sync.
+type RsBulkSyncFields struct {
+	Created []RsFormField `json:"created"`
+	Updated []RsFormField `json:"updated"`
+	Deleted []uuid.UUID   `json:"deleted"`
+}
