@@ -102,6 +102,10 @@ func (h *handler) DeleteForm(c *gin.Context) {
 	}
 
 	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			response.Error(c, http.StatusNotFound, err)
+			return
+		}
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}

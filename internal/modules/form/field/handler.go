@@ -47,7 +47,7 @@ func (h *handler) Create(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, err)
 			return
 		}
-		if errors.Is(err, ErrFormNotDraft) || errors.Is(err, ErrFormArchived) || errors.Is(err, ErrFormPublishedRestricted) {
+		if errors.Is(err, ErrFormNotDraft) {
 			response.Error(c, http.StatusConflict, err)
 			return
 		}
@@ -65,7 +65,7 @@ func (h *handler) Get(c *gin.Context) {
 	}
 	f, err := h.svc.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
 		}
@@ -89,7 +89,7 @@ func (h *handler) Update(c *gin.Context) {
 	req.ID = id
 	updated, err := h.svc.Update(c.Request.Context(), id, &req)
 	if err != nil {
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
 		}
@@ -97,7 +97,7 @@ func (h *handler) Update(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, err)
 			return
 		}
-		if errors.Is(err, ErrFormNotDraft) || errors.Is(err, ErrFormArchived) || errors.Is(err, ErrFormPublishedRestricted) {
+		if errors.Is(err, ErrFormNotDraft) {
 			response.Error(c, http.StatusConflict, err)
 			return
 		}
@@ -114,11 +114,11 @@ func (h *handler) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
 		}
-		if errors.Is(err, ErrFieldHasSubmittedEntries) || errors.Is(err, ErrFormNotDraft) || errors.Is(err, ErrFormArchived) || errors.Is(err, ErrFormPublishedRestricted) {
+		if errors.Is(err, ErrFieldHasSubmittedEntries) || errors.Is(err, ErrFormNotDraft) {
 			response.Error(c, http.StatusConflict, err)
 			return
 		}
@@ -163,11 +163,11 @@ func (h *handler) Sync(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, err)
 			return
 		}
-		if errors.Is(err, ErrFieldHasSubmittedEntries) || errors.Is(err, ErrFormNotDraft) || errors.Is(err, ErrFormArchived) || errors.Is(err, ErrFormPublishedRestricted) {
+		if errors.Is(err, ErrFieldHasSubmittedEntries) || errors.Is(err, ErrFormNotDraft) {
 			response.Error(c, http.StatusConflict, err)
 			return
 		}
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
 		}

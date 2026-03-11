@@ -64,21 +64,15 @@ func (s *Service) ListForm(ctx context.Context, filter Filter) ([]*RsFormDetail,
 	return rs, nil
 }
 
-func (s *Service) Update(ctx context.Context, d *RqUpdateFormDetail, practitionerID uuid.UUID) (*RsFormDetail, error) {
-	existing, err := s.repo.GetByID(ctx, d.ID)
-	if err != nil {
-		return nil, err
-	}
-
+func applyFormUpdatePatch(existing *FormDetail, d *RqUpdateFormDetail) error {
 	if existing.Status == StatusArchived {
-		return nil, ErrFormArchived
+		return ErrFormArchived
 	}
 	if existing.Status == StatusPublished {
 		if d.Status != nil || d.Method != nil || d.OwnerShare != nil || d.ClinicShare != nil {
-			return nil, ErrFormPublishedRestricted
+			return ErrFormPublishedRestricted
 		}
 	}
-
 	if d.Name != nil {
 		existing.Name = *d.Name
 	}
@@ -99,19 +93,25 @@ func (s *Service) Update(ctx context.Context, d *RqUpdateFormDetail, practitione
 			existing.ClinicShare = *d.ClinicShare
 		}
 	}
+	return nil
+}
 
+func (s *Service) Update(ctx context.Context, d *RqUpdateFormDetail, practitionerID uuid.UUID) (*RsFormDetail, error) {
+	existing, err := s.repo.GetByID(ctx, d.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := applyFormUpdatePatch(existing, d); err != nil {
+		return nil, err
+	}
 	updated, err := s.repo.Update(ctx, existing)
 	if err != nil {
 		return nil, err
 	}
-
-	// Deactivate currently active versions
 	activeVersions, err := s.versionSvc.List(ctx, updated.ID, updated.ClinicID)
 	if err != nil {
 		return nil, err
 	}
-
-	// Deactivate all currently active versions
 	for _, v := range activeVersions {
 		if v.IsActive {
 			isActive := false
@@ -124,29 +124,19 @@ func (s *Service) Update(ctx context.Context, d *RqUpdateFormDetail, practitione
 			}
 		}
 	}
-
-	// Find the latest version number
 	versionNum := 1
-	if len(activeVersions) > 0 {
-		maxVersion := activeVersions[0].Version
-		for _, v := range activeVersions {
-			if v.Version > maxVersion {
-				maxVersion = v.Version
-			}
+	for _, v := range activeVersions {
+		if v.Version >= versionNum {
+			versionNum = v.Version + 1
 		}
-		versionNum = maxVersion + 1
 	}
-
-	// Create a new active version
-	isActive := true
 	_, err = s.versionSvc.Create(ctx, updated.ID, updated.ClinicID, &version.RqFormVersion{
 		Version:  versionNum,
-		IsActive: isActive,
+		IsActive: true,
 	}, practitionerID)
 	if err != nil {
 		return nil, err
 	}
-
 	return updated.ToRs(), nil
 }
 
@@ -156,33 +146,8 @@ func (s *Service) UpdateMetadata(ctx context.Context, d *RqUpdateFormDetail) (*R
 	if err != nil {
 		return nil, err
 	}
-	if existing.Status == StatusArchived {
-		return nil, ErrFormArchived
-	}
-	if existing.Status == StatusPublished {
-		if d.Status != nil || d.Method != nil || d.OwnerShare != nil || d.ClinicShare != nil {
-			return nil, ErrFormPublishedRestricted
-		}
-	}
-	if d.Name != nil {
-		existing.Name = *d.Name
-	}
-	if d.Description != nil {
-		existing.Description = d.Description
-	}
-	if existing.Status != StatusPublished {
-		if d.Status != nil {
-			existing.Status = *d.Status
-		}
-		if d.Method != nil {
-			existing.Method = *d.Method
-		}
-		if d.OwnerShare != nil {
-			existing.OwnerShare = *d.OwnerShare
-		}
-		if d.ClinicShare != nil {
-			existing.ClinicShare = *d.ClinicShare
-		}
+	if err := applyFormUpdatePatch(existing, d); err != nil {
+		return nil, err
 	}
 	updated, err := s.repo.Update(ctx, existing)
 	if err != nil {
@@ -197,6 +162,5 @@ func (s *Service) GetByID(ctx context.Context, formID uuid.UUID) (*RsFormDetail,
 	if err != nil {
 		return nil, err
 	}
-
 	return formDetail.ToRs(), nil
 }

@@ -1,6 +1,7 @@
 package entry
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -57,7 +58,7 @@ func (h *handler) Get(c *gin.Context) {
 	}
 	e, err := h.svc.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
 		}
@@ -85,7 +86,7 @@ func (h *handler) Update(c *gin.Context) {
 	var submittedBy *uuid.UUID
 	updated, err := h.svc.Update(c.Request.Context(), id, clinicID, &req, submittedBy)
 	if err != nil {
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
 		}
@@ -102,7 +103,7 @@ func (h *handler) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
 		}

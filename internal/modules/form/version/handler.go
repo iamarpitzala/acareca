@@ -1,6 +1,7 @@
 package version
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -43,11 +44,11 @@ func (h *handler) Create(c *gin.Context) {
 	userID := uuid.Nil
 	created, err := h.svc.Create(c.Request.Context(), formID, clinicID, &req, userID)
 	if err != nil {
-		if err == ErrForbidden {
+		if errors.Is(err, ErrForbidden) {
 			response.Error(c, http.StatusForbidden, err)
 			return
 		}
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
 		}
@@ -69,11 +70,11 @@ func (h *handler) Get(c *gin.Context) {
 	}
 	v, err := h.svc.Get(c.Request.Context(), id, clinicID)
 	if err != nil {
-		if err == ErrForbidden {
+		if errors.Is(err, ErrForbidden) {
 			response.Error(c, http.StatusForbidden, err)
 			return
 		}
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
 		}
@@ -100,11 +101,11 @@ func (h *handler) Update(c *gin.Context) {
 	}
 	updated, err := h.svc.Update(c.Request.Context(), id, clinicID, &req)
 	if err != nil {
-		if err == ErrForbidden {
+		if errors.Is(err, ErrForbidden) {
 			response.Error(c, http.StatusForbidden, err)
 			return
 		}
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
 		}
@@ -125,11 +126,11 @@ func (h *handler) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.svc.Delete(c.Request.Context(), id, clinicID); err != nil {
-		if err == ErrForbidden {
+		if errors.Is(err, ErrForbidden) {
 			response.Error(c, http.StatusForbidden, err)
 			return
 		}
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
 		}
@@ -151,7 +152,7 @@ func (h *handler) List(c *gin.Context) {
 	}
 	list, err := h.svc.List(c.Request.Context(), formID, clinicID)
 	if err != nil {
-		if err == ErrForbidden {
+		if errors.Is(err, ErrForbidden) {
 			response.Error(c, http.StatusForbidden, err)
 			return
 		}

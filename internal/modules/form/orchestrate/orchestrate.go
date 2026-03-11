@@ -11,15 +11,15 @@ import (
 
 type Orchestrator struct {
 	detailSvc  detail.IService
-	versionSvc  version.IService
+	versionSvc version.IService
 	fieldSvc   field.IService
 }
 
 func NewOrchestrator(detailSvc detail.IService, versionSvc version.IService, fieldSvc field.IService) *Orchestrator {
 	return &Orchestrator{
-		detailSvc: detailSvc,
+		detailSvc:  detailSvc,
 		versionSvc: versionSvc,
-		fieldSvc:  fieldSvc,
+		fieldSvc:   fieldSvc,
 	}
 }
 

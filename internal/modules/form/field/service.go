@@ -26,8 +26,6 @@ var ErrCoaNotFound = errors.New("chart of account not found or does not belong t
 var ErrFieldWrongVersion = errors.New("field does not belong to this form version")
 var ErrFieldHasSubmittedEntries = errors.New("cannot delete field: it has submitted entry values")
 var ErrFormNotDraft = errors.New("only forms in DRAFT status can be edited; publish or archive prevents field changes")
-var ErrFormArchived = errors.New("form is archived and cannot be edited")
-var ErrFormPublishedRestricted = errors.New("published form allows only name and description updates")
 var ErrTooManyFields = errors.New("max fields per form version exceeded")
 
 // MaxFieldsPerVersion is the maximum number of fields allowed per form version.

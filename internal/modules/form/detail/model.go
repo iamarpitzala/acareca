@@ -76,7 +76,6 @@ type FormDetail struct {
 }
 
 func (r *RqFormDetail) ToDB(clinicID uuid.UUID) *FormDetail {
-
 	return &FormDetail{
 		ID:          uuid.New(),
 		ClinicID:    clinicID,
