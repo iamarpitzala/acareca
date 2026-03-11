@@ -4,13 +4,8 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/modules/business/clinic"
 )
-
-// FormClinicResolver resolves the clinic that owns a form. Used to enforce clinic scoping.
-// If nil, clinic validation is skipped.
-type FormClinicResolver interface {
-	FormClinicID(ctx context.Context, formID uuid.UUID) (uuid.UUID, error)
-}
 
 type IService interface {
 	Create(ctx context.Context, formID, clinicID uuid.UUID, req *RqFormVersion, userID uuid.UUID) (*RsFormVersion, error)
@@ -21,32 +16,23 @@ type IService interface {
 }
 
 type service struct {
-	repo     IRepository
-	formClinic FormClinicResolver
+	repo       IRepository
+	formClinic clinic.Service
 }
 
-func NewService(repo IRepository, formClinic FormClinicResolver) IService {
-	return &service{repo: repo, formClinic: formClinic}
-}
-
-func (s *service) validateFormClinic(ctx context.Context, formID, clinicID uuid.UUID) error {
-	if s.formClinic == nil || clinicID == uuid.Nil {
-		return nil
-	}
-	resolved, err := s.formClinic.FormClinicID(ctx, formID)
-	if err != nil {
-		return err
-	}
-	if resolved != clinicID {
-		return ErrForbidden
-	}
-	return nil
+func NewService(repo IRepository, clinicSvc clinic.Service) IService {
+	return &service{repo: repo, formClinic: clinicSvc}
 }
 
 // Create implements [IService].
 func (s *service) Create(ctx context.Context, formID, clinicID uuid.UUID, req *RqFormVersion, userID uuid.UUID) (*RsFormVersion, error) {
-	if err := s.validateFormClinic(ctx, formID, clinicID); err != nil {
+	clinic, err := s.formClinic.GetClinicByID(ctx, clinicID)
+	if err != nil {
 		return nil, err
+	}
+
+	if clinic.ID != clinicID {
+		return nil, ErrForbidden
 	}
 	v := req.ToDB(formID, userID)
 	if err := s.repo.Create(ctx, v); err != nil {
@@ -61,8 +47,12 @@ func (s *service) Get(ctx context.Context, id, clinicID uuid.UUID) (*RsFormVersi
 	if err != nil {
 		return nil, err
 	}
-	if err := s.validateFormClinic(ctx, v.FormId, clinicID); err != nil {
+	clinic, err := s.formClinic.GetClinicByID(ctx, clinicID)
+	if err != nil {
 		return nil, err
+	}
+	if clinic.ID != clinicID {
+		return nil, ErrForbidden
 	}
 	return v.ToRs(), nil
 }
@@ -73,38 +63,45 @@ func (s *service) Update(ctx context.Context, id, clinicID uuid.UUID, req *RqUpd
 	if err != nil {
 		return nil, err
 	}
-	if err := s.validateFormClinic(ctx, existing.FormId, clinicID); err != nil {
+	clinic, err := s.formClinic.GetClinicByID(ctx, clinicID)
+	if err != nil {
 		return nil, err
 	}
-	if req.Version != nil {
-		existing.Version = *req.Version
+	if clinic.ID != clinicID {
+		return nil, ErrForbidden
 	}
-	if req.IsActive != nil {
-		existing.IsActive = *req.IsActive
-	}
+
+	existing.Version++
+	existing.IsActive = true
 	updated, err := s.repo.Update(ctx, existing)
 	if err != nil {
 		return nil, err
 	}
+
 	return updated.ToRs(), nil
 }
 
 // Delete implements [IService].
 func (s *service) Delete(ctx context.Context, id, clinicID uuid.UUID) error {
-	v, err := s.repo.Get(ctx, id)
+	clinic, err := s.formClinic.GetClinicByID(ctx, clinicID)
 	if err != nil {
 		return err
 	}
-	if err := s.validateFormClinic(ctx, v.FormId, clinicID); err != nil {
-		return err
+	if clinic.ID != clinicID {
+		return ErrForbidden
 	}
+
 	return s.repo.Delete(ctx, id)
 }
 
 // List implements [IService].
 func (s *service) List(ctx context.Context, formID, clinicID uuid.UUID) ([]*RsFormVersion, error) {
-	if err := s.validateFormClinic(ctx, formID, clinicID); err != nil {
+	clinic, err := s.formClinic.GetClinicByID(ctx, clinicID)
+	if err != nil {
 		return nil, err
+	}
+	if clinic.ID != clinicID {
+		return nil, ErrForbidden
 	}
 	list, err := s.repo.ListByFormID(ctx, formID)
 	if err != nil {

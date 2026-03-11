@@ -27,7 +27,7 @@ func NewHandler(svc IService) IHandler {
 
 // Create implements [IHandler].
 func (h *handler) Create(c *gin.Context) {
-	formID, ok := util.ParseUuidID(c, "form_id")
+	formID, ok := util.ParseUuidID(c, "id")
 	if !ok {
 		return
 	}
@@ -40,7 +40,7 @@ func (h *handler) Create(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	userID := uuid.Nil // TODO: from auth context when available
+	userID := uuid.Nil
 	created, err := h.svc.Create(c.Request.Context(), formID, clinicID, &req, userID)
 	if err != nil {
 		if err == ErrForbidden {
@@ -141,7 +141,7 @@ func (h *handler) Delete(c *gin.Context) {
 
 // List implements [IHandler].
 func (h *handler) List(c *gin.Context) {
-	formID, ok := util.ParseUuidID(c, "form_id")
+	formID, ok := util.ParseUuidID(c, "id") // form ID from path .../form/:id/version
 	if !ok {
 		return
 	}

@@ -2,7 +2,6 @@ package route
 
 import (
 	"context"
-	"errors"
 	"log"
 	"time"
 
@@ -25,21 +24,6 @@ import (
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 	"github.com/iamarpitzala/acareca/pkg/config"
 )
-
-type formClinicResolver struct {
-	repo formdetail.IRepository
-}
-
-func (r *formClinicResolver) FormClinicID(ctx context.Context, formID uuid.UUID) (uuid.UUID, error) {
-	f, err := r.repo.GetByID(ctx, formID)
-	if err != nil {
-		if errors.Is(err, formdetail.ErrNotFound) {
-			return uuid.Nil, formversion.ErrNotFound
-		}
-		return uuid.Nil, err
-	}
-	return f.ClinicID, nil
-}
 
 func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	v1 := r.Group("/api/v1")
@@ -139,24 +123,25 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 
 	// form (detail + version + field + entry) – clinic-scoped
 	formDetailRepo := formdetail.NewRepository(dbConn)
-	formDetailSvc := formdetail.NewService(formDetailRepo)
+	formVersionRepo := formversion.NewRepository(dbConn)
+	formVersionSvc := formversion.NewService(formVersionRepo, clinic.NewService(clinicRepo))
+	formDetailSvc := formdetail.NewService(formDetailRepo, formVersionSvc)
 	formDetailHandler := formdetail.NewHandler(formDetailSvc)
 
 	formDetailGroup := clinicGroup.Group("/:id")
 	formGroup := formDetailGroup.Group("/form")
-	formGroup.Use(formdetail.MiddlewareClinicID())
+	formGroup.Use(middleware.Auth(cfg))
 	formdetail.RegisterRoutes(formGroup, formDetailHandler)
 
-	formVersionRepo := formversion.NewRepository(dbConn)
-	formVersionSvc := formversion.NewService(formVersionRepo, &formClinicResolver{repo: formDetailRepo})
 	formVersionHandler := formversion.NewHandler(formVersionSvc)
-	formVersionGroup := formGroup.Group("/:id/version")
+	formIdGroup := formGroup.Group("/:id")
+	formVersionGroup := formIdGroup.Group("/version")
 	formversion.RegisterRoutes(formVersionGroup, formVersionHandler)
 
 	formFieldRepo := formfield.NewRepository(dbConn)
 	formFieldSvc := formfield.NewService(formFieldRepo)
 	formFieldHandler := formfield.NewHandler(formFieldSvc)
-	formfield.RegisterRoutes(formVersionGroup.Group("/:id/field"), formFieldHandler)
+	formfield.RegisterRoutes(formIdGroup.Group("/field"), formFieldHandler)
 
 	formEntryRepo := formentry.NewRepository(dbConn)
 	formEntrySvc := formentry.NewService(formEntryRepo)

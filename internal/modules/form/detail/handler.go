@@ -30,12 +30,17 @@ func (h *handler) CreateForm(c *gin.Context) {
 	if !ok {
 		return
 	}
+	practitionerID, ok := util.GetPractitionerID(c)
+	if !ok {
+		return
+	}
 	var req RqFormDetail
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	created, err := h.svc.Create(c.Request.Context(), &req, clinicID)
+
+	created, err := h.svc.Create(c.Request.Context(), &req, clinicID, practitionerID)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
@@ -64,6 +69,7 @@ func (h *handler) GetForm(c *gin.Context) {
 	if !ok {
 		return
 	}
+
 	form, err := h.svc.GetByID(c.Request.Context(), id)
 	if err != nil {
 		if err == ErrNotFound {
@@ -97,6 +103,10 @@ func (h *handler) UpdateForm(c *gin.Context) {
 	if !ok {
 		return
 	}
+	practitionerID, ok := util.GetPractitionerID(c)
+	if !ok {
+		return
+	}
 	var req RqUpdateFormDetail
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
@@ -104,12 +114,8 @@ func (h *handler) UpdateForm(c *gin.Context) {
 	}
 
 	req.ID = id
-	updated, err := h.svc.Update(c.Request.Context(), &req)
+	updated, err := h.svc.Update(c.Request.Context(), &req, practitionerID)
 	if err != nil {
-		if err == ErrNotFound {
-			response.Error(c, http.StatusNotFound, err)
-			return
-		}
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}

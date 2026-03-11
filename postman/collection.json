@@ -531,9 +531,9 @@
               "options": { "raw": { "language": "json" } }
             },
             "url": {
-              "raw": "{{base_url}}/api/v1/clinics/create",
+              "raw": "{{base_url}}/api/v1/clinic/create",
               "host": ["{{base_url}}"],
-              "path": ["api", "v1", "clinics", "create"]
+              "path": ["api", "v1", "clinic", "create"]
             }
           }
         },
@@ -545,9 +545,9 @@
               { "key": "Authorization", "value": "Bearer {{token}}" }
             ],
             "url": {
-              "raw": "{{base_url}}/api/v1/clinics/all",
+              "raw": "{{base_url}}/api/v1/clinic/all",
               "host": ["{{base_url}}"],
-              "path": ["api", "v1", "clinics", "all"]
+              "path": ["api", "v1", "clinic", "all"]
             }
           }
         },
@@ -559,9 +559,9 @@
               { "key": "Authorization", "value": "Bearer {{token}}" }
             ],
             "url": {
-              "raw": "{{base_url}}/api/v1/clinics/:id",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "clinics", ":id"],
+"raw": "{{base_url}}/api/v1/clinic/:id",
+            "host": ["{{base_url}}"],
+            "path": ["api", "v1", "clinic", ":id"],
               "variable": [{ "key": "id", "value": "" }]
             }
           }
@@ -574,9 +574,9 @@
               { "key": "Authorization", "value": "Bearer {{token}}" }
             ],
             "url": {
-              "raw": "{{base_url}}/api/v1/clinics/:id",
+              "raw": "{{base_url}}/api/v1/clinic/:id",
               "host": ["{{base_url}}"],
-              "path": ["api", "v1", "clinics", ":id"],
+              "path": ["api", "v1", "clinic", ":id"],
               "variable": [{ "key": "id", "value": "" }]
             }
           }
@@ -745,10 +745,10 @@
                   { "key": "Authorization", "value": "Bearer {{token}}" }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms"],
-                  "variable": [{ "key": "clinic_id", "value": "" }]
+                  "path": ["api", "v1", "clinic", ":id", "form"],
+                  "variable": [{ "key": "id", "value": "" }]
                 }
               }
             },
@@ -766,10 +766,10 @@
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms"],
-                  "variable": [{ "key": "clinic_id", "value": "" }]
+                  "path": ["api", "v1", "clinic", ":id", "form"],
+                  "variable": [{ "key": "id", "value": "" }]
                 }
               }
             },
@@ -781,12 +781,12 @@
                   { "key": "Authorization", "value": "Bearer {{token}}" }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:id",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":id"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
-                    { "key": "id", "value": "" }
+                    { "key": "id", "value": "" },
+                    { "key": "form_id", "value": "" }
                   ]
                 }
               }
@@ -805,12 +805,12 @@
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:id",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":id"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
-                    { "key": "id", "value": "" }
+                    { "key": "id", "value": "" },
+                    { "key": "form_id", "value": "" }
                   ]
                 }
               }
@@ -823,12 +823,12 @@
                   { "key": "Authorization", "value": "Bearer {{token}}" }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:id",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":id"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
-                    { "key": "id", "value": "" }
+                    { "key": "id", "value": "" },
+                    { "key": "form_id", "value": "" }
                   ]
                 }
               }
@@ -846,11 +846,11 @@
                   { "key": "Authorization", "value": "Bearer {{token}}" }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:form_id/versions",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id/version",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":form_id", "versions"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id", "version"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
+                    { "key": "id", "value": "" },
                     { "key": "form_id", "value": "" }
                   ]
                 }
@@ -870,11 +870,11 @@
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:form_id/versions",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id/version",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":form_id", "versions"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id", "version"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
+                    { "key": "id", "value": "" },
                     { "key": "form_id", "value": "" }
                   ]
                 }
@@ -888,13 +888,13 @@
                   { "key": "Authorization", "value": "Bearer {{token}}" }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:form_id/versions/:id",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id/version/:version_id",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":form_id", "versions", ":id"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id", "version", ":version_id"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
+                    { "key": "id", "value": "" },
                     { "key": "form_id", "value": "" },
-                    { "key": "id", "value": "" }
+                    { "key": "version_id", "value": "" }
                   ]
                 }
               }
@@ -913,13 +913,13 @@
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:form_id/versions/:id",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id/version/:version_id",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":form_id", "versions", ":id"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id", "version", ":version_id"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
+                    { "key": "id", "value": "" },
                     { "key": "form_id", "value": "" },
-                    { "key": "id", "value": "" }
+                    { "key": "version_id", "value": "" }
                   ]
                 }
               }
@@ -932,13 +932,13 @@
                   { "key": "Authorization", "value": "Bearer {{token}}" }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:form_id/versions/:id",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id/version/:version_id",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":form_id", "versions", ":id"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id", "version", ":version_id"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
+                    { "key": "id", "value": "" },
                     { "key": "form_id", "value": "" },
-                    { "key": "id", "value": "" }
+                    { "key": "version_id", "value": "" }
                   ]
                 }
               }
@@ -956,11 +956,11 @@
                   { "key": "Authorization", "value": "Bearer {{token}}" }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:form_id/versions/:version_id/fields",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id/version/:version_id/field",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":form_id", "versions", ":version_id", "fields"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id", "version", ":version_id", "field"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
+                    { "key": "id", "value": "" },
                     { "key": "form_id", "value": "" },
                     { "key": "version_id", "value": "" }
                   ]
@@ -981,11 +981,11 @@
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:form_id/versions/:version_id/fields",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id/version/:version_id/field",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":form_id", "versions", ":version_id", "fields"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id", "version", ":version_id", "field"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
+                    { "key": "id", "value": "" },
                     { "key": "form_id", "value": "" },
                     { "key": "version_id", "value": "" }
                   ]
@@ -1000,14 +1000,14 @@
                   { "key": "Authorization", "value": "Bearer {{token}}" }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:form_id/versions/:version_id/fields/:id",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id/version/:version_id/field/:field_id",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":form_id", "versions", ":version_id", "fields", ":id"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id", "version", ":version_id", "field", ":field_id"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
+                    { "key": "id", "value": "" },
                     { "key": "form_id", "value": "" },
                     { "key": "version_id", "value": "" },
-                    { "key": "id", "value": "" }
+                    { "key": "field_id", "value": "" }
                   ]
                 }
               }
@@ -1026,14 +1026,14 @@
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:form_id/versions/:version_id/fields/:id",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id/version/:version_id/field/:field_id",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":form_id", "versions", ":version_id", "fields", ":id"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id", "version", ":version_id", "field", ":field_id"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
+                    { "key": "id", "value": "" },
                     { "key": "form_id", "value": "" },
                     { "key": "version_id", "value": "" },
-                    { "key": "id", "value": "" }
+                    { "key": "field_id", "value": "" }
                   ]
                 }
               }
@@ -1046,14 +1046,14 @@
                   { "key": "Authorization", "value": "Bearer {{token}}" }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:form_id/versions/:version_id/fields/:id",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id/version/:version_id/field/:field_id",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":form_id", "versions", ":version_id", "fields", ":id"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id", "version", ":version_id", "field", ":field_id"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
+                    { "key": "id", "value": "" },
                     { "key": "form_id", "value": "" },
                     { "key": "version_id", "value": "" },
-                    { "key": "id", "value": "" }
+                    { "key": "field_id", "value": "" }
                   ]
                 }
               }
@@ -1071,11 +1071,11 @@
                   { "key": "Authorization", "value": "Bearer {{token}}" }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:form_id/versions/:version_id/entries",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id/version/:version_id/entry",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":form_id", "versions", ":version_id", "entries"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id", "version", ":version_id", "entry"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
+                    { "key": "id", "value": "" },
                     { "key": "form_id", "value": "" },
                     { "key": "version_id", "value": "" }
                   ]
@@ -1096,11 +1096,11 @@
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:form_id/versions/:version_id/entries",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id/version/:version_id/entry",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":form_id", "versions", ":version_id", "entries"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id", "version", ":version_id", "entry"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
+                    { "key": "id", "value": "" },
                     { "key": "form_id", "value": "" },
                     { "key": "version_id", "value": "" }
                   ]
@@ -1115,14 +1115,14 @@
                   { "key": "Authorization", "value": "Bearer {{token}}" }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:form_id/versions/:version_id/entries/:id",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id/version/:version_id/entry/:entry_id",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":form_id", "versions", ":version_id", "entries", ":id"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id", "version", ":version_id", "entry", ":entry_id"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
+                    { "key": "id", "value": "" },
                     { "key": "form_id", "value": "" },
                     { "key": "version_id", "value": "" },
-                    { "key": "id", "value": "" }
+                    { "key": "entry_id", "value": "" }
                   ]
                 }
               }
@@ -1141,14 +1141,14 @@
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:form_id/versions/:version_id/entries/:id",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id/version/:version_id/entry/:entry_id",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":form_id", "versions", ":version_id", "entries", ":id"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id", "version", ":version_id", "entry", ":entry_id"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
+                    { "key": "id", "value": "" },
                     { "key": "form_id", "value": "" },
                     { "key": "version_id", "value": "" },
-                    { "key": "id", "value": "" }
+                    { "key": "entry_id", "value": "" }
                   ]
                 }
               }
@@ -1161,14 +1161,14 @@
                   { "key": "Authorization", "value": "Bearer {{token}}" }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/clinic/:clinic_id/forms/:form_id/versions/:version_id/entries/:id",
+                  "raw": "{{base_url}}/api/v1/clinic/:id/form/:form_id/version/:version_id/entry/:entry_id",
                   "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "clinic", ":clinic_id", "forms", ":form_id", "versions", ":version_id", "entries", ":id"],
+                  "path": ["api", "v1", "clinic", ":id", "form", ":form_id", "version", ":version_id", "entry", ":entry_id"],
                   "variable": [
-                    { "key": "clinic_id", "value": "" },
+                    { "key": "id", "value": "" },
                     { "key": "form_id", "value": "" },
                     { "key": "version_id", "value": "" },
-                    { "key": "id", "value": "" }
+                    { "key": "entry_id", "value": "" }
                   ]
                 }
               }

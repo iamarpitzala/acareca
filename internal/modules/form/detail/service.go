@@ -4,28 +4,37 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/modules/form/version"
 )
 
 type IService interface {
-	Create(ctx context.Context, d *RqFormDetail, clinicID uuid.UUID) (*RsFormDetail, error)
+	Create(ctx context.Context, d *RqFormDetail, clinicID uuid.UUID, practitionerID uuid.UUID) (*RsFormDetail, error)
 	GetByID(ctx context.Context, formID uuid.UUID) (*RsFormDetail, error)
-	Update(ctx context.Context, d *RqUpdateFormDetail) (*RsFormDetail, error)
+	Update(ctx context.Context, d *RqUpdateFormDetail, practitionerID uuid.UUID) (*RsFormDetail, error)
 	Delete(ctx context.Context, formID uuid.UUID) error
 	ListForm(ctx context.Context, filter Filter) ([]*RsFormDetail, error)
 }
 
 type Service struct {
-	repo IRepository
+	repo       IRepository
+	versionSvc version.IService
 }
 
-func NewService(repo IRepository) IService {
-	return &Service{repo: repo}
+func NewService(repo IRepository, versionSvc version.IService) IService {
+	return &Service{repo: repo, versionSvc: versionSvc}
 }
 
 // Create implements [IService].
-func (s *Service) Create(ctx context.Context, d *RqFormDetail, clinicID uuid.UUID) (*RsFormDetail, error) {
+func (s *Service) Create(ctx context.Context, d *RqFormDetail, clinicID uuid.UUID, practitionerID uuid.UUID) (*RsFormDetail, error) {
 	formDetail := d.ToDB(clinicID)
 	if err := s.repo.Create(ctx, formDetail); err != nil {
+		return nil, err
+	}
+	_, err := s.versionSvc.Create(ctx, formDetail.ID, clinicID, &version.RqFormVersion{
+		Version:  1,
+		IsActive: true,
+	}, practitionerID)
+	if err != nil {
 		return nil, err
 	}
 	return formDetail.ToRs(), nil
@@ -50,11 +59,12 @@ func (s *Service) ListForm(ctx context.Context, filter Filter) ([]*RsFormDetail,
 }
 
 // Update implements [IService].
-func (s *Service) Update(ctx context.Context, d *RqUpdateFormDetail) (*RsFormDetail, error) {
+func (s *Service) Update(ctx context.Context, d *RqUpdateFormDetail, practitionerID uuid.UUID) (*RsFormDetail, error) {
 	existing, err := s.repo.GetByID(ctx, d.ID)
 	if err != nil {
 		return nil, err
 	}
+
 	if d.Name != nil {
 		existing.Name = *d.Name
 	}
@@ -73,11 +83,55 @@ func (s *Service) Update(ctx context.Context, d *RqUpdateFormDetail) (*RsFormDet
 	if d.ClinicShare != nil {
 		existing.ClinicShare = *d.ClinicShare
 	}
-	updatedForm, err := s.repo.Update(ctx, existing)
+
+	updated, err := s.repo.Update(ctx, existing)
 	if err != nil {
 		return nil, err
 	}
-	return updatedForm.ToRs(), nil
+
+	// Deactivate currently active versions
+	activeVersions, err := s.versionSvc.List(ctx, updated.ID, updated.ClinicID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Deactivate all currently active versions
+	for _, v := range activeVersions {
+		if v.IsActive {
+			isActive := false
+			_, err := s.versionSvc.Update(ctx, v.Id, updated.ClinicID, &version.RqUpdateFormVersion{
+				Version:  &v.Version,
+				IsActive: &isActive,
+			})
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// Find the latest version number
+	versionNum := 1
+	if len(activeVersions) > 0 {
+		maxVersion := activeVersions[0].Version
+		for _, v := range activeVersions {
+			if v.Version > maxVersion {
+				maxVersion = v.Version
+			}
+		}
+		versionNum = maxVersion + 1
+	}
+
+	// Create a new active version
+	isActive := true
+	_, err = s.versionSvc.Create(ctx, updated.ID, updated.ClinicID, &version.RqFormVersion{
+		Version:  versionNum,
+		IsActive: isActive,
+	}, practitionerID)
+	if err != nil {
+		return nil, err
+	}
+
+	return updated.ToRs(), nil
 }
 
 // GetByID implements [IService].
