@@ -9,41 +9,38 @@ import (
 
 // DefaultChartRow defines one default chart-of-account row (e.g. Xero-style defaults).
 type DefaultChartRow struct {
-	Code          string
+	Code          int16  // 3–4 digit code (100–9999)
 	Name          string
-	AccountTypeID int16 // 1=Asset, 2=Liability, 3=Equity, 4=Revenue, 5=Expense
-	AccountTaxID  int16 // 1=GST on Income, 2=GST on Expenses, etc.
+	AccountTypeID int16  // 1=Asset, 2=Liability, 3=Equity, 4=Revenue, 5=Expense
+	AccountTaxID  int16  // 1=GST on Income, 2=GST on Expenses, etc.
 }
 
 // DefaultChartOfAccounts returns the 4–5 default accounts created for each practitioner.
 func DefaultChartOfAccounts() []DefaultChartRow {
 	return []DefaultChartRow{
-		{Code: "1-1000", Name: "Bank", AccountTypeID: 1, AccountTaxID: 1},           // Asset
-		{Code: "2-2000", Name: "Accounts Receivable", AccountTypeID: 1, AccountTaxID: 1},
-		{Code: "3-3000", Name: "Equity", AccountTypeID: 3, AccountTaxID: 3},      // Equity, GST Free
-		{Code: "4-4000", Name: "Revenue", AccountTypeID: 4, AccountTaxID: 1},     // Revenue
-		{Code: "5-5000", Name: "Expenses", AccountTypeID: 5, AccountTaxID: 2},    // Expense
+		{Code: 1000, Name: "Bank", AccountTypeID: 1, AccountTaxID: 1},
+		{Code: 2000, Name: "Accounts Receivable", AccountTypeID: 1, AccountTaxID: 1},
+		{Code: 3000, Name: "Equity", AccountTypeID: 3, AccountTaxID: 3},
+		{Code: 4000, Name: "Revenue", AccountTypeID: 4, AccountTaxID: 1},
+		{Code: 5000, Name: "Expenses", AccountTypeID: 5, AccountTaxID: 2},
 	}
 }
 
 // SeedDefaultsForPractitioner creates default chart-of-account rows for a practitioner.
-// created_by = practitionerID, system_provider = true, is_system = true.
-// Reusable from onboarding or admin flows.
+// practice_id = practitionerID, is_system = true.
 func SeedDefaultsForPractitioner(ctx context.Context, repo Repository, practitionerID uuid.UUID) error {
 	for _, row := range DefaultChartOfAccounts() {
 		chart := &ChartOfAccount{
-			CreatedBy:      practitionerID,
-			AccountTypeID:  row.AccountTypeID,
-			AccountTaxID:   row.AccountTaxID,
-			Code:           row.Code,
-			Name:           row.Name,
-			IsSystem:       true,
-			SystemProvider: true,
-			IsActive:       true,
+			CreatedBy:     practitionerID,
+			AccountTypeID: row.AccountTypeID,
+			AccountTaxID:  row.AccountTaxID,
+			Code:          row.Code,
+			Name:          row.Name,
+			IsSystem:      true,
 		}
 		_, err := repo.CreateChart(ctx, chart)
 		if err != nil {
-			log.Printf("coa: seed default %q for practitioner %s: %v", row.Code, practitionerID, err)
+			log.Printf("coa: seed default %d for practitioner %s: %v", row.Code, practitionerID, err)
 			return err
 		}
 	}

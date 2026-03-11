@@ -177,7 +177,7 @@ func (h *handler) UpdateChart(c *gin.Context) {
 			response.Error(c, http.StatusConflict, err)
 			return
 		}
-		if errors.Is(err, ErrSystemAccountProtected) || errors.Is(err, ErrSystemProviderProtected) {
+		if errors.Is(err, ErrSystemAccountProtected) {
 			response.Error(c, http.StatusForbidden, err)
 			return
 		}
@@ -203,10 +203,6 @@ func (h *handler) DeleteChart(c *gin.Context) {
 	}
 	if err := h.svc.DeleteChart(c.Request.Context(), id, createdBy); err != nil {
 		if errors.Is(err, ErrSystemAccountProtected) {
-			response.Error(c, http.StatusForbidden, err)
-			return
-		}
-		if errors.Is(err, ErrSystemProviderProtected) {
 			response.Error(c, http.StatusForbidden, err)
 			return
 		}

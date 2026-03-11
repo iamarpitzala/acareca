@@ -91,7 +91,7 @@ func (s *service) GetChartByIDAndCreatedBy(ctx context.Context, id uuid.UUID, cr
 }
 
 func (s *service) CreateChart(ctx context.Context, createdBy uuid.UUID, req *RqCreateChartOfAccount) (*RsChartOfAccount, error) {
-	// (code, created_by) must be unique per user
+	// (code, practice_id) must be unique per user
 	existing, _ := s.repo.GetChartByCodeAndCreatedBy(ctx, req.Code, createdBy, nil)
 	if existing != nil {
 		return nil, ErrCodeExists
@@ -106,19 +106,13 @@ func (s *service) CreateChart(ctx context.Context, createdBy uuid.UUID, req *RqC
 	if req.IsSystem != nil {
 		isSystem = *req.IsSystem
 	}
-	isActive := true
-	if req.IsActive != nil {
-		isActive = *req.IsActive
-	}
 	chart := &ChartOfAccount{
-		CreatedBy:      createdBy, // from path
-		AccountTypeID:  req.AccountTypeID,
-		AccountTaxID:   req.AccountTaxID,
-		Code:           req.Code,
-		Name:           req.Name,
-		IsSystem:       isSystem,
-		SystemProvider: false, // user-created via API
-		IsActive:       isActive,
+		CreatedBy:     createdBy,
+		AccountTypeID: req.AccountTypeID,
+		AccountTaxID:  req.AccountTaxID,
+		Code:          req.Code,
+		Name:          req.Name,
+		IsSystem:      isSystem,
 	}
 	created, err := s.repo.CreateChart(ctx, chart)
 	if err != nil {
@@ -136,11 +130,8 @@ func (s *service) UpdateChart(ctx context.Context, id uuid.UUID, createdBy uuid.
 	if existing.IsSystem {
 		return nil, ErrSystemAccountProtected
 	}
-	if existing.SystemProvider {
-		return nil, ErrSystemProviderProtected
-	}
 	if req.Code != nil && *req.Code != existing.Code {
-		other, _ := s.repo.GetChartByCodeAndCreatedBy(ctx, *req.Code, existing.CreatedBy, &id)
+		other, _ := s.repo.GetChartByCodeAndCreatedBy(ctx, *req.Code, createdBy, &id)
 		if other != nil {
 			return nil, ErrCodeExists
 		}
@@ -163,9 +154,6 @@ func (s *service) UpdateChart(ctx context.Context, id uuid.UUID, createdBy uuid.
 	if req.Name != nil {
 		existing.Name = *req.Name
 	}
-	if req.IsActive != nil {
-		existing.IsActive = *req.IsActive
-	}
 	updated, err := s.repo.UpdateChart(ctx, existing)
 	if err != nil {
 		return nil, err
@@ -181,9 +169,6 @@ func (s *service) DeleteChart(ctx context.Context, id uuid.UUID, createdBy uuid.
 	}
 	if existing.IsSystem {
 		return ErrSystemAccountProtected
-	}
-	if existing.SystemProvider {
-		return ErrSystemProviderProtected
 	}
 	return s.repo.DeleteChart(ctx, id, createdBy)
 }
