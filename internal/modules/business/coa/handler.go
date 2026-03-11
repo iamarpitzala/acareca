@@ -87,8 +87,7 @@ func (h *handler) GetAccountTax(c *gin.Context) {
 }
 
 func (h *handler) ListChartOfAccount(c *gin.Context) {
-	util.SignToken()
-	practice_id, ok := h.parsepractice_idID(c)
+	practice_id, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
@@ -101,7 +100,7 @@ func (h *handler) ListChartOfAccount(c *gin.Context) {
 }
 
 func (h *handler) GetChartOfAccount(c *gin.Context) {
-	practice_id, ok := h.parsepractice_idID(c)
+	practice_id, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
@@ -123,7 +122,7 @@ func (h *handler) GetChartOfAccount(c *gin.Context) {
 }
 
 func (h *handler) CreateChartOfAccount(c *gin.Context) {
-	practice_id, ok := h.parsepractice_idID(c)
+	practice_id, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
@@ -149,7 +148,7 @@ func (h *handler) CreateChartOfAccount(c *gin.Context) {
 }
 
 func (h *handler) UpdateCharOfAccount(c *gin.Context) {
-	practice_id, ok := h.parsepractice_idID(c)
+	practice_id, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
@@ -184,7 +183,7 @@ func (h *handler) UpdateCharOfAccount(c *gin.Context) {
 }
 
 func (h *handler) DeleteChartOfAccount(c *gin.Context) {
-	practice_id, ok := h.parsepractice_idID(c)
+	practice_id, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
