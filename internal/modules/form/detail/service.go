@@ -10,11 +10,13 @@ import (
 
 var ErrFormArchived = errors.New("form is archived and cannot be updated")
 var ErrFormPublishedRestricted = errors.New("published form allows only name and description updates")
+var ErrFormNotDraftForFields = errors.New("only forms in DRAFT status can have fields updated")
 
 type IService interface {
 	Create(ctx context.Context, d *RqFormDetail, clinicID uuid.UUID, practitionerID uuid.UUID) (*RsFormDetail, error)
 	GetByID(ctx context.Context, formID uuid.UUID) (*RsFormDetail, error)
 	Update(ctx context.Context, d *RqUpdateFormDetail, practitionerID uuid.UUID) (*RsFormDetail, error)
+	UpdateMetadata(ctx context.Context, d *RqUpdateFormDetail) (*RsFormDetail, error)
 	Delete(ctx context.Context, formID uuid.UUID) error
 	ListForm(ctx context.Context, filter Filter) ([]*RsFormDetail, error)
 }
@@ -145,6 +147,47 @@ func (s *Service) Update(ctx context.Context, d *RqUpdateFormDetail, practitione
 		return nil, err
 	}
 
+	return updated.ToRs(), nil
+}
+
+// UpdateMetadata updates only the form row; no version creation. Used by update-with-fields flow.
+func (s *Service) UpdateMetadata(ctx context.Context, d *RqUpdateFormDetail) (*RsFormDetail, error) {
+	existing, err := s.repo.GetByID(ctx, d.ID)
+	if err != nil {
+		return nil, err
+	}
+	if existing.Status == StatusArchived {
+		return nil, ErrFormArchived
+	}
+	if existing.Status == StatusPublished {
+		if d.Status != nil || d.Method != nil || d.OwnerShare != nil || d.ClinicShare != nil {
+			return nil, ErrFormPublishedRestricted
+		}
+	}
+	if d.Name != nil {
+		existing.Name = *d.Name
+	}
+	if d.Description != nil {
+		existing.Description = d.Description
+	}
+	if existing.Status != StatusPublished {
+		if d.Status != nil {
+			existing.Status = *d.Status
+		}
+		if d.Method != nil {
+			existing.Method = *d.Method
+		}
+		if d.OwnerShare != nil {
+			existing.OwnerShare = *d.OwnerShare
+		}
+		if d.ClinicShare != nil {
+			existing.ClinicShare = *d.ClinicShare
+		}
+	}
+	updated, err := s.repo.Update(ctx, existing)
+	if err != nil {
+		return nil, err
+	}
 	return updated.ToRs(), nil
 }
 
