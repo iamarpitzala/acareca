@@ -17,7 +17,7 @@ type IHandler interface {
 	ListAccountTaxes(c *gin.Context)
 	GetAccountTaxByID(c *gin.Context)
 
-	ListChartByClinic(c *gin.Context)
+	ListCharts(c *gin.Context)
 	GetChartByID(c *gin.Context)
 	CreateChart(c *gin.Context)
 	UpdateChart(c *gin.Context)
@@ -86,13 +86,8 @@ func (h *handler) GetAccountTaxByID(c *gin.Context) {
 	response.JSON(c, http.StatusOK, one)
 }
 
-func (h *handler) ListChartByClinic(c *gin.Context) {
-	clinicID, err := uuid.Parse(c.Param("clinicId"))
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, errors.New("invalid clinic id"))
-		return
-	}
-	list, err := h.svc.ListChartByClinic(c.Request.Context(), clinicID)
+func (h *handler) ListCharts(c *gin.Context) {
+	list, err := h.svc.ListCharts(c.Request.Context())
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
@@ -119,18 +114,17 @@ func (h *handler) GetChartByID(c *gin.Context) {
 }
 
 func (h *handler) CreateChart(c *gin.Context) {
-	clinicID, err := uuid.Parse(c.Param("clinicId"))
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, errors.New("invalid clinic id"))
-		return
-	}
 	var req RqCreateChartOfAccount
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	created, err := h.svc.CreateChart(c.Request.Context(), clinicID, &req)
+	created, err := h.svc.CreateChart(c.Request.Context(), &req)
 	if err != nil {
+		if errors.Is(err, ErrCodeExists) {
+			response.Error(c, http.StatusConflict, err)
+			return
+		}
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusBadRequest, err)
 			return
@@ -154,6 +148,14 @@ func (h *handler) UpdateChart(c *gin.Context) {
 	}
 	updated, err := h.svc.UpdateChart(c.Request.Context(), id, &req)
 	if err != nil {
+		if errors.Is(err, ErrCodeExists) {
+			response.Error(c, http.StatusConflict, err)
+			return
+		}
+		if errors.Is(err, ErrSystemAccountProtected) {
+			response.Error(c, http.StatusForbidden, err)
+			return
+		}
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
@@ -171,6 +173,10 @@ func (h *handler) DeleteChart(c *gin.Context) {
 		return
 	}
 	if err := h.svc.DeleteChart(c.Request.Context(), id); err != nil {
+		if errors.Is(err, ErrSystemAccountProtected) {
+			response.Error(c, http.StatusForbidden, err)
+			return
+		}
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
