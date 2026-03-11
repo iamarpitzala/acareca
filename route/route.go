@@ -14,6 +14,7 @@ import (
 	"github.com/iamarpitzala/acareca/internal/modules/engine/calculation"
 	"github.com/iamarpitzala/acareca/internal/modules/engine/method"
 	formdetail "github.com/iamarpitzala/acareca/internal/modules/form/detail"
+	formfield "github.com/iamarpitzala/acareca/internal/modules/form/field"
 	formversion "github.com/iamarpitzala/acareca/internal/modules/form/version"
 	practitioner "github.com/iamarpitzala/acareca/internal/modules/practitioner/setting"
 	practitionerSub "github.com/iamarpitzala/acareca/internal/modules/practitioner/subscription"
@@ -124,5 +125,11 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	formVersionRepo := formversion.NewRepository(dbConn)
 	formVersionSvc := formversion.NewService(formVersionRepo)
 	formVersionHandler := formversion.NewHandler(formVersionSvc)
-	formversion.RegisterRoutes(formGroup.Group("/:form_id/versions"), formVersionHandler)
+	formVersionGroup := formGroup.Group("/:form_id/versions")
+	formversion.RegisterRoutes(formVersionGroup, formVersionHandler)
+
+	formFieldRepo := formfield.NewRepository(dbConn)
+	formFieldSvc := formfield.NewService(formFieldRepo)
+	formFieldHandler := formfield.NewHandler(formFieldSvc)
+	formfield.RegisterRoutes(formVersionGroup.Group("/:version_id/fields"), formFieldHandler)
 }
