@@ -165,7 +165,7 @@ func (h *handler) GetFormWithFields(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param clinic_id query string false "Clinic ID"
-// @Success 200 {array} RsForm
+// @Success 200 {object} []RsForm
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
 // @Router /form [get]
