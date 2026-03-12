@@ -81,11 +81,9 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	coaHandler := coa.NewHandler(coaSvc)
 	coa.RegisterRoutes(v1.Group("/coa"), coaHandler)
 
-	// form (detail + version + field + entry) – clinic-scoped
 	formGroup := clinicGroup.Group("/:clinic_id/form")
 	// formGroup.Use(middleware.Auth(cfg))
 
-	// Detail, version, field, entry setup for form endpoints
 	detailRepo := detail.NewRepository(dbConn)
 	versionRepo := version.NewRepository(dbConn)
 	fieldRepo := field.NewRepository(dbConn)
@@ -93,10 +91,8 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	detailSvc := detail.NewService(detailRepo, version.NewService(versionRepo, clinicSvc))
 	fieldSvc := field.NewService(fieldRepo, coaSvc, clinicSvc, practitionerSvc, version.NewService(versionRepo, clinicSvc), entryRepo)
 
-	// Register form main endpoints (combined handler)
-	formRepo := form.NewRepository(dbConn)
 	versionSvc := version.NewService(versionRepo, clinicSvc)
-	formSvc := form.NewService(formRepo, detailSvc, versionSvc, fieldSvc, entryRepo, coaSvc)
+	formSvc := form.NewService(detailSvc, versionSvc, fieldSvc, entryRepo, coaSvc)
 	formHandler := form.NewHandler(formSvc)
 	form.RegisterRoutes(formGroup, formHandler)
 }

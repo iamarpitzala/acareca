@@ -4,20 +4,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// SectionType enum: COLLECTION, COST, OTHER_COST
 const (
 	SectionTypeCollection = "COLLECTION"
 	SectionTypeCost       = "COST"
 	SectionTypeOtherCost  = "OTHER_COST"
 )
 
-// PaymentResponsibility enum: OWNER, CLINIC
 const (
 	PaymentResponsibilityOwner  = "OWNER"
 	PaymentResponsibilityClinic = "CLINIC"
 )
 
-// TaxType enum: INCLUSIVE, EXCLUSIVE, MANUAL
 const (
 	TaxTypeInclusive = "INCLUSIVE"
 	TaxTypeExclusive = "EXCLUSIVE"
@@ -34,7 +31,7 @@ type RqFormField struct {
 }
 
 type RqUpdateFormField struct {
-	ID                    uuid.UUID `json:"-"`
+	ID                    uuid.UUID `json:"id" validate:"required,uuid"`
 	Label                 *string   `json:"label" validate:"omitempty,max=255"`
 	SectionType           *string   `json:"section_type" validate:"omitempty,oneof=COLLECTION COST OTHER_COST"`
 	PaymentResponsibility *string   `json:"payment_responsibility" validate:"omitempty,oneof=OWNER CLINIC"`
@@ -100,15 +97,4 @@ type RsFormField struct {
 	SortOrder             int       `json:"sort_order"`
 	CreatedAt             string    `json:"created_at"`
 	UpdatedAt             string    `json:"updated_at"`
-}
-
-// RqFormFieldUpdateItem is a single field update in a bulk sync (id required).
-type RqFormFieldUpdateItem struct {
-	ID                    uuid.UUID `json:"id" validate:"required"`
-	Label                 *string   `json:"label" validate:"omitempty,max=255"`
-	SectionType           *string   `json:"section_type" validate:"omitempty,oneof=COLLECTION COST OTHER_COST"`
-	PaymentResponsibility *string   `json:"payment_responsibility" validate:"omitempty,oneof=OWNER CLINIC"`
-	TaxType               *string   `json:"tax_type" validate:"omitempty,oneof=INCLUSIVE EXCLUSIVE MANUAL"`
-	CoaID                 *string   `json:"coa_id" validate:"omitempty,uuid"`
-	SortOrder             *int      `json:"sort_order" validate:"omitempty,min=0"`
 }

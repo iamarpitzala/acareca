@@ -19,7 +19,6 @@ type IService interface {
 }
 
 type service struct {
-	repo       IRepository
 	detailSvc  detail.IService
 	versionSvc version.IService
 	fieldSvc   field.IService
@@ -27,8 +26,8 @@ type service struct {
 	coaSvc     coa.Service
 }
 
-func NewService(repo IRepository, detailSvc detail.IService, versionSvc version.IService, fieldSvc field.IService, entryRepo entry.IRepository, coaSvc coa.Service) IService {
-	return &service{repo: repo, detailSvc: detailSvc, versionSvc: versionSvc, fieldSvc: fieldSvc, entryRepo: entryRepo, coaSvc: coaSvc}
+func NewService(detailSvc detail.IService, versionSvc version.IService, fieldSvc field.IService, entryRepo entry.IRepository, coaSvc coa.Service) IService {
+	return &service{detailSvc: detailSvc, versionSvc: versionSvc, fieldSvc: fieldSvc, entryRepo: entryRepo, coaSvc: coaSvc}
 }
 
 func (s *service) BulkSyncFields(ctx context.Context, formVersionID uuid.UUID, practitionerID uuid.UUID, req *RqBulkSyncFields) (*RsBulkSyncFields, error) {
@@ -107,7 +106,7 @@ func (s *service) BulkSyncFields(ctx context.Context, formVersionID uuid.UUID, p
 		if item.SortOrder != nil {
 			existing.SortOrder = *item.SortOrder
 		}
-		updated, err := s.fieldSvc.Update(ctx, existing.ID, practitionerID, &field.RqUpdateFormField{
+		updated, err := s.fieldSvc.Update(ctx, existing.ID, req.ClinicID, practitionerID, &field.RqUpdateFormField{
 			CoaID:                 item.CoaID,
 			Label:                 item.Label,
 			SectionType:           item.SectionType,
@@ -132,7 +131,7 @@ func (s *service) BulkSyncFields(ctx context.Context, formVersionID uuid.UUID, p
 			}
 			return nil, err
 		}
-		created, err := s.fieldSvc.Create(ctx, formVersionID, practitionerID, &field.RqFormField{
+		created, err := s.fieldSvc.Create(ctx, formVersionID, req.ClinicID, practitionerID, &field.RqFormField{
 			CoaID:                 item.CoaID,
 			Label:                 item.Label,
 			SectionType:           item.SectionType,
@@ -148,9 +147,6 @@ func (s *service) BulkSyncFields(ctx context.Context, formVersionID uuid.UUID, p
 	return out, nil
 }
 
-// CreateWithFields implements [IService].
-
-// CreateWithFields implements [IService].
 func (s *service) CreateWithFields(ctx context.Context, d *RqCreateFormWithFields, clinicID uuid.UUID, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error) {
 	formReq := &detail.RqFormDetail{
 		Name:        d.Name,
@@ -201,9 +197,10 @@ func (s *service) CreateWithFields(ctx context.Context, d *RqCreateFormWithField
 		createList = append(createList, r)
 	}
 	bulk, err := s.BulkSyncFields(ctx, activeVersionID, practitionerID, &RqBulkSyncFields{
-		Create: createList,
-		Update: nil,
-		Delete: nil,
+		ClinicID: d.ClinicID,
+		Create:   createList,
+		Update:   nil,
+		Delete:   nil,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -215,7 +212,6 @@ func (s *service) CreateWithFields(ctx context.Context, d *RqCreateFormWithField
 	return created, syncResult, nil
 }
 
-// UpdateWithFields implements [IService].
 func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFields, clinicID uuid.UUID, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error) {
 	existing, err := s.detailSvc.GetByID(ctx, req.ID)
 	if err != nil {
@@ -265,18 +261,18 @@ func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFie
 	}
 	keepIDs := make(map[uuid.UUID]struct{})
 	var createList []field.RqFormField
-	var updateList []field.RqFormFieldUpdateItem
+	var updateList []field.RqUpdateFormField
 	for i := range req.Fields {
 		f := &req.Fields[i]
-		if f.ID != nil {
-			keepIDs[*f.ID] = struct{}{}
-			item := field.RqFormFieldUpdateItem{
-				ID:                    *f.ID,
-				Label:                 &f.Label,
-				SectionType:           &f.SectionType,
-				PaymentResponsibility: &f.PaymentResponsibility,
-				TaxType:               &f.TaxType,
-				CoaID:                 &f.CoaID,
+		if f.ID != uuid.Nil {
+			keepIDs[f.ID] = struct{}{}
+			item := field.RqUpdateFormField{
+				ID:                    f.ID,
+				Label:                 f.Label,
+				SectionType:           f.SectionType,
+				PaymentResponsibility: f.PaymentResponsibility,
+				TaxType:               f.TaxType,
+				CoaID:                 f.CoaID,
 			}
 			if f.SortOrder != nil {
 				item.SortOrder = f.SortOrder
@@ -284,11 +280,11 @@ func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFie
 			updateList = append(updateList, item)
 		} else {
 			r := field.RqFormField{
-				Label:                 f.Label,
-				SectionType:           f.SectionType,
-				PaymentResponsibility: f.PaymentResponsibility,
-				TaxType:               f.TaxType,
-				CoaID:                 f.CoaID,
+				Label:                 *f.Label,
+				SectionType:           *f.SectionType,
+				PaymentResponsibility: *f.PaymentResponsibility,
+				TaxType:               *f.TaxType,
+				CoaID:                 *f.CoaID,
 			}
 			if f.SortOrder != nil {
 				r.SortOrder = f.SortOrder
@@ -303,9 +299,10 @@ func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFie
 		}
 	}
 	bulk, err := s.BulkSyncFields(ctx, activeVersionID, practitionerID, &RqBulkSyncFields{
-		Create: createList,
-		Update: updateList,
-		Delete: deleteList,
+		ClinicID: clinicID,
+		Create:   createList,
+		Update:   updateList,
+		Delete:   deleteList,
 	})
 	if err != nil {
 		return nil, nil, err

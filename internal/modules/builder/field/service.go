@@ -13,14 +13,13 @@ import (
 )
 
 type IService interface {
-	Create(ctx context.Context, formVersionID uuid.UUID, practitionerID uuid.UUID, req *RqFormField) (*RsFormField, error)
+	Create(ctx context.Context, formVersionID uuid.UUID, clinicID uuid.UUID, practitionerID uuid.UUID, req *RqFormField) (*RsFormField, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*RsFormField, error)
-	Update(ctx context.Context, id uuid.UUID, practitionerID uuid.UUID, req *RqUpdateFormField) (*RsFormField, error)
+	Update(ctx context.Context, id uuid.UUID, clinicID uuid.UUID, practitionerID uuid.UUID, req *RqUpdateFormField) (*RsFormField, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	ListByFormVersionID(ctx context.Context, formVersionID uuid.UUID) ([]*RsFormField, error)
 }
 
-// MaxFieldsPerVersion is the maximum number of fields allowed per form version.
 const MaxFieldsPerVersion = 200
 
 type Service struct {
@@ -43,8 +42,7 @@ func NewService(repo IRepository, coaSvc coa.Service, clinicSvc clinic.Service, 
 	}
 }
 
-// Create implements [IService].
-func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, practitionerID uuid.UUID, req *RqFormField) (*RsFormField, error) {
+func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, clinicID uuid.UUID, practitionerID uuid.UUID, req *RqFormField) (*RsFormField, error) {
 	current, err := s.repo.ListByFormVersionID(ctx, formVersionID)
 	if err != nil {
 		return nil, err
@@ -54,6 +52,9 @@ func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, practitio
 	}
 	coaID, err := uuid.Parse(req.CoaID)
 	if err != nil {
+		return nil, err
+	}
+	if _, err := s.clinicSvc.GetClinicByID(ctx, clinicID); err != nil {
 		return nil, err
 	}
 	if _, err := s.coaSvc.GetChartOfAccount(ctx, coaID, practitionerID); err != nil {
@@ -69,7 +70,6 @@ func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, practitio
 	return f.ToRs(), nil
 }
 
-// GetByID implements [IService].
 func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*RsFormField, error) {
 	f, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -78,10 +78,12 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*RsFormField, erro
 	return f.ToRs(), nil
 }
 
-// Update implements [IService].
-func (s *Service) Update(ctx context.Context, id uuid.UUID, practitionerID uuid.UUID, req *RqUpdateFormField) (*RsFormField, error) {
+func (s *Service) Update(ctx context.Context, id uuid.UUID, clinicID uuid.UUID, practitionerID uuid.UUID, req *RqUpdateFormField) (*RsFormField, error) {
 	existing, err := s.repo.GetByID(ctx, id)
 	if err != nil {
+		return nil, err
+	}
+	if _, err := s.clinicSvc.GetClinicByID(ctx, clinicID); err != nil {
 		return nil, err
 	}
 	if req.CoaID != nil {
@@ -119,7 +121,6 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, practitionerID uuid.
 	return updated.ToRs(), nil
 }
 
-// Delete implements [IService]. Rejects delete if form is not DRAFT or if the field has SUBMITTED entry values.
 func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	if s.entryRepo != nil {
 		has, err := s.entryRepo.HasSubmittedEntryValuesForField(ctx, id)
@@ -133,7 +134,6 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.repo.Delete(ctx, id)
 }
 
-// ListByFormVersionID implements [IService].
 func (s *Service) ListByFormVersionID(ctx context.Context, formVersionID uuid.UUID) ([]*RsFormField, error) {
 	list, err := s.repo.ListByFormVersionID(ctx, formVersionID)
 	if err != nil {
