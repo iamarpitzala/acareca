@@ -35,7 +35,7 @@ func NewHandler(svc Service) IHandler {
 // @Summary List all account types
 // @Tags coa
 // @Produce json
-// @Success 200 {array} RsAccountType
+// @Success 200 {array} AccountType
 // @Failure 500 {object} response.RsError
 // @Router /coa/account-types [get]
 func (h *handler) ListAccountTypes(c *gin.Context) {
@@ -51,7 +51,7 @@ func (h *handler) ListAccountTypes(c *gin.Context) {
 // @Tags coa
 // @Produce json
 // @Param id path int true "Account Type ID"
-// @Success 200 {object} RsAccountType
+// @Success 200 {object} AccountType
 // @Failure 400 {object} response.RsError
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
@@ -77,7 +77,7 @@ func (h *handler) GetAccountType(c *gin.Context) {
 // @Summary List all account tax types
 // @Tags coa
 // @Produce json
-// @Success 200 {array} RsAccountTax
+// @Success 200 {array} AccountTax
 // @Failure 500 {object} response.RsError
 // @Router /coa/account-taxes [get]
 func (h *handler) ListAccountTaxes(c *gin.Context) {
@@ -93,7 +93,7 @@ func (h *handler) ListAccountTaxes(c *gin.Context) {
 // @Tags coa
 // @Produce json
 // @Param id path int true "Account Tax ID"
-// @Success 200 {object} RsAccountTax
+// @Success 200 {object} AccountTax
 // @Failure 400 {object} response.RsError
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError

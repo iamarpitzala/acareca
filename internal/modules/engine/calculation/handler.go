@@ -28,7 +28,7 @@ func NewHandler(svc Service) IHandler {
 // @Accept json
 // @Produce json
 // @Param request body Entry true "Calculation Entry Data"
-// @Success 200 {object} RsNetAmount
+// @Success 200 {object} NetAmountResult
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
 // @Router /calculation/net-amount [post]
@@ -51,7 +51,7 @@ func (h *handler) NetAmount(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param request body Entry true "Calculation Entry Data"
-// @Success 200 {object} RsNetResult
+// @Success 200 {object} NetResult
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
 // @Router /calculation/net-result [post]
@@ -74,7 +74,7 @@ func (h *handler) NetResult(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param request body Entry true "Calculation Entry Data"
-// @Success 200 {object} RsGrossResult
+// @Success 200 {object} GrossResult
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
 // @Router /calculation/gross-result [post]
@@ -97,7 +97,7 @@ func (h *handler) GrossResult(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param request body Entry true "Calculation Entry Data"
-// @Success 200 {object} RsOutWorkResult
+// @Success 200 {object} OutWorkResult
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
 // @Router /calculation/outwork-result [post]
