@@ -5,7 +5,7 @@ import (
 )
 
 func RegisterRoutes(rg *gin.RouterGroup, h IHandler) {
-	rg.PUT("/create", h.CreateClinic)
+	rg.POST("/create", h.CreateClinic)
 	rg.GET("/all", h.GetClinics)
 	rg.GET("/:id", h.GetClinicByID)
 	rg.DELETE("/:id", h.DeleteClinic)
