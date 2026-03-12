@@ -9,10 +9,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
+	"github.com/iamarpitzala/acareca/internal/shared/util"
 	"github.com/iamarpitzala/acareca/pkg/config"
 )
-
-const UserIDKey = "userID"
 
 var (
 	errUnauthorized = errors.New("unauthorized")
@@ -23,7 +22,7 @@ type SuperadminChecker func(ctx context.Context, userID string) (bool, error)
 
 func RequireSuperadmin(check SuperadminChecker) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID, exists := c.Get(UserIDKey)
+		userID, exists := c.Get(util.UserIDKey)
 		if !exists {
 			response.Error(c, http.StatusUnauthorized, errUnauthorized)
 			return
@@ -79,7 +78,14 @@ func Auth(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		c.Set(UserIDKey, sub)
+		practitionerID, ok := claims["prac"].(string)
+		if !ok || practitionerID == "" {
+			response.Error(c, http.StatusUnauthorized, errUnauthorized)
+			return
+		}
+
+		c.Set(util.UserIDKey, sub)
+		c.Set(util.PractitionerIDKey, practitionerID)
 		c.Next()
 	}
 }

@@ -1,24 +1,25 @@
 package route
 
 import (
-	"context"
 	"log"
+
+	"context"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/iamarpitzala/acareca/internal/modules/admin/subscription"
 	"github.com/iamarpitzala/acareca/internal/modules/auth"
+	"github.com/iamarpitzala/acareca/internal/modules/builder/detail"
+	"github.com/iamarpitzala/acareca/internal/modules/builder/entry"
+	"github.com/iamarpitzala/acareca/internal/modules/builder/field"
+	"github.com/iamarpitzala/acareca/internal/modules/builder/form"
+	"github.com/iamarpitzala/acareca/internal/modules/builder/version"
 	"github.com/iamarpitzala/acareca/internal/modules/business/clinic"
 	"github.com/iamarpitzala/acareca/internal/modules/business/coa"
 	"github.com/iamarpitzala/acareca/internal/modules/business/practitioner"
 	userSubscription "github.com/iamarpitzala/acareca/internal/modules/business/subscription"
 	"github.com/iamarpitzala/acareca/internal/modules/engine/calculation"
 	"github.com/iamarpitzala/acareca/internal/modules/engine/method"
-	formdetail "github.com/iamarpitzala/acareca/internal/modules/form/detail"
-	formentry "github.com/iamarpitzala/acareca/internal/modules/form/entry"
-	formfield "github.com/iamarpitzala/acareca/internal/modules/form/field"
-	formorchestrate "github.com/iamarpitzala/acareca/internal/modules/form/orchestrate"
-	formversion "github.com/iamarpitzala/acareca/internal/modules/form/version"
 	"github.com/iamarpitzala/acareca/internal/shared/db"
 	"github.com/iamarpitzala/acareca/internal/shared/middleware"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
@@ -81,32 +82,21 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	coa.RegisterRoutes(v1.Group("/coa"), coaHandler)
 
 	// form (detail + version + field + entry) – clinic-scoped
-	formDetailRepo := formdetail.NewRepository(dbConn)
-	formVersionRepo := formversion.NewRepository(dbConn)
-	formVersionSvc := formversion.NewService(formVersionRepo, clinicSvc)
-	formDetailSvc := formdetail.NewService(formDetailRepo, formVersionSvc)
-	formEntryRepo := formentry.NewRepository(dbConn)
-	formFieldRepo := formfield.NewRepository(dbConn)
-	formFieldSvc := formfield.NewService(formFieldRepo, coaSvc, clinicSvc, practitionerSvc, formEntryRepo, formVersionSvc, formDetailSvc)
-	formOrch := formorchestrate.NewOrchestrator(formDetailSvc, formVersionSvc, formFieldSvc)
-	formDetailHandler := formdetail.NewHandler(formDetailSvc, formOrch)
-
-	formDetailGroup := clinicGroup.Group("/:id")
-	formGroup := formDetailGroup.Group("/form")
+	formGroup := clinicGroup.Group("/:clinic_id/form")
 	// formGroup.Use(middleware.Auth(cfg))
-	formdetail.RegisterRoutes(formGroup, formDetailHandler)
 
-	formVersionHandler := formversion.NewHandler(formVersionSvc)
-	formIdGroup := formGroup.Group("/:id")
-	formVersionGroup := formIdGroup.Group("/version")
-	formversion.RegisterRoutes(formVersionGroup, formVersionHandler)
+	// Detail, version, field, entry setup for form endpoints
+	detailRepo := detail.NewRepository(dbConn)
+	versionRepo := version.NewRepository(dbConn)
+	fieldRepo := field.NewRepository(dbConn)
+	entryRepo := entry.NewRepository(dbConn)
+	detailSvc := detail.NewService(detailRepo, version.NewService(versionRepo, clinicSvc))
+	fieldSvc := field.NewService(fieldRepo, coaSvc, clinicSvc, practitionerSvc, version.NewService(versionRepo, clinicSvc), entryRepo)
 
-	formFieldHandler := formfield.NewHandler(formFieldSvc)
-	formfield.RegisterRoutes(formIdGroup.Group("/field"), formFieldHandler)
-
-	formVersionGroup.Group("/:version_id/field").PUT("/sync", formFieldHandler.Sync)
-
-	formEntrySvc := formentry.NewService(formEntryRepo)
-	formEntryHandler := formentry.NewHandler(formEntrySvc)
-	formentry.RegisterRoutes(formVersionGroup.Group("/:id/entry"), formEntryHandler)
+	// Register form main endpoints (combined handler)
+	formRepo := form.NewRepository(dbConn)
+	versionSvc := version.NewService(versionRepo, clinicSvc)
+	formSvc := form.NewService(formRepo, detailSvc, versionSvc, fieldSvc, entryRepo, coaSvc)
+	formHandler := form.NewHandler(formSvc)
+	form.RegisterRoutes(formGroup, formHandler)
 }

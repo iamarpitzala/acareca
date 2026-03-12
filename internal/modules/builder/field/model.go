@@ -112,18 +112,3 @@ type RqFormFieldUpdateItem struct {
 	CoaID                 *string   `json:"coa_id" validate:"omitempty,uuid"`
 	SortOrder             *int      `json:"sort_order" validate:"omitempty,min=0"`
 }
-
-// RqBulkSyncFields request for bulk create/update/delete of fields for one form version.
-type RqBulkSyncFields struct {
-	Create []RqFormField           `json:"create" validate:"omitempty,dive"`
-	Update []RqFormFieldUpdateItem `json:"update" validate:"omitempty,dive"`
-	Delete []uuid.UUID             `json:"delete" validate:"omitempty,dive"`
-}
-
-// RsBulkSyncFields is the standard bulk sync response: created, updated, and deleted arrays.
-// List endpoints return fields ordered by sort_order ASC, then created_at ASC.
-type RsBulkSyncFields struct {
-	Created []RsFormField `json:"created"`
-	Updated []RsFormField `json:"updated"`
-	Deleted []uuid.UUID   `json:"deleted"`
-}

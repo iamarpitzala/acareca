@@ -5,12 +5,8 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	"github.com/iamarpitzala/acareca/internal/modules/form/version"
+	"github.com/iamarpitzala/acareca/internal/modules/builder/version"
 )
-
-var ErrFormArchived = errors.New("form is archived and cannot be updated")
-var ErrFormPublishedRestricted = errors.New("published form allows only name and description updates")
-var ErrFormNotDraftForFields = errors.New("only forms in DRAFT status can have fields updated")
 
 type IService interface {
 	Create(ctx context.Context, d *RqFormDetail, clinicID uuid.UUID, practitionerID uuid.UUID) (*RsFormDetail, error)
@@ -66,11 +62,11 @@ func (s *Service) ListForm(ctx context.Context, filter Filter) ([]*RsFormDetail,
 
 func applyFormUpdatePatch(existing *FormDetail, d *RqUpdateFormDetail) error {
 	if existing.Status == StatusArchived {
-		return ErrFormArchived
+		return errors.New("form is archived")
 	}
 	if existing.Status == StatusPublished {
 		if d.Status != nil || d.Method != nil || d.OwnerShare != nil || d.ClinicShare != nil {
-			return ErrFormPublishedRestricted
+			return errors.New("form is published and cannot be updated")
 		}
 	}
 	if d.Name != nil {

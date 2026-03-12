@@ -18,6 +18,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const UserIDKey = "userID"
+const PractitionerIDKey = "practitionerID"
+
 func NewUUID() string {
 	return uuid.New().String()
 }
@@ -73,9 +76,6 @@ func ParseUUID(s string) (uuid.UUID, error) {
 	return parsed, nil
 }
 
-// practitionerIDFromCtx is set by routes when mounting under /practitioner/:id/subscription
-const PractitionerIDKey = "practitioner_id"
-
 func GetPractitionerID(c *gin.Context) (uuid.UUID, bool) {
 	idVal, exists := c.Get(PractitionerIDKey)
 	if !exists {
@@ -90,7 +90,7 @@ func GetPractitionerID(c *gin.Context) (uuid.UUID, bool) {
 	return id, true
 }
 
-const ClinicIDKey = "clinic_id"
+const ClinicIDKey = "clinicID"
 
 func GetClinicID(c *gin.Context) (uuid.UUID, bool) {
 	idVal, exists := c.Get(ClinicIDKey)
