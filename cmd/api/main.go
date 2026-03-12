@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"os"
 
 	"github.com/gin-gonic/gin"
 
@@ -42,11 +41,11 @@ func main() {
 	log.Println("migrations applied successfully")
 
 	// Set Gin mode; prefer env GIN_MODE over hardcoded
-	ginMode := os.Getenv("GIN_MODE")
-	if ginMode == "" {
-		ginMode = gin.ReleaseMode
-	}
-	gin.SetMode(ginMode)
+	// ginMode := os.Getenv("GIN_MODE")
+	// if ginMode == "" {
+	// 	ginMode = gin.ReleaseMode
+	// }
+	// gin.SetMode(ginMode)
 
 	r := gin.New()
 	r.Use(gin.Recovery())

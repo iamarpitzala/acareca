@@ -32,16 +32,12 @@ func (s *service) Create(ctx context.Context, practitionerID uuid.UUID, req *RqC
 	if err != nil {
 		return nil, err
 	}
-	status := StatusActive
-	if req.Status != nil {
-		status = *req.Status
-	}
 	sub := &PractitionerSubscription{
 		PractitionerID: practitionerID,
 		SubscriptionID: req.SubscriptionID,
 		StartDate:      start,
 		EndDate:        end,
-		Status:         status,
+		Status:         req.Status,
 	}
 	created, err := s.repo.Create(ctx, sub)
 	if err != nil {

@@ -3,10 +3,8 @@ package subscription
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
@@ -27,41 +25,6 @@ func NewHandler(svc Service) IHandler {
 	return &handler{svc: svc}
 }
 
-// @Summary Create a new subscription
-// @Description create a new subscription
-// @Tags subscription
-// @Accept json
-// @Produce json
-// @Success 200 {object} RsSubscription
-// @Failure 400 {object} response.RsError
-// @Failure 500 {object} response.RsError
-// @Router /practitioner/subscription [post]
-// @Param practitioner_id path string true "Practitioner ID"
-const practitionerIDKey = "practitioner_id"
-
-func getPractitionerID(c *gin.Context) (uuid.UUID, bool) {
-	idVal, exists := c.Get(practitionerIDKey)
-	if !exists {
-		response.Error(c, http.StatusBadRequest, errors.New("practitioner id not in context"))
-		return uuid.Nil, false
-	}
-	id, ok := idVal.(uuid.UUID)
-	if !ok {
-		response.Error(c, http.StatusInternalServerError, errors.New("invalid practitioner id type"))
-		return uuid.Nil, false
-	}
-	return id, true
-}
-
-func parseID(c *gin.Context, param string) (int, bool) {
-	id, err := strconv.Atoi(c.Param(param))
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, errors.New("invalid id"))
-		return 0, false
-	}
-	return id, true
-}
-
 // @Summary Get a subscription by ID
 // @Description get a subscription by ID
 // @Tags subscription
@@ -73,7 +36,7 @@ func parseID(c *gin.Context, param string) (int, bool) {
 // @Router /practitioner/subscription/{id} [get]
 // @Param id path int true "Subscription ID"
 func (h *handler) Create(c *gin.Context) {
-	practitionerID, ok := getPractitionerID(c)
+	practitionerID, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
@@ -101,7 +64,7 @@ func (h *handler) Create(c *gin.Context) {
 // @Router /practitioner/subscription [get]
 // @Param practitioner_id path string true "Practitioner ID"
 func (h *handler) GetByID(c *gin.Context) {
-	id, ok := parseID(c, "sub_id")
+	id, ok := util.ParseIntID(c, "sub_id")
 	if !ok {
 		return
 	}
@@ -128,7 +91,7 @@ func (h *handler) GetByID(c *gin.Context) {
 // @Router /practitioner/subscription [get]
 // @Param practitioner_id path string true "Practitioner ID"
 func (h *handler) ListByPractitionerID(c *gin.Context) {
-	practitionerID, ok := getPractitionerID(c)
+	practitionerID, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
@@ -152,7 +115,7 @@ func (h *handler) ListByPractitionerID(c *gin.Context) {
 // @Param id path int true "Subscription ID"
 // @Param practitioner_id path string true "Practitioner ID"
 func (h *handler) Update(c *gin.Context) {
-	id, ok := parseID(c, "sub_id")
+	id, ok := util.ParseIntID(c, "sub_id")
 	if !ok {
 		return
 	}
@@ -185,7 +148,7 @@ func (h *handler) Update(c *gin.Context) {
 // @Param id path int true "Subscription ID"
 // @Param practitioner_id path string true "Practitioner ID"
 func (h *handler) Delete(c *gin.Context) {
-	id, ok := parseID(c, "sub_id")
+	id, ok := util.ParseIntID(c, "sub_id")
 	if !ok {
 		return
 	}

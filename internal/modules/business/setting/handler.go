@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
@@ -29,6 +28,7 @@ func NewHandler(svc Service) IHandler {
 	return &handler{svc: svc}
 }
 
+<<<<<<< HEAD:internal/modules/practitioner/setting/handler.go
 func parsePractitionerID(c *gin.Context) (uuid.UUID, bool) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -47,6 +47,8 @@ func parsePractitionerID(c *gin.Context) (uuid.UUID, bool) {
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
 // @Router /practitioner [post]
+=======
+>>>>>>> stagging:internal/modules/business/setting/handler.go
 func (h *handler) CreatePractitioner(c *gin.Context) {
 	var req RqCreatePractitioner
 	if err := util.BindAndValidate(c, &req); err != nil {
@@ -72,7 +74,7 @@ func (h *handler) CreatePractitioner(c *gin.Context) {
 // @Router /practitioner/{id} [get]
 // @Param id path string true "Practitioner ID"
 func (h *handler) GetPractitioner(c *gin.Context) {
-	id, ok := parsePractitionerID(c)
+	id, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
@@ -144,7 +146,7 @@ func (h *handler) ListPractitioners(c *gin.Context) {
 // @Router /practitioner/{id} [put]
 // @Param id path string true "Practitioner ID"
 func (h *handler) UpdatePractitioner(c *gin.Context) {
-	id, ok := parsePractitionerID(c)
+	id, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
@@ -176,7 +178,7 @@ func (h *handler) UpdatePractitioner(c *gin.Context) {
 // @Router /practitioner/{id} [delete]
 // @Param id path string true "Practitioner ID"
 func (h *handler) DeletePractitioner(c *gin.Context) {
-	id, ok := parsePractitionerID(c)
+	id, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
@@ -202,7 +204,7 @@ func (h *handler) DeletePractitioner(c *gin.Context) {
 // @Router /practitioner/setting/{id} [get]
 // @Param id path string true "Practitioner ID"
 func (h *handler) GetSetting(c *gin.Context) {
-	id, ok := parsePractitionerID(c)
+	id, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
@@ -229,7 +231,7 @@ func (h *handler) GetSetting(c *gin.Context) {
 // @Router /practitioner/setting/{id} [put]
 // @Param id path string true "Practitioner ID"
 func (h *handler) UpsertSetting(c *gin.Context) {
-	id, ok := parsePractitionerID(c)
+	id, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
