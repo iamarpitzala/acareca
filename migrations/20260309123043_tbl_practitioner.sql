@@ -26,6 +26,6 @@ CREATE TABLE IF NOT EXISTS tbl_practitioner_setting   (
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TABLE IF EXISTS tbl_practitioner;
 DROP TABLE IF EXISTS tbl_practitioner_setting;
+DROP TABLE IF EXISTS tbl_practitioner;
 -- +goose StatementEnd

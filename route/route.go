@@ -1,18 +1,26 @@
 package route
 
 import (
-	"context"
 	"log"
-	"time"
+
+	"context"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/iamarpitzala/acareca/internal/modules/admin/subscription"
 	"github.com/iamarpitzala/acareca/internal/modules/auth"
+	"github.com/iamarpitzala/acareca/internal/modules/builder/detail"
+	"github.com/iamarpitzala/acareca/internal/modules/builder/entry"
+	"github.com/iamarpitzala/acareca/internal/modules/builder/field"
+	"github.com/iamarpitzala/acareca/internal/modules/builder/form"
+	"github.com/iamarpitzala/acareca/internal/modules/builder/version"
+	"github.com/iamarpitzala/acareca/internal/modules/business/clinic"
+	"github.com/iamarpitzala/acareca/internal/modules/business/coa"
+	"github.com/iamarpitzala/acareca/internal/modules/business/fy"
+	"github.com/iamarpitzala/acareca/internal/modules/business/practitioner"
+	userSubscription "github.com/iamarpitzala/acareca/internal/modules/business/subscription"
 	"github.com/iamarpitzala/acareca/internal/modules/engine/calculation"
 	"github.com/iamarpitzala/acareca/internal/modules/engine/method"
-	practitioner "github.com/iamarpitzala/acareca/internal/modules/practitioner/setting"
-	practitionerSub "github.com/iamarpitzala/acareca/internal/modules/practitioner/subscription"
 	"github.com/iamarpitzala/acareca/internal/shared/db"
 	"github.com/iamarpitzala/acareca/internal/shared/middleware"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
@@ -29,40 +37,13 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	authRepo := auth.NewRepository(dbConn)
 	subscriptionRepo := subscription.NewRepository(dbConn)
 	practitionerRepo := practitioner.NewRepository(dbConn)
-	practitionerSubRepo := practitionerSub.NewRepository(dbConn)
+	userSubscriptionRepo := userSubscription.NewRepository(dbConn)
+	coaRepo := coa.NewRepository(dbConn)
+	subscriptionSvc := subscription.NewService(subscriptionRepo)
+	userSubscriptionSvc := userSubscription.NewService(userSubscriptionRepo)
+	practitionerSvc := practitioner.NewService(practitionerRepo, subscriptionSvc, userSubscriptionSvc, coaRepo)
 
-	onUserCreated := func(ctx context.Context, userID string) error {
-		existing, err := practitionerRepo.GetByUserID(ctx, userID)
-		if err == nil && existing != nil {
-			return nil
-		}
-		t, err := practitionerRepo.Create(ctx, &practitioner.Practitioner{UserID: userID})
-		if err != nil {
-			log.Printf("onboarding: create practitioner for user %s: %v", userID, err)
-			return err
-		}
-		trial, err := subscriptionRepo.FindByName(ctx, "Trial")
-		if err != nil {
-			log.Printf("onboarding: find Trial subscription: %v", err)
-			return err
-		}
-		start := time.Now()
-		end := start.AddDate(0, 0, trial.DurationDays)
-		_, err = practitionerSubRepo.Create(ctx, &practitionerSub.PractitionerSubscription{
-			PractitionerID: t.ID,
-			SubscriptionID: trial.ID,
-			StartDate:      start,
-			EndDate:        end,
-			Status:         practitionerSub.StatusActive,
-		})
-		if err != nil {
-			log.Printf("onboarding: create trial subscription for practitioner %s: %v", t.ID, err)
-			return err
-		}
-		return nil
-	}
-
-	authSvc := auth.NewService(authRepo, cfg, onUserCreated)
+	authSvc := auth.NewService(authRepo, cfg, practitionerSvc)
 	authHandler := auth.NewHandler(authSvc)
 	auth.RegisterRoutes(v1, authHandler)
 
@@ -87,15 +68,35 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 		}
 		return superadminCheck(ctx, id)
 	}))
-	subscriptionSvc := subscription.NewService(subscriptionRepo)
 	subscriptionHandler := subscription.NewHandler(subscriptionSvc)
 	subscription.RegisterRoutes(subscriptionGroup, subscriptionHandler)
 
-	practitionerSvc := practitioner.NewService(practitionerRepo)
-	practitionerHandler := practitioner.NewHandler(practitionerSvc)
-	practitionerGroup := v1.Group("/practitioner")
-	practitioner.RegisterRoutes(practitionerGroup, practitionerHandler)
-	practitionerSubSvc := practitionerSub.NewService(practitionerSubRepo)
-	practitionerSubHandler := practitionerSub.NewHandler(practitionerSubSvc)
-	practitionerSub.RegisterRoutes(practitionerGroup.Group("/:id/subscription"), practitionerSubHandler)
+	// clinic
+	clinicRepo := clinic.NewRepository(dbConn)
+	clinicSvc := clinic.NewService(clinicRepo)
+	clinicHandler := clinic.NewHandler(clinicSvc)
+	clinic.RegisterRoutes(v1, clinicHandler, cfg)
+
+	coaSvc := coa.NewService(coaRepo)
+	coaHandler := coa.NewHandler(coaSvc)
+	coa.RegisterRoutes(v1.Group("/coa"), coaHandler)
+	fyRepo := fy.NewRepository(dbConn)
+	fySvc := fy.NewService(fyRepo, dbConn)
+	fyHandler := fy.NewHandler(fySvc)
+	fy.RegisterRoutes(v1, fyHandler)
+
+	formGroup := v1.Group("/form")
+	formGroup.Use(middleware.Auth(cfg))
+
+	detailRepo := detail.NewRepository(dbConn)
+	versionRepo := version.NewRepository(dbConn)
+	fieldRepo := field.NewRepository(dbConn)
+	entryRepo := entry.NewRepository(dbConn)
+	detailSvc := detail.NewService(detailRepo, version.NewService(versionRepo, clinicSvc))
+	fieldSvc := field.NewService(fieldRepo, coaSvc, clinicSvc, practitionerSvc, version.NewService(versionRepo, clinicSvc), entryRepo)
+
+	versionSvc := version.NewService(versionRepo, clinicSvc)
+	formSvc := form.NewService(detailSvc, versionSvc, fieldSvc, entryRepo, coaSvc)
+	formHandler := form.NewHandler(formSvc)
+	form.RegisterRoutes(formGroup, formHandler)
 }
