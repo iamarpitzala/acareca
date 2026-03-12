@@ -59,10 +59,11 @@ func (h *handler) CreateFormWithFields(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
+	req.ClinicID = clinicID
 	if req.Status == "" {
 		req.Status = detail.StatusDraft
 	}
-	form, syncResult, err := h.svc.CreateWithFields(c.Request.Context(), &req, clinicID, practitionerID)
+	form, syncResult, err := h.svc.CreateWithFields(c.Request.Context(), &req, practitionerID)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
@@ -85,7 +86,8 @@ func (h *handler) UpdateFormWithFields(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	form, syncResult, err := h.svc.UpdateWithFields(c.Request.Context(), &req, clinicID, practitionerID)
+	req.ClinicID = clinicID
+	form, syncResult, err := h.svc.UpdateWithFields(c.Request.Context(), &req, practitionerID)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return

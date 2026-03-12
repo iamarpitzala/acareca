@@ -14,8 +14,8 @@ import (
 
 type IService interface {
 	BulkSyncFields(ctx context.Context, formVersionID uuid.UUID, practitionerID uuid.UUID, req *RqBulkSyncFields) (*RsBulkSyncFields, error)
-	CreateWithFields(ctx context.Context, d *RqCreateFormWithFields, clinicID uuid.UUID, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error)
-	UpdateWithFields(ctx context.Context, d *RqUpdateFormWithFields, clinicID uuid.UUID, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error)
+	CreateWithFields(ctx context.Context, d *RqCreateFormWithFields, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error)
+	UpdateWithFields(ctx context.Context, d *RqUpdateFormWithFields, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error)
 }
 
 type service struct {
@@ -147,7 +147,7 @@ func (s *service) BulkSyncFields(ctx context.Context, formVersionID uuid.UUID, p
 	return out, nil
 }
 
-func (s *service) CreateWithFields(ctx context.Context, d *RqCreateFormWithFields, clinicID uuid.UUID, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error) {
+func (s *service) CreateWithFields(ctx context.Context, d *RqCreateFormWithFields, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error) {
 	formReq := &detail.RqFormDetail{
 		Name:        d.Name,
 		Description: d.Description,
@@ -159,7 +159,7 @@ func (s *service) CreateWithFields(ctx context.Context, d *RqCreateFormWithField
 	if formReq.Status == "" {
 		formReq.Status = detail.StatusDraft
 	}
-	created, err := s.detailSvc.Create(ctx, formReq, clinicID, practitionerID)
+	created, err := s.detailSvc.Create(ctx, formReq, d.ClinicID, practitionerID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -167,7 +167,7 @@ func (s *service) CreateWithFields(ctx context.Context, d *RqCreateFormWithField
 	if len(d.Fields) == 0 {
 		return created, syncResult, nil
 	}
-	versions, err := s.versionSvc.List(ctx, created.ID, clinicID)
+	versions, err := s.versionSvc.List(ctx, created.ID, d.ClinicID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -212,7 +212,7 @@ func (s *service) CreateWithFields(ctx context.Context, d *RqCreateFormWithField
 	return created, syncResult, nil
 }
 
-func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFields, clinicID uuid.UUID, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error) {
+func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFields, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error) {
 	existing, err := s.detailSvc.GetByID(ctx, req.ID)
 	if err != nil {
 		return nil, nil, err
@@ -237,7 +237,7 @@ func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFie
 	if len(req.Fields) == 0 {
 		return updated, syncResult, nil
 	}
-	versions, err := s.versionSvc.List(ctx, existing.ID, clinicID)
+	versions, err := s.versionSvc.List(ctx, existing.ID, req.ClinicID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -299,7 +299,7 @@ func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFie
 		}
 	}
 	bulk, err := s.BulkSyncFields(ctx, activeVersionID, practitionerID, &RqBulkSyncFields{
-		ClinicID: clinicID,
+		ClinicID: req.ClinicID,
 		Create:   createList,
 		Update:   updateList,
 		Delete:   deleteList,
