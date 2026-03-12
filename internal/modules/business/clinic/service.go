@@ -8,11 +8,11 @@ import (
 )
 
 type Service interface {
-	CreateClinic(ctx context.Context, userID string, req *RqCreateClinic) (*RsClinic, error)
-	GetClinics(ctx context.Context, userID string) ([]RsClinic, error)
-	GetClinicByID(ctx context.Context, userID string, id uuid.UUID) (*RsClinic, error)
-	UpdateClinic(ctx context.Context, userID string, id uuid.UUID, req *RqUpdateClinic) (*RsClinic, error)
-	DeleteClinic(ctx context.Context, userID string, id uuid.UUID) error
+	CreateClinic(ctx context.Context, practitionerID uuid.UUID, req *RqCreateClinic) (*RsClinic, error)
+	GetClinics(ctx context.Context, practitionerID uuid.UUID) ([]RsClinic, error)
+	GetClinicByID(ctx context.Context, practitionerID uuid.UUID, id uuid.UUID) (*RsClinic, error)
+	UpdateClinic(ctx context.Context, practitionerID uuid.UUID, id uuid.UUID, req *RqUpdateClinic) (*RsClinic, error)
+	DeleteClinic(ctx context.Context, practitionerID uuid.UUID, id uuid.UUID) error
 
 	// Internal methods for service-to-service calls (no user validation)
 	GetClinicByIDInternal(ctx context.Context, id uuid.UUID) (*RsClinic, error)
@@ -26,12 +26,7 @@ func NewService(repo Repository) Service {
 	return &service{repo: repo}
 }
 
-func (s *service) CreateClinic(ctx context.Context, userID string, req *RqCreateClinic) (*RsClinic, error) {
-	// Get practitioner ID from user ID
-	practitionerID, err := s.repo.GetPractitionerIDByUserID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("get practitioner ID: %w", err)
-	}
+func (s *service) CreateClinic(ctx context.Context, practitionerID uuid.UUID, req *RqCreateClinic) (*RsClinic, error) {
 
 	// Get active financial year
 	activeFinancialYearID, err := s.repo.GetActiveFinancialYear(ctx)
@@ -40,7 +35,7 @@ func (s *service) CreateClinic(ctx context.Context, userID string, req *RqCreate
 	}
 
 	clinic := &Clinic{
-		PractitionerID: *practitionerID,
+		PractitionerID: practitionerID,
 		ProfilePicture: req.ProfilePicture,
 		Name:           req.Name,
 		ABN:            req.ABN,
@@ -148,14 +143,9 @@ func (s *service) CreateClinic(ctx context.Context, userID string, req *RqCreate
 	}, nil
 }
 
-func (s *service) GetClinics(ctx context.Context, userID string) ([]RsClinic, error) {
-	// Get practitioner ID from user ID
-	practitionerID, err := s.repo.GetPractitionerIDByUserID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("get practitioner ID: %w", err)
-	}
+func (s *service) GetClinics(ctx context.Context, practitionerID uuid.UUID) ([]RsClinic, error) {
 
-	clinics, err := s.repo.GetClinicsByPractitioner(ctx, *practitionerID)
+	clinics, err := s.repo.GetClinicsByPractitioner(ctx, practitionerID)
 	if err != nil {
 		return nil, err
 	}
@@ -178,14 +168,9 @@ func (s *service) GetClinics(ctx context.Context, userID string) ([]RsClinic, er
 	return result, nil
 }
 
-func (s *service) GetClinicByID(ctx context.Context, userID string, id uuid.UUID) (*RsClinic, error) {
-	// Get practitioner ID from user ID
-	practitionerID, err := s.repo.GetPractitionerIDByUserID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("get practitioner ID: %w", err)
-	}
+func (s *service) GetClinicByID(ctx context.Context, practitionerID uuid.UUID, id uuid.UUID) (*RsClinic, error) {
 
-	clinic, err := s.repo.GetClinicByIDAndPractitioner(ctx, id, *practitionerID)
+	clinic, err := s.repo.GetClinicByIDAndPractitioner(ctx, id, practitionerID)
 	if err != nil {
 		return nil, err
 	}
@@ -253,38 +238,21 @@ func (s *service) GetClinicByID(ctx context.Context, userID string, id uuid.UUID
 	}, nil
 }
 
-func (s *service) DeleteClinic(ctx context.Context, userID string, id uuid.UUID) error {
-	// Get practitioner ID from user ID
-	practitionerID, err := s.repo.GetPractitionerIDByUserID(ctx, userID)
+func (s *service) DeleteClinic(ctx context.Context, practitionerID uuid.UUID, id uuid.UUID) error {
+	_, err := s.repo.GetClinicByIDAndPractitioner(ctx, id, practitionerID)
 	if err != nil {
-		return fmt.Errorf("get practitioner ID: %w", err)
-	}
-
-	// Verify the clinic belongs to this practitioner before deleting
-	_, err = s.repo.GetClinicByIDAndPractitioner(ctx, id, *practitionerID)
-	if err != nil {
-		return err // This will return ErrNotFound if clinic doesn't belong to practitioner
+		return err
 	}
 
 	return s.repo.DeleteClinic(ctx, id)
 }
-func (s *service) UpdateClinic(ctx context.Context, userID string, id uuid.UUID, req *RqUpdateClinic) (*RsClinic, error) {
-	// Get practitioner ID from user ID
-	practitionerID, err := s.repo.GetPractitionerIDByUserID(ctx, userID)
-	if err != nil {
-		fmt.Printf("UpdateClinic - Failed to get practitioner ID for userID %s: %v\n", userID, err)
-		return nil, fmt.Errorf("get practitioner ID: %w", err)
-	}
+func (s *service) UpdateClinic(ctx context.Context, practitionerID uuid.UUID, id uuid.UUID, req *RqUpdateClinic) (*RsClinic, error) {
 
-	fmt.Printf("UpdateClinic - UserID: %s, PractitionerID: %s, ClinicID: %s\n", userID, practitionerID.String(), id.String())
-
-	clinic, err := s.repo.GetClinicByIDAndPractitioner(ctx, id, *practitionerID)
+	clinic, err := s.repo.GetClinicByIDAndPractitioner(ctx, id, practitionerID)
 	if err != nil {
 		fmt.Printf("UpdateClinic - Failed to get clinic by ID and practitioner: %v\n", err)
 		return nil, err
 	}
-
-	fmt.Printf("UpdateClinic - Found clinic: %s owned by practitioner: %s\n", clinic.ID.String(), clinic.PractitionerID.String())
 
 	// Update clinic fields if provided
 	if req.Name != nil {
@@ -310,7 +278,7 @@ func (s *service) UpdateClinic(ctx context.Context, userID string, id uuid.UUID,
 	}
 
 	fmt.Printf("UpdateClinic - Successfully updated clinic\n")
-	return s.GetClinicByID(ctx, userID, id)
+	return s.GetClinicByID(ctx, practitionerID, id)
 }
 
 // GetClinicByIDInternal is for internal service-to-service calls without user validation

@@ -54,7 +54,7 @@ func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, clinicID 
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.clinicSvc.GetClinicByID(ctx, clinicID); err != nil {
+	if _, err := s.clinicSvc.GetClinicByID(ctx, practitionerID, clinicID); err != nil {
 		return nil, err
 	}
 	if _, err := s.coaSvc.GetChartOfAccount(ctx, coaID, practitionerID); err != nil {
@@ -83,7 +83,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, clinicID uuid.UUID, 
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.clinicSvc.GetClinicByID(ctx, clinicID); err != nil {
+	if _, err := s.clinicSvc.GetClinicByID(ctx, practitionerID, clinicID); err != nil {
 		return nil, err
 	}
 	if req.CoaID != nil {
