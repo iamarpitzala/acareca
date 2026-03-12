@@ -2,6 +2,7 @@ package fy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -129,16 +130,23 @@ func (s *service) CreateFY(ctx context.Context, req *RqCreateFY) (*RsFinancialYe
 }
 
 func (s *service) UpdateFYLabel(ctx context.Context, id uuid.UUID, req *RqUpdateFYLabel) (*RsFinancialYear, error) {
+	// Validate that at least one field is provided
+	hasLabel := req.Label != nil && strings.TrimSpace(*req.Label) != ""
+	hasIsActive := req.IsActive != nil
+	if !hasLabel && !hasIsActive {
+		return nil, errors.New("label --or-- is_active is required in payload")
+	}
 	fy, err := s.repo.GetFinancialYearByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-
-	fy.Label = req.Label
+	// Update label only if provided and not empty after trimming
+	if hasLabel {
+		fy.Label = strings.TrimSpace(*req.Label)
+	}
 	var updatedFY *FinancialYear
 
-	err = util.RunInTransaction(ctx, s.db, func(ctx context.Context, tx *sqlx.Tx) error {
-		// If is_active is provided and set to true, deactivate all other financial years
+	util.RunInTransaction(ctx, s.db, func(ctx context.Context, tx *sqlx.Tx) error {
 		if req.IsActive != nil && *req.IsActive {
 			if err := s.repo.DeactivateAllFinancialYears(ctx, tx); err != nil {
 				return fmt.Errorf("deactivate existing financial years: %w", err)
@@ -147,18 +155,14 @@ func (s *service) UpdateFYLabel(ctx context.Context, id uuid.UUID, req *RqUpdate
 		} else if req.IsActive != nil {
 			fy.IsActive = *req.IsActive
 		}
-
-		up, err := s.repo.UpdateFinancialYear(ctx, fy, tx)
+		UpdatedFY, err := s.repo.UpdateFinancialYear(ctx, fy, tx)
 		if err != nil {
-			return fmt.Errorf("update financial year: %w", err)
+			return fmt.Errorf("failde to update  financial years: %w", err)
 		}
-		updatedFY = up
-
+		updatedFY = UpdatedFY
 		return nil
 	})
-	if err != nil {
-		return nil, err
-	}
+	// If is_active is provided and set to true, deactivate all other financial years
 
 	return &RsFinancialYear{
 		ID:        updatedFY.ID,
