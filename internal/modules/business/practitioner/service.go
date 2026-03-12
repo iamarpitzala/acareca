@@ -56,6 +56,7 @@ func (s *service) CreatePractitioner(ctx context.Context, req *RqCreatePractitio
 		log.Printf("onboarding: create trial subscription for practitioner %s: %v", t.ID, err)
 		return nil, err
 	}
+
 	if err := coa.SeedDefaultsForPractitioner(ctx, s.coaRepo, t.ID); err != nil {
 		log.Printf("onboarding: seed default chart of accounts for practitioner %s: %v", t.ID, err)
 		return nil, err

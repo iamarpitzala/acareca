@@ -82,7 +82,7 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	coa.RegisterRoutes(v1.Group("/coa"), coaHandler)
 
 	formGroup := v1.Group("/form")
-	// formGroup.Use(middleware.Auth(cfg))
+	formGroup.Use(middleware.Auth(cfg))
 
 	detailRepo := detail.NewRepository(dbConn)
 	versionRepo := version.NewRepository(dbConn)

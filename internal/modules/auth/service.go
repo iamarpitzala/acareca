@@ -76,6 +76,7 @@ func (s *service) Register(ctx context.Context, req *RqUser) (*RsUser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create practitioner: %w", err)
 	}
+
 	return created.ToRsUser(), nil
 }
 

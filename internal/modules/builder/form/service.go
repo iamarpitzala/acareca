@@ -16,9 +16,9 @@ type IService interface {
 	BulkSyncFields(ctx context.Context, practitionerID uuid.UUID, req *RqBulkSyncFields) (*RsBulkSyncFields, error)
 	CreateWithFields(ctx context.Context, d *RqCreateFormWithFields, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error)
 	UpdateWithFields(ctx context.Context, d *RqUpdateFormWithFields, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error)
-	GetFormWithFields(ctx context.Context, formID, clinicID uuid.UUID) (*RsFormWithFields, error)
+	GetFormWithFields(ctx context.Context, formID uuid.UUID) (*RsFormWithFields, error)
 	List(ctx context.Context, filter detail.Filter) ([]*detail.RsFormDetail, error)
-	Delete(ctx context.Context, formID, clinicID uuid.UUID) error
+	Delete(ctx context.Context, formID uuid.UUID) error
 }
 
 type service struct {
@@ -331,19 +331,16 @@ func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFie
 	return updated, syncResult, nil
 }
 
-func (s *service) GetFormWithFields(ctx context.Context, formID, clinicID uuid.UUID) (*RsFormWithFields, error) {
+func (s *service) GetFormWithFields(ctx context.Context, formID uuid.UUID) (*RsFormWithFields, error) {
 	formDetail, err := s.detailSvc.GetByID(ctx, formID)
 	if err != nil {
 		return nil, err
-	}
-	if formDetail.ClinicID != clinicID {
-		return nil, detail.ErrNotFound
 	}
 	out := &RsFormWithFields{
 		Form:   *formDetail,
 		Fields: []field.RsFormField{},
 	}
-	versions, err := s.versionSvc.List(ctx, formDetail.ID, clinicID)
+	versions, err := s.versionSvc.List(ctx, formDetail.ID, formDetail.ClinicID)
 	if err != nil {
 		return nil, err
 	}
@@ -371,13 +368,10 @@ func (s *service) List(ctx context.Context, filter detail.Filter) ([]*detail.RsF
 	return s.detailSvc.ListForm(ctx, filter)
 }
 
-func (s *service) Delete(ctx context.Context, formID, clinicID uuid.UUID) error {
+func (s *service) Delete(ctx context.Context, formID uuid.UUID) error {
 	formDetail, err := s.detailSvc.GetByID(ctx, formID)
 	if err != nil {
 		return err
 	}
-	if formDetail.ClinicID != clinicID {
-		return detail.ErrNotFound
-	}
-	return s.detailSvc.Delete(ctx, formID)
+	return s.detailSvc.Delete(ctx, formDetail.ID)
 }

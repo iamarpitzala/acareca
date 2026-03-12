@@ -2,6 +2,7 @@ package form
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -46,10 +47,6 @@ func (h *handler) Sync(c *gin.Context) {
 }
 
 func (h *handler) CreateFormWithFields(c *gin.Context) {
-	clinicID, ok := util.GetClinicID(c)
-	if !ok {
-		return
-	}
 	practitionerID, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
@@ -59,24 +56,21 @@ func (h *handler) CreateFormWithFields(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	req.ClinicID = clinicID
 	if req.Status == "" {
 		req.Status = detail.StatusDraft
 	}
 	form, syncResult, err := h.svc.CreateWithFields(c.Request.Context(), &req, practitionerID)
 	if err != nil {
+		log.Fatal(err)
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
+
 	response.JSON(c, http.StatusCreated, gin.H{"form": form, "fields_sync": syncResult})
 }
 
 func (h *handler) UpdateFormWithFields(c *gin.Context) {
 
-	clinicID, ok := util.GetClinicID(c)
-	if !ok {
-		return
-	}
 	practitionerID, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
@@ -86,7 +80,6 @@ func (h *handler) UpdateFormWithFields(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	req.ClinicID = clinicID
 	form, syncResult, err := h.svc.UpdateWithFields(c.Request.Context(), &req, practitionerID)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
@@ -100,11 +93,8 @@ func (h *handler) GetFormWithFields(c *gin.Context) {
 	if !ok {
 		return
 	}
-	clinicID, ok := util.GetClinicID(c)
-	if !ok {
-		return
-	}
-	out, err := h.svc.GetFormWithFields(c.Request.Context(), formID, clinicID)
+
+	out, err := h.svc.GetFormWithFields(c.Request.Context(), formID)
 	if err != nil {
 		if errors.Is(err, detail.ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
@@ -140,11 +130,7 @@ func (h *handler) Delete(c *gin.Context) {
 	if !ok {
 		return
 	}
-	clinicID, ok := util.GetClinicID(c)
-	if !ok {
-		return
-	}
-	if err := h.svc.Delete(c.Request.Context(), formID, clinicID); err != nil {
+	if err := h.svc.Delete(c.Request.Context(), formID); err != nil {
 		if errors.Is(err, detail.ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
