@@ -27,6 +27,16 @@ func NewHandler(svc IService) IHandler {
 	return &handler{svc: svc}
 }
 
+// @Summary Bulk sync fields
+// @Description Synchronize multiple fields for a practitioner
+// @Tags form
+// @Accept json
+// @Produce json
+// @Param request body RqBulkSyncFields true "Sync request"
+// @Success 200 {object} RsBulkSyncFields
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Router /form/sync [post]
 func (h *handler) Sync(c *gin.Context) {
 	practitionerID, ok := util.GetPractitionerID(c)
 	if !ok {
@@ -46,6 +56,16 @@ func (h *handler) Sync(c *gin.Context) {
 	response.JSON(c, http.StatusOK, result)
 }
 
+// @Summary Create form with fields
+// @Description Create a new custom form along with its associated fields
+// @Tags form
+// @Accept json
+// @Produce json
+// @Param request body RqCreateFormWithFields true "Form creation request"
+// @Success 201 {object} RsFormWithFields
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Router /form [post]
 func (h *handler) CreateFormWithFields(c *gin.Context) {
 	practitionerID, ok := util.GetPractitionerID(c)
 
@@ -71,6 +91,16 @@ func (h *handler) CreateFormWithFields(c *gin.Context) {
 	response.JSON(c, http.StatusCreated, gin.H{"form": form, "fields_sync": syncResult})
 }
 
+// @Summary Update form with fields
+// @Description Update an existing form and sync its fields
+// @Tags form
+// @Accept json
+// @Produce json
+// @Param request body RqUpdateFormWithFields true "Form update request"
+// @Success 200 {object} RsFormWithFields
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Router /form [put]
 func (h *handler) UpdateFormWithFields(c *gin.Context) {
 
 	practitionerID, ok := util.GetPractitionerID(c)
@@ -90,6 +120,16 @@ func (h *handler) UpdateFormWithFields(c *gin.Context) {
 	response.JSON(c, http.StatusOK, gin.H{"form": form, "fields_sync": syncResult})
 }
 
+// @Summary Get form by ID
+// @Description Retrieve a specific form and its fields by ID
+// @Tags form
+// @Accept json
+// @Produce json
+// @Param id path string true "Form ID"
+// @Success 200 {object} RsFormWithFields
+// @Failure 404 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Router /form/{id} [get]
 func (h *handler) GetFormWithFields(c *gin.Context) {
 	formID, ok := util.ParseUuidID(c, "id")
 	if !ok {
@@ -108,6 +148,16 @@ func (h *handler) GetFormWithFields(c *gin.Context) {
 	response.JSON(c, http.StatusOK, out)
 }
 
+// @Summary List forms
+// @Description List forms filtered by clinic and query parameters
+// @Tags form
+// @Accept json
+// @Produce json
+// @Param clinic_id query string false "Clinic ID"
+// @Success 200 {array} RsForm
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Router /form [get]
 func (h *handler) List(c *gin.Context) {
 	clinicID, ok := util.GetClinicID(c)
 	if !ok {
@@ -127,6 +177,16 @@ func (h *handler) List(c *gin.Context) {
 	response.JSON(c, http.StatusOK, list)
 }
 
+// @Summary Delete form
+// @Description Remove a form by its ID
+// @Tags form
+// @Accept json
+// @Produce json
+// @Param id path string true "Form ID"
+// @Success 204 "No Content"
+// @Failure 404 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Router /form/{id} [delete]
 func (h *handler) Delete(c *gin.Context) {
 	formID, ok := util.ParseUuidID(c, "id")
 	if !ok {
