@@ -25,11 +25,9 @@ type Repository interface {
 	GetClinicAddresses(ctx context.Context, clinicID uuid.UUID) ([]ClinicAddress, error)
 	GetClinicContacts(ctx context.Context, clinicID uuid.UUID) ([]ClinicContact, error)
 	GetFinancialSettings(ctx context.Context, clinicID uuid.UUID) (*FinancialSettings, error)
-	GetActiveFinancialYear(ctx context.Context) (*uuid.UUID, error)
 	GetPractitionerIDByUserID(ctx context.Context, userID string) (*uuid.UUID, error)
-	GetAddressByID(ctx context.Context, id uuid.UUID) (*ClinicAddress, error)
-	GetContactByID(ctx context.Context, id uuid.UUID) (*ClinicContact, error)
 
+	// Update operations (kept for non-transactional updates)
 	UpdateClinic(ctx context.Context, clinic *Clinic) (*Clinic, error)
 	UpdateClinicAddress(ctx context.Context, address *ClinicAddress) error
 	UpdateClinicContact(ctx context.Context, contact *ClinicContact) error
@@ -37,6 +35,7 @@ type Repository interface {
 	UnsetPrimaryAddress(ctx context.Context, clinicID uuid.UUID, excludeID uuid.UUID) error
 	UnsetPrimaryContact(ctx context.Context, clinicID uuid.UUID, excludeID uuid.UUID) error
 
+	// Delete operations
 	DeleteClinic(ctx context.Context, id uuid.UUID) error
 	BulkDeleteClinics(ctx context.Context, ids []uuid.UUID) error
 }
@@ -207,18 +206,6 @@ func (r *repository) DeleteClinic(ctx context.Context, id uuid.UUID) error {
 
 	return nil
 }
-func (r *repository) GetActiveFinancialYear(ctx context.Context) (*uuid.UUID, error) {
-	query := `SELECT id FROM tbl_financial_year WHERE is_active = TRUE LIMIT 1`
-	var id uuid.UUID
-	if err := r.db.QueryRowxContext(ctx, query).Scan(&id); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New("no active financial year found")
-		}
-		return nil, fmt.Errorf("get active financial year: %w", err)
-	}
-	return &id, nil
-}
-
 func (r *repository) UpdateClinic(ctx context.Context, clinic *Clinic) (*Clinic, error) {
 	query := `
 		UPDATE tbl_clinic 
@@ -347,38 +334,6 @@ func (r *repository) UnsetPrimaryContact(ctx context.Context, clinicID uuid.UUID
 		return fmt.Errorf("unset primary contact: %w", err)
 	}
 	return nil
-}
-
-func (r *repository) GetAddressByID(ctx context.Context, id uuid.UUID) (*ClinicAddress, error) {
-	query := `
-		SELECT id, clinic_id, address, city, state, postcode, is_primary, created_at, updated_at
-		FROM tbl_clinic_address
-		WHERE id = $1
-	`
-	var a ClinicAddress
-	if err := r.db.QueryRowxContext(ctx, query, id).StructScan(&a); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-		return nil, fmt.Errorf("get address by id: %w", err)
-	}
-	return &a, nil
-}
-
-func (r *repository) GetContactByID(ctx context.Context, id uuid.UUID) (*ClinicContact, error) {
-	query := `
-		SELECT id, clinic_id, contact_type, value, label, is_primary, created_at, updated_at
-		FROM tbl_clinic_contact
-		WHERE id = $1
-	`
-	var c ClinicContact
-	if err := r.db.QueryRowxContext(ctx, query, id).StructScan(&c); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-		return nil, fmt.Errorf("get contact by id: %w", err)
-	}
-	return &c, nil
 }
 
 func (r *repository) BulkDeleteClinics(ctx context.Context, ids []uuid.UUID) error {
