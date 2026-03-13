@@ -94,3 +94,18 @@ type RqUpdateCharOfAccountOfAccount struct {
 	Code          *int16  `json:"code" validate:"omitempty,gte=100,lte=9999"`
 	Name          *string `json:"name" validate:"omitempty,max=255"`
 }
+
+// ListChartOfAccountFilter is used for listing COA with optional account_type filter and pagination.
+type ListChartOfAccountFilter struct {
+	AccountTypeID *int16 // optional: filter by account type
+	Page          int    // 1-based
+	Limit         int    // page size; use 0 for default
+}
+
+// RsChartOfAccountList is the paginated list response for chart of accounts.
+type RsChartOfAccountList struct {
+	Data  []RsChartOfAccount `json:"data"`
+	Total int                `json:"total"`
+	Page  int                `json:"page"`
+	Limit int                `json:"limit"`
+}
