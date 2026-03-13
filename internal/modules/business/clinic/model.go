@@ -84,23 +84,41 @@ type RqFinancialSettings struct {
 }
 
 type RqUpdateClinic struct {
-	Name           *string           `json:"name"`
-	ProfilePicture *string           `json:"profile_picture"`
-	ABN            *string           `json:"abn" validate:"omitempty,len=11"`
-	Description    *string           `json:"description"`
-	IsActive       *bool             `json:"is_active"`
-	AddressData    *RqUpdateAddress  `json:"address_data"`
-	ContactData    map[string]string `json:"contact_data"`
-	FinancialYear  *uuid.UUID        `json:"financial_year"`
-	LockDate       *time.Time        `json:"lock_date"`
+	ID              *uuid.UUID        `json:"id"`
+	Name            *string           `json:"name"`
+	ProfilePicture  *string           `json:"profile_picture"`
+	ABN             *string           `json:"abn" validate:"omitempty,len=11"`
+	Description     *string           `json:"description"`
+	IsActive        *bool             `json:"is_active"`
+	Addresses       []RqUpdateAddress `json:"addresses"`
+	Contacts        []RqUpdateContact `json:"contacts"`
+	FinancialYearID *uuid.UUID        `json:"financial_year_id"`
+	LockDate        *time.Time        `json:"lock_date"`
 }
 
 type RqUpdateAddress struct {
-	Address   *string `json:"address"`
-	City      *string `json:"city"`
-	State     *string `json:"state"`
-	Postcode  *string `json:"postcode" validate:"omitempty,len=4"`
-	IsPrimary *bool   `json:"is_primary"`
+	ID        *uuid.UUID `json:"id"`
+	Address   *string    `json:"address"`
+	City      *string    `json:"city"`
+	State     *string    `json:"state"`
+	Postcode  *string    `json:"postcode" validate:"omitempty,len=4"`
+	IsPrimary *bool      `json:"is_primary"`
+}
+
+type RqUpdateContact struct {
+	ID          *uuid.UUID `json:"id"`
+	ContactType *string    `json:"contact_type" validate:"omitempty,oneof=PHONE EMAIL WEBSITE FAX"`
+	Value       *string    `json:"value"`
+	Label       *string    `json:"label"`
+	IsPrimary   *bool      `json:"is_primary"`
+}
+
+type RqBulkUpdateClinic struct {
+	Clinics []RqUpdateClinic `json:"clinics" validate:"required,dive"`
+}
+
+type RqBulkDeleteClinic struct {
+	ClinicIDs []uuid.UUID `json:"clinic_ids" validate:"required,min=1"`
 }
 
 // Response models

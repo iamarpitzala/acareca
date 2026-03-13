@@ -16,6 +16,9 @@ var (
 	ErrSystemAccountProtected = errors.New("system account cannot be updated or deleted")
 )
 
+const defaultListLimit = 20
+const maxListLimit = 100
+
 type Repository interface {
 	ListAccountTypes(ctx context.Context) ([]*AccountType, error)
 	GetAccountType(ctx context.Context, id int16) (*AccountType, error)
@@ -23,6 +26,8 @@ type Repository interface {
 	GetAccountTax(ctx context.Context, id int16) (*AccountTax, error)
 
 	ListChartOfAccount(ctx context.Context, practitionerID uuid.UUID) ([]*ChartOfAccount, error)
+	ListChartOfAccountWithFilter(ctx context.Context, practitionerID uuid.UUID, f ListChartOfAccountFilter) ([]*ChartOfAccount, error)
+	CountChartOfAccount(ctx context.Context, practitionerID uuid.UUID, f ListChartOfAccountFilter) (int, error)
 	GetChartOfAccount(ctx context.Context, id uuid.UUID, practitionerID uuid.UUID) (*ChartOfAccount, error)
 	GetChartByCodeAndPractitionerID(ctx context.Context, code int16, practitionerID uuid.UUID, excludeID *uuid.UUID) (*ChartOfAccount, error)
 	CreateChartOfAccount(ctx context.Context, c *ChartOfAccount) (*ChartOfAccount, error)
@@ -97,18 +102,56 @@ func (r *repository) GetAccountTax(ctx context.Context, id int16) (*AccountTax, 
 }
 
 func (r *repository) ListChartOfAccount(ctx context.Context, practitionerID uuid.UUID) ([]*ChartOfAccount, error) {
+	return r.ListChartOfAccountWithFilter(ctx, practitionerID, ListChartOfAccountFilter{Page: 1, Limit: 0})
+}
+
+func (r *repository) ListChartOfAccountWithFilter(ctx context.Context, practitionerID uuid.UUID, f ListChartOfAccountFilter) ([]*ChartOfAccount, error) {
+	limit := f.Limit
+	if limit <= 0 {
+		limit = defaultListLimit
+	}
+	if limit > maxListLimit {
+		limit = maxListLimit
+	}
+	page := f.Page
+	if page < 1 {
+		page = 1
+	}
+	offset := (page - 1) * limit
+
 	query := `
 		SELECT id, practitioner_id, account_type_id, account_tax_id, code, name,
 		       is_system, created_at, updated_at, deleted_at
 		FROM tbl_chart_of_accounts
 		WHERE practitioner_id = $1 AND deleted_at IS NULL
-		ORDER BY code
 	`
+	args := []interface{}{practitionerID}
+	if f.AccountTypeID != nil {
+		query += ` AND account_type_id = $2`
+		args = append(args, *f.AccountTypeID)
+	}
+	query += ` ORDER BY code LIMIT $` + fmt.Sprintf("%d", len(args)+1) + ` OFFSET $` + fmt.Sprintf("%d", len(args)+2)
+	args = append(args, limit, offset)
+
 	var list []*ChartOfAccount
-	if err := r.db.SelectContext(ctx, &list, query, practitionerID); err != nil {
-		return nil, fmt.Errorf("list chart of accounts by practitioner_id: %w", err)
+	if err := r.db.SelectContext(ctx, &list, query, args...); err != nil {
+		return nil, fmt.Errorf("list chart of accounts: %w", err)
 	}
 	return list, nil
+}
+
+func (r *repository) CountChartOfAccount(ctx context.Context, practitionerID uuid.UUID, f ListChartOfAccountFilter) (int, error) {
+	query := `SELECT COUNT(*) FROM tbl_chart_of_accounts WHERE practitioner_id = $1 AND deleted_at IS NULL`
+	args := []interface{}{practitionerID}
+	if f.AccountTypeID != nil {
+		query += ` AND account_type_id = $2`
+		args = append(args, *f.AccountTypeID)
+	}
+	var count int
+	if err := r.db.GetContext(ctx, &count, query, args...); err != nil {
+		return 0, fmt.Errorf("count chart of accounts: %w", err)
+	}
+	return count, nil
 }
 
 func (r *repository) GetChartOfAccount(ctx context.Context, id uuid.UUID, practitionerID uuid.UUID) (*ChartOfAccount, error) {
