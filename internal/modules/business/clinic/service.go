@@ -12,7 +12,9 @@ type Service interface {
 	GetClinics(ctx context.Context, practitionerID uuid.UUID) ([]RsClinic, error)
 	GetClinicByID(ctx context.Context, practitionerID uuid.UUID, id uuid.UUID) (*RsClinic, error)
 	UpdateClinic(ctx context.Context, practitionerID uuid.UUID, id uuid.UUID, req *RqUpdateClinic) (*RsClinic, error)
+	BulkUpdateClinics(ctx context.Context, practitionerID uuid.UUID, req *RqBulkUpdateClinic) ([]RsClinic, error)
 	DeleteClinic(ctx context.Context, practitionerID uuid.UUID, id uuid.UUID) error
+	BulkDeleteClinics(ctx context.Context, practitionerID uuid.UUID, req *RqBulkDeleteClinic) error
 
 	// Internal methods for service-to-service calls (no user validation)
 	GetClinicByIDInternal(ctx context.Context, id uuid.UUID) (*RsClinic, error)
@@ -144,7 +146,6 @@ func (s *service) CreateClinic(ctx context.Context, practitionerID uuid.UUID, re
 }
 
 func (s *service) GetClinics(ctx context.Context, practitionerID uuid.UUID) ([]RsClinic, error) {
-
 	clinics, err := s.repo.GetClinicsByPractitioner(ctx, practitionerID)
 	if err != nil {
 		return nil, err
@@ -152,16 +153,72 @@ func (s *service) GetClinics(ctx context.Context, practitionerID uuid.UUID) ([]R
 
 	result := make([]RsClinic, 0, len(clinics))
 	for _, clinic := range clinics {
+		// Get addresses for this clinic
+		addresses, err := s.repo.GetClinicAddresses(ctx, clinic.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		// Get contacts for this clinic
+		contacts, err := s.repo.GetClinicContacts(ctx, clinic.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		// Get financial settings for this clinic
+		financialSettings, err := s.repo.GetFinancialSettings(ctx, clinic.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		// Convert addresses to response format
+		rsAddresses := make([]RsClinicAddress, 0, len(addresses))
+		for _, addr := range addresses {
+			rsAddresses = append(rsAddresses, RsClinicAddress{
+				ID:        addr.ID,
+				Address:   addr.Address,
+				City:      addr.City,
+				State:     addr.State,
+				Postcode:  addr.Postcode,
+				IsPrimary: addr.IsPrimary,
+			})
+		}
+
+		// Convert contacts to response format
+		rsContacts := make([]RsClinicContact, 0, len(contacts))
+		for _, cont := range contacts {
+			rsContacts = append(rsContacts, RsClinicContact{
+				ID:          cont.ID,
+				ContactType: cont.ContactType,
+				Value:       cont.Value,
+				Label:       cont.Label,
+				IsPrimary:   cont.IsPrimary,
+			})
+		}
+
+		// Convert financial settings to response format
+		var rsFinancialSettings *RsFinancialSettings
+		if financialSettings != nil {
+			rsFinancialSettings = &RsFinancialSettings{
+				ID:              financialSettings.ID,
+				FinancialYearID: financialSettings.FinancialYearID,
+				LockDate:        financialSettings.LockDate,
+			}
+		}
+
 		result = append(result, RsClinic{
-			ID:             clinic.ID,
-			PractitionerID: clinic.PractitionerID,
-			ProfilePicture: clinic.ProfilePicture,
-			Name:           clinic.Name,
-			ABN:            clinic.ABN,
-			Description:    clinic.Description,
-			IsActive:       clinic.IsActive,
-			CreatedAt:      clinic.CreatedAt,
-			UpdatedAt:      clinic.UpdatedAt,
+			ID:                clinic.ID,
+			PractitionerID:    clinic.PractitionerID,
+			ProfilePicture:    clinic.ProfilePicture,
+			Name:              clinic.Name,
+			ABN:               clinic.ABN,
+			Description:       clinic.Description,
+			IsActive:          clinic.IsActive,
+			Addresses:         rsAddresses,
+			Contacts:          rsContacts,
+			FinancialSettings: rsFinancialSettings,
+			CreatedAt:         clinic.CreatedAt,
+			UpdatedAt:         clinic.UpdatedAt,
 		})
 	}
 
@@ -247,10 +304,8 @@ func (s *service) DeleteClinic(ctx context.Context, practitionerID uuid.UUID, id
 	return s.repo.DeleteClinic(ctx, id)
 }
 func (s *service) UpdateClinic(ctx context.Context, practitionerID uuid.UUID, id uuid.UUID, req *RqUpdateClinic) (*RsClinic, error) {
-
 	clinic, err := s.repo.GetClinicByIDAndPractitioner(ctx, id, practitionerID)
 	if err != nil {
-		fmt.Printf("UpdateClinic - Failed to get clinic by ID and practitioner: %v\n", err)
 		return nil, err
 	}
 
@@ -273,11 +328,103 @@ func (s *service) UpdateClinic(ctx context.Context, practitionerID uuid.UUID, id
 
 	_, err = s.repo.UpdateClinic(ctx, clinic)
 	if err != nil {
-		fmt.Printf("UpdateClinic - Failed to update clinic: %v\n", err)
 		return nil, err
 	}
 
-	fmt.Printf("UpdateClinic - Successfully updated clinic\n")
+	// Update addresses
+	for _, addr := range req.Addresses {
+		if addr.ID != nil {
+			// Get existing address to update only provided fields
+			existingAddr, err := s.repo.GetAddressByID(ctx, *addr.ID)
+			if err != nil {
+				return nil, fmt.Errorf("get address by id: %w", err)
+			}
+
+			// Update only provided fields
+			if addr.Address != nil {
+				existingAddr.Address = addr.Address
+			}
+			if addr.City != nil {
+				existingAddr.City = addr.City
+			}
+			if addr.State != nil {
+				existingAddr.State = addr.State
+			}
+			if addr.Postcode != nil {
+				existingAddr.Postcode = addr.Postcode
+			}
+			if addr.IsPrimary != nil {
+				existingAddr.IsPrimary = *addr.IsPrimary
+				// If setting as primary, unset other primary addresses for this clinic
+				if *addr.IsPrimary {
+					if err := s.repo.UnsetPrimaryAddress(ctx, clinic.ID, *addr.ID); err != nil {
+						return nil, fmt.Errorf("unset primary address: %w", err)
+					}
+				}
+			}
+
+			if err := s.repo.UpdateClinicAddress(ctx, existingAddr); err != nil {
+				return nil, fmt.Errorf("update address: %w", err)
+			}
+		}
+	}
+
+	// Update contacts
+	for _, cont := range req.Contacts {
+		if cont.ID != nil {
+			// Get existing contact to update only provided fields
+			existingContact, err := s.repo.GetContactByID(ctx, *cont.ID)
+			if err != nil {
+				return nil, fmt.Errorf("get contact by id: %w", err)
+			}
+
+			// Update only provided fields
+			if cont.ContactType != nil {
+				existingContact.ContactType = *cont.ContactType
+			}
+			if cont.Value != nil {
+				existingContact.Value = *cont.Value
+			}
+			if cont.Label != nil {
+				existingContact.Label = cont.Label
+			}
+			if cont.IsPrimary != nil {
+				existingContact.IsPrimary = *cont.IsPrimary
+				// If setting as primary, unset other primary contacts for this clinic
+				if *cont.IsPrimary {
+					if err := s.repo.UnsetPrimaryContact(ctx, clinic.ID, *cont.ID); err != nil {
+						return nil, fmt.Errorf("unset primary contact: %w", err)
+					}
+				}
+			}
+
+			if err := s.repo.UpdateClinicContact(ctx, existingContact); err != nil {
+				return nil, fmt.Errorf("update contact: %w", err)
+			}
+		}
+	}
+
+	// Update financial settings if provided
+	if req.FinancialYearID != nil || req.LockDate != nil {
+		financialSettings, err := s.repo.GetFinancialSettings(ctx, clinic.ID)
+		if err != nil {
+			return nil, fmt.Errorf("get financial settings: %w", err)
+		}
+
+		if financialSettings != nil {
+			if req.FinancialYearID != nil {
+				financialSettings.FinancialYearID = *req.FinancialYearID
+			}
+			if req.LockDate != nil {
+				financialSettings.LockDate = req.LockDate
+			}
+
+			if err := s.repo.UpdateFinancialSettings(ctx, financialSettings); err != nil {
+				return nil, fmt.Errorf("update financial settings: %w", err)
+			}
+		}
+	}
+
 	return s.GetClinicByID(ctx, practitionerID, id)
 }
 
@@ -349,4 +496,36 @@ func (s *service) GetClinicByIDInternal(ctx context.Context, id uuid.UUID) (*RsC
 		CreatedAt:         clinic.CreatedAt,
 		UpdatedAt:         clinic.UpdatedAt,
 	}, nil
+}
+
+func (s *service) BulkUpdateClinics(ctx context.Context, practitionerID uuid.UUID, req *RqBulkUpdateClinic) ([]RsClinic, error) {
+	var results []RsClinic
+
+	for _, clinicReq := range req.Clinics {
+		if clinicReq.ID == nil {
+			return nil, fmt.Errorf("clinic ID is required for bulk update")
+		}
+
+		updatedClinic, err := s.UpdateClinic(ctx, practitionerID, *clinicReq.ID, &clinicReq)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update clinic %s: %w", clinicReq.ID.String(), err)
+		}
+
+		results = append(results, *updatedClinic)
+	}
+
+	return results, nil
+}
+
+func (s *service) BulkDeleteClinics(ctx context.Context, practitionerID uuid.UUID, req *RqBulkDeleteClinic) error {
+	// Verify all clinics belong to the practitioner before deleting
+	for _, clinicID := range req.ClinicIDs {
+		_, err := s.repo.GetClinicByIDAndPractitioner(ctx, clinicID, practitionerID)
+		if err != nil {
+			return fmt.Errorf("clinic %s not found or access denied: %w", clinicID.String(), err)
+		}
+	}
+
+	// Perform bulk delete
+	return s.repo.BulkDeleteClinics(ctx, req.ClinicIDs)
 }
