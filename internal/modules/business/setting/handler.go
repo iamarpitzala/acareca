@@ -2,6 +2,7 @@ package setting
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -54,6 +55,7 @@ func (h *handler) CreatePractitioner(c *gin.Context) {
 // @Param id path string true "Practitioner ID"
 func (h *handler) GetPractitioner(c *gin.Context) {
 	id, ok := util.GetPractitionerID(c)
+	fmt.Println("err", id)
 	if !ok {
 		return
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/iamarpitzala/acareca/internal/modules/business/coa"
 	"github.com/iamarpitzala/acareca/internal/modules/business/fy"
 	"github.com/iamarpitzala/acareca/internal/modules/business/practitioner"
+	"github.com/iamarpitzala/acareca/internal/modules/business/setting"
 	userSubscription "github.com/iamarpitzala/acareca/internal/modules/business/subscription"
 	"github.com/iamarpitzala/acareca/internal/modules/engine/calculation"
 	"github.com/iamarpitzala/acareca/internal/modules/engine/method"
@@ -108,4 +109,11 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	formSvc := form.NewService(detailSvc, versionSvc, fieldSvc, entryRepo, coaSvc)
 	formHandler := form.NewHandler(formSvc)
 	form.RegisterRoutes(formGroup, formHandler)
+
+	settingGroup := v1.Group("/setting")
+	settingRepo := setting.NewRepository(dbConn)
+	settingSvc := setting.NewService(settingRepo)
+	settingHandler := setting.NewHandler(settingSvc)
+
+	setting.RegisterRoutes(settingGroup, settingHandler, cfg)
 }
