@@ -13,10 +13,10 @@ import (
 var ErrNotFound = errors.New("clinic not found")
 
 type Repository interface {
-	CreateClinic(ctx context.Context, clinic *Clinic) (*Clinic, error)
-	CreateClinicAddress(ctx context.Context, address *ClinicAddress) (*ClinicAddress, error)
-	CreateClinicContact(ctx context.Context, contact *ClinicContact) (*ClinicContact, error)
-	CreateFinancialSettings(ctx context.Context, settings *FinancialSettings) (*FinancialSettings, error)
+	CreateClinic(ctx context.Context, clinic *Clinic, tx *sqlx.Tx) (*Clinic, error)
+	CreateClinicAddress(ctx context.Context, address *ClinicAddress, tx *sqlx.Tx) (*ClinicAddress, error)
+	CreateClinicContact(ctx context.Context, contact *ClinicContact, tx *sqlx.Tx) (*ClinicContact, error)
+	CreateFinancialSettings(ctx context.Context, settings *FinancialSettings, tx *sqlx.Tx) (*FinancialSettings, error)
 
 	GetClinics(ctx context.Context) ([]Clinic, error)
 	GetClinicsByPractitioner(ctx context.Context, practitionerID uuid.UUID) ([]Clinic, error)
@@ -49,14 +49,14 @@ func NewRepository(db *sqlx.DB) Repository {
 	return &repository{db: db}
 }
 
-func (r *repository) CreateClinic(ctx context.Context, clinic *Clinic) (*Clinic, error) {
+func (r *repository) CreateClinic(ctx context.Context, clinic *Clinic, tx *sqlx.Tx) (*Clinic, error) {
 	query := `
 		INSERT INTO tbl_clinic (practitioner_id, profile_picture, name, abn, description, is_active)
 		VALUES ($1, $2, $3, $4, $5, COALESCE($6, TRUE))
 		RETURNING id, practitioner_id, profile_picture, name, abn, description, is_active, created_at, updated_at
 	`
 	var c Clinic
-	err := r.db.QueryRowxContext(ctx, query,
+	err := tx.QueryRowxContext(ctx, query,
 		clinic.PractitionerID, clinic.ProfilePicture, clinic.Name,
 		clinic.ABN, clinic.Description, clinic.IsActive,
 	).StructScan(&c)
@@ -66,14 +66,14 @@ func (r *repository) CreateClinic(ctx context.Context, clinic *Clinic) (*Clinic,
 	return &c, nil
 }
 
-func (r *repository) CreateClinicAddress(ctx context.Context, address *ClinicAddress) (*ClinicAddress, error) {
+func (r *repository) CreateClinicAddress(ctx context.Context, address *ClinicAddress, tx *sqlx.Tx) (*ClinicAddress, error) {
 	query := `
 		INSERT INTO tbl_clinic_address (clinic_id, address, city, state, postcode, is_primary)
 		VALUES ($1, $2, $3, $4, $5, COALESCE($6, FALSE))
 		RETURNING id, clinic_id, address, city, state, postcode, is_primary, created_at, updated_at
 	`
 	var a ClinicAddress
-	err := r.db.QueryRowxContext(ctx, query,
+	err := tx.QueryRowxContext(ctx, query,
 		address.ClinicID, address.Address, address.City,
 		address.State, address.Postcode, address.IsPrimary,
 	).StructScan(&a)
@@ -83,14 +83,14 @@ func (r *repository) CreateClinicAddress(ctx context.Context, address *ClinicAdd
 	return &a, nil
 }
 
-func (r *repository) CreateClinicContact(ctx context.Context, contact *ClinicContact) (*ClinicContact, error) {
+func (r *repository) CreateClinicContact(ctx context.Context, contact *ClinicContact, tx *sqlx.Tx) (*ClinicContact, error) {
 	query := `
 		INSERT INTO tbl_clinic_contact (clinic_id, contact_type, value, label, is_primary)
 		VALUES ($1, $2, $3, $4, COALESCE($5, FALSE))
 		RETURNING id, clinic_id, contact_type, value, label, is_primary, created_at, updated_at
 	`
 	var c ClinicContact
-	err := r.db.QueryRowxContext(ctx, query,
+	err := tx.QueryRowxContext(ctx, query,
 		contact.ClinicID, contact.ContactType, contact.Value,
 		contact.Label, contact.IsPrimary,
 	).StructScan(&c)
@@ -100,14 +100,14 @@ func (r *repository) CreateClinicContact(ctx context.Context, contact *ClinicCon
 	return &c, nil
 }
 
-func (r *repository) CreateFinancialSettings(ctx context.Context, settings *FinancialSettings) (*FinancialSettings, error) {
+func (r *repository) CreateFinancialSettings(ctx context.Context, settings *FinancialSettings, tx *sqlx.Tx) (*FinancialSettings, error) {
 	query := `
 		INSERT INTO tbl_financial_settings (clinic_id, financial_year_id, lock_date)
 		VALUES ($1, $2, $3)
 		RETURNING id, clinic_id, financial_year_id, lock_date, created_at, updated_at
 	`
 	var fs FinancialSettings
-	err := r.db.QueryRowxContext(ctx, query,
+	err := tx.QueryRowxContext(ctx, query,
 		settings.ClinicID, settings.FinancialYearID, settings.LockDate,
 	).StructScan(&fs)
 	if err != nil {

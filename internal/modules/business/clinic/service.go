@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/shared/util"
+	"github.com/jmoiron/sqlx"
 )
 
 type Service interface {
@@ -22,10 +24,11 @@ type Service interface {
 
 type service struct {
 	repo Repository
+	db   *sqlx.DB
 }
 
-func NewService(repo Repository) Service {
-	return &service{repo: repo}
+func NewService(repo Repository, db *sqlx.DB) Service {
+	return &service{repo: repo, db: db}
 }
 
 func (s *service) CreateClinic(ctx context.Context, practitionerID uuid.UUID, req *RqCreateClinic) (*RsClinic, error) {
@@ -48,82 +51,91 @@ func (s *service) CreateClinic(ctx context.Context, practitionerID uuid.UUID, re
 		clinic.IsActive = *req.IsActive
 	}
 
-	created, err := s.repo.CreateClinic(ctx, clinic)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create financial settings with active financial year
-	financialSettings := &FinancialSettings{
-		ClinicID:        created.ID,
-		FinancialYearID: *activeFinancialYearID,
-		LockDate:        nil, // Keep empty as requested
-	}
-
-	createdFS, err := s.repo.CreateFinancialSettings(ctx, financialSettings)
-	if err != nil {
-		return nil, fmt.Errorf("create financial settings: %w", err)
-	}
-
-	var addresses []RsClinicAddress
-	for _, addr := range req.Addresses {
-		isPrimary := false
-		if addr.IsPrimary != nil {
-			isPrimary = *addr.IsPrimary
-		}
-
-		clinicAddr := &ClinicAddress{
-			ClinicID:  created.ID,
-			Address:   addr.Address,
-			City:      addr.City,
-			State:     addr.State,
-			Postcode:  addr.Postcode,
-			IsPrimary: isPrimary,
-		}
-
-		createdAddr, err := s.repo.CreateClinicAddress(ctx, clinicAddr)
-		if err != nil {
-			return nil, fmt.Errorf("create address: %w", err)
-		}
-
-		addresses = append(addresses, RsClinicAddress{
-			ID:        createdAddr.ID,
-			Address:   createdAddr.Address,
-			City:      createdAddr.City,
-			State:     createdAddr.State,
-			Postcode:  createdAddr.Postcode,
-			IsPrimary: createdAddr.IsPrimary,
-		})
-	}
-
+	var createdFS *FinancialSettings
+	var created *Clinic
 	var contacts []RsClinicContact
-	for _, cont := range req.Contacts {
-		isPrimary := false
-		if cont.IsPrimary != nil {
-			isPrimary = *cont.IsPrimary
-		}
+	var addresses []RsClinicAddress
 
-		clinicContact := &ClinicContact{
-			ClinicID:    created.ID,
-			ContactType: cont.ContactType,
-			Value:       cont.Value,
-			Label:       cont.Label,
-			IsPrimary:   isPrimary,
-		}
-
-		createdContact, err := s.repo.CreateClinicContact(ctx, clinicContact)
+	util.RunInTransaction(ctx, s.db, func(ctx context.Context, tx *sqlx.Tx) error {
+		Created, err := s.repo.CreateClinic(ctx, clinic, tx)
 		if err != nil {
-			return nil, fmt.Errorf("create contact: %w", err)
+			return fmt.Errorf("failed to create clinic: %w", err)
+		}
+		// Create financial settings with active financial year
+		financialSettings := &FinancialSettings{
+			ClinicID:        Created.ID,
+			FinancialYearID: *activeFinancialYearID,
+			LockDate:        nil, // Keep empty as requested
 		}
 
-		contacts = append(contacts, RsClinicContact{
-			ID:          createdContact.ID,
-			ContactType: createdContact.ContactType,
-			Value:       createdContact.Value,
-			Label:       createdContact.Label,
-			IsPrimary:   createdContact.IsPrimary,
-		})
-	}
+		CreatedFS, err := s.repo.CreateFinancialSettings(ctx, financialSettings, tx)
+		if err != nil {
+			return fmt.Errorf("create financial settings: %w", err)
+		}
+
+		for _, addr := range req.Addresses {
+			isPrimary := false
+			if addr.IsPrimary != nil {
+				isPrimary = *addr.IsPrimary
+			}
+
+			clinicAddr := &ClinicAddress{
+				ClinicID:  Created.ID,
+				Address:   addr.Address,
+				City:      addr.City,
+				State:     addr.State,
+				Postcode:  addr.Postcode,
+				IsPrimary: isPrimary,
+			}
+
+			createdAddr, err := s.repo.CreateClinicAddress(ctx, clinicAddr, tx)
+			if err != nil {
+				return fmt.Errorf("create address: %w", err)
+			}
+
+			addresses = append(addresses, RsClinicAddress{
+				ID:        createdAddr.ID,
+				Address:   createdAddr.Address,
+				City:      createdAddr.City,
+				State:     createdAddr.State,
+				Postcode:  createdAddr.Postcode,
+				IsPrimary: createdAddr.IsPrimary,
+			})
+		}
+
+		for _, cont := range req.Contacts {
+			isPrimary := false
+			if cont.IsPrimary != nil {
+				isPrimary = *cont.IsPrimary
+			}
+
+			clinicContact := &ClinicContact{
+				ClinicID:    Created.ID,
+				ContactType: cont.ContactType,
+				Value:       cont.Value,
+				Label:       cont.Label,
+				IsPrimary:   isPrimary,
+			}
+
+			createdContact, err := s.repo.CreateClinicContact(ctx, clinicContact, tx)
+			if err != nil {
+				return fmt.Errorf("create contact: %w", err)
+			}
+
+			contacts = append(contacts, RsClinicContact{
+				ID:          createdContact.ID,
+				ContactType: createdContact.ContactType,
+				Value:       createdContact.Value,
+				Label:       createdContact.Label,
+				IsPrimary:   createdContact.IsPrimary,
+			})
+			created = Created
+			createdFS = CreatedFS
+
+		}
+		return nil
+
+	})
 
 	return &RsClinic{
 		ID:             created.ID,
