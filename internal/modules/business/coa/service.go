@@ -12,7 +12,7 @@ type Service interface {
 	ListAccountTaxes(ctx context.Context) ([]AccountTax, error)
 	GetAccountTax(ctx context.Context, id int16) (*AccountTax, error)
 
-	ListChartOfAccount(ctx context.Context, practitionerID uuid.UUID) ([]RsChartOfAccount, error)
+	ListChartOfAccount(ctx context.Context, practitionerID uuid.UUID, f ListChartOfAccountFilter) (*RsChartOfAccountList, error)
 	GetChartOfAccount(ctx context.Context, id uuid.UUID, practitionerID uuid.UUID) (*RsChartOfAccount, error)
 	CreateChartOfAccount(ctx context.Context, practitionerID uuid.UUID, req *RqCreateChartOfAccountOfAccount) (*RsChartOfAccount, error)
 	UpdateCharOfAccount(ctx context.Context, id uuid.UUID, practitionerID uuid.UUID, req *RqUpdateCharOfAccountOfAccount) (*RsChartOfAccount, error)
@@ -69,16 +69,36 @@ func (s *service) GetAccountTax(ctx context.Context, id int16) (*AccountTax, err
 	return &rs, nil
 }
 
-func (s *service) ListChartOfAccount(ctx context.Context, practitionerID uuid.UUID) ([]RsChartOfAccount, error) {
-	list, err := s.repo.ListChartOfAccount(ctx, practitionerID)
+func (s *service) ListChartOfAccount(ctx context.Context, practitionerID uuid.UUID, f ListChartOfAccountFilter) (*RsChartOfAccountList, error) {
+	list, err := s.repo.ListChartOfAccountWithFilter(ctx, practitionerID, f)
 	if err != nil {
 		return nil, err
+	}
+	total, err := s.repo.CountChartOfAccount(ctx, practitionerID, f)
+	if err != nil {
+		return nil, err
+	}
+	limit := f.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	page := f.Page
+	if page < 1 {
+		page = 1
 	}
 	out := make([]RsChartOfAccount, len(list))
 	for i := range list {
 		out[i] = list[i].ToRs()
 	}
-	return out, nil
+	return &RsChartOfAccountList{
+		Data:  out,
+		Total: total,
+		Page:  page,
+		Limit: limit,
+	}, nil
 }
 
 func (s *service) GetChartOfAccount(ctx context.Context, id uuid.UUID, practitionerID uuid.UUID) (*RsChartOfAccount, error) {

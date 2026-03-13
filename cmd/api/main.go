@@ -2,7 +2,11 @@ package main
 
 import (
 	"log"
+	"net/http"
+	"os"
+	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
 	_ "github.com/iamarpitzala/acareca/docs"
@@ -41,11 +45,11 @@ func main() {
 	log.Println("migrations applied successfully")
 
 	// Set Gin mode; prefer env GIN_MODE over hardcoded
-	// ginMode := os.Getenv("GIN_MODE")
-	// if ginMode == "" {
-	// 	ginMode = gin.ReleaseMode
-	// }
-	// gin.SetMode(ginMode)
+	ginMode := os.Getenv("GIN_MODE")
+	if ginMode == "" {
+		ginMode = gin.DebugMode
+	}
+	gin.SetMode(ginMode)
 
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -56,6 +60,14 @@ func main() {
 		log.Print(" - using env:   export GIN_MODE=release\n")
 		log.Print(" - using code:  gin.SetMode(gin.ReleaseMode)\n\n")
 	}
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Authorization", "token"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	r.Use(middleware.ClientInfo())
 	route.RegisterRoutes(r, cfg)

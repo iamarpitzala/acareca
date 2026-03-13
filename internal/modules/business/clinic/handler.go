@@ -16,7 +16,9 @@ type IHandler interface {
 	GetClinics(c *gin.Context)
 	GetClinicByID(c *gin.Context)
 	UpdateClinic(c *gin.Context)
+	BulkUpdateClinics(c *gin.Context)
 	DeleteClinic(c *gin.Context)
+	BulkDeleteClinics(c *gin.Context)
 }
 
 type handler struct {
@@ -135,16 +137,12 @@ func (h *handler) UpdateClinic(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("UpdateClinic Handler - Extracted userID from JWT: %s\n", PractID)
-
 	idParam := c.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, errors.New("invalid clinic id"))
 		return
 	}
-
-	fmt.Printf("UpdateClinic Handler - Clinic ID to update: %s\n", id.String())
 
 	var req RqUpdateClinic
 	if err := util.BindAndValidate(c, &req); err != nil {
@@ -155,16 +153,13 @@ func (h *handler) UpdateClinic(c *gin.Context) {
 	clinic, err := h.svc.UpdateClinic(c.Request.Context(), PractID, id, &req)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			fmt.Printf("UpdateClinic Handler - Clinic not found or access denied\n")
 			response.Error(c, http.StatusNotFound, err)
 			return
 		}
-		fmt.Printf("UpdateClinic Handler - Internal server error: %v\n", err)
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
 
-	fmt.Printf("UpdateClinic Handler - Successfully updated clinic\n")
 	response.JSON(c, http.StatusOK, clinic)
 }
 
@@ -201,4 +196,54 @@ func (h *handler) DeleteClinic(c *gin.Context) {
 	}
 
 	response.JSON(c, http.StatusOK, gin.H{"message": "clinic deleted successfully"})
+}
+func (h *handler) BulkUpdateClinics(c *gin.Context) {
+	// Get user ID from JWT token context
+	PractID, ok := util.GetPractitionerID(c)
+	if !ok {
+		return
+	}
+
+	var req RqBulkUpdateClinic
+	if err := util.BindAndValidate(c, &req); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	clinics, err := h.svc.BulkUpdateClinics(c.Request.Context(), PractID, &req)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			response.Error(c, http.StatusNotFound, err)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, gin.H{"clinics": clinics})
+}
+
+func (h *handler) BulkDeleteClinics(c *gin.Context) {
+	// Get user ID from JWT token context
+	PractID, ok := util.GetPractitionerID(c)
+	if !ok {
+		return
+	}
+
+	var req RqBulkDeleteClinic
+	if err := util.BindAndValidate(c, &req); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.svc.BulkDeleteClinics(c.Request.Context(), PractID, &req); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			response.Error(c, http.StatusNotFound, err)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, gin.H{"message": "clinics deleted successfully"})
 }
