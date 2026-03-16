@@ -28,15 +28,19 @@ func NewHandler(svc Service) IHandler {
 func (h *handler) Calculation(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	formID, ok := util.ParseUuidID(c, "form_id")
+	formID, ok := util.ParseUuidID(c, "id")
 	if !ok {
 		return
 	}
 
-	superComponent := c.Query("super_component")
-
 	var filter NetFilter
 
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	superComponent := c.Query("super_component")
 	if superComponent != "" {
 		val, err := strconv.ParseFloat(superComponent, 64)
 		if err != nil {
@@ -44,11 +48,6 @@ func (h *handler) Calculation(c *gin.Context) {
 			return
 		}
 		filter.SuperComponent = &val
-	}
-
-	if err := util.BindAndValidate(c, &filter); err != nil {
-		response.Error(c, http.StatusBadRequest, err)
-		return
 	}
 
 	result, err := h.svc.Calculate(ctx, formID, &filter)

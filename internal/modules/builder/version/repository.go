@@ -114,10 +114,15 @@ func (r *repository) ListByFormID(ctx context.Context, formID uuid.UUID) ([]*For
 func (r *repository) ListVersionByFormID(ctx context.Context, formID uuid.UUID) (*FormVersion, error) {
 	query := `SELECT id, form_id, version, is_active, practitioner_id, created_at, updated_at
 		FROM tbl_custom_form_version WHERE form_id = $1 AND deleted_at IS NULL
-		ORDER BY version ASC`
-	var list *FormVersion
-	if err := r.db.SelectContext(ctx, &list, query, formID); err != nil {
-		return nil, fmt.Errorf("list form versions: %w", err)
+		ORDER BY version ASC LIMIT 1`
+	var v FormVersion
+	if err := r.db.QueryRowContext(ctx, query, formID).Scan(
+		&v.ID, &v.FormId, &v.Version, &v.IsActive, &v.PractitionerID, &v.CreatedAt, &v.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get form version by form id: %w", err)
 	}
-	return list, nil
+	return &v, nil
 }

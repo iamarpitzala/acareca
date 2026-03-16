@@ -222,7 +222,7 @@ func (s *service) NetMethod(ctx context.Context, formDetail *detail.RsFormDetail
 	ownerShare := float64(formDetail.OwnerShare)
 
 	superDecimal := 0.0
-	if filter.SuperComponent != nil {
+	if filter != nil && filter.SuperComponent != nil {
 		superDecimal = *filter.SuperComponent / 100
 	}
 

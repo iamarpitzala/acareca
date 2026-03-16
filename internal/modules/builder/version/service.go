@@ -133,7 +133,7 @@ func (s *service) List(ctx context.Context, formID, clinicID uuid.UUID) ([]*RsFo
 func (s *service) GetVersionByFormID(ctx context.Context, formID uuid.UUID) (RsFormVersion, error) {
 	v, err := s.repo.ListVersionByFormID(ctx, formID)
 	if err != nil {
-		return *v.ToRs(), err
+		return RsFormVersion{}, err
 	}
 	return *v.ToRs(), nil
 }
