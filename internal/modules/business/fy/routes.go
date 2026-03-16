@@ -6,6 +6,7 @@ import (
 
 func RegisterRoutes(rg *gin.RouterGroup, h IHandler) {
 	admin := rg.Group("/admin")
+	//admin.Use(middleware.RequireSuperadmin())
 	{
 		admin.POST("/create-fy", h.CreateFY)
 		admin.PUT("/update-fy/:financial_year_id", h.UpdateFYLabel)

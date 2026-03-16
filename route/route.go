@@ -67,7 +67,7 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 		if err != nil {
 			return false, err
 		}
-		return u.IsSuperadmin != nil && *u.IsSuperadmin, nil
+		return u.Role != "" && u.Role == util.RoleAdmin, nil
 	}
 	adminGroup := v1.Group("/admin")
 	subscriptionGroup := adminGroup.Group("/subscription")

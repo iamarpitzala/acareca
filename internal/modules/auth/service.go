@@ -58,7 +58,9 @@ func NewService(repo Repository, cfg *config.Config, db *sqlx.DB, practitionerSv
 }
 
 func (s *service) Register(ctx context.Context, req *RqUser) (*RsUser, error) {
-	if _, err := s.repo.FindByEmail(ctx, req.Email); err == nil {
+
+	existing, err := s.repo.FindByEmail(ctx, req.Email)
+	if err == nil && existing != nil {
 		return nil, ErrEmailTaken
 	}
 
@@ -71,18 +73,32 @@ func (s *service) Register(ctx context.Context, req *RqUser) (*RsUser, error) {
 	u.Password = &hashedPassword
 
 	var created *User
+
 	err = util.RunInTransaction(ctx, s.db, func(ctx context.Context, tx *sqlx.Tx) error {
+
 		var err error
 		created, err = s.repo.CreateUser(ctx, u, tx)
 		if err != nil {
 			return err
 		}
-		_, err = s.practitionerSvc.CreatePractitioner(ctx, &practitioner.RqCreatePractitioner{UserID: created.ID.String()}, tx)
-		if err != nil {
-			return fmt.Errorf("create practitioner: %w", err)
+
+		switch created.Role {
+		case util.RolePractitioner:
+			_, err = s.practitionerSvc.CreatePractitioner(
+				ctx,
+				&practitioner.RqCreatePractitioner{
+					UserID: created.ID.String(),
+				},
+				tx,
+			)
+			if err != nil {
+				return fmt.Errorf("create practitioner: %w", err)
+			}
 		}
+
 		return nil
 	})
+
 	if err != nil {
 		return nil, err
 	}
@@ -104,18 +120,19 @@ func (s *service) Login(ctx context.Context, req *RqLogin) (*RsToken, error) {
 		return nil, ErrInvalidPassword
 	}
 
-	if req.IsSuperadmin != nil && *req.IsSuperadmin {
-		if user.IsSuperadmin == nil || !*user.IsSuperadmin {
-			return nil, ErrInvalidPassword
+	var id string
+	switch user.Role {
+
+	case util.RolePractitioner:
+		practitionerID, err := s.practitionerSvc.GetPractitionerByUserID(ctx, user.ID.String())
+		id = practitionerID.ID.String()
+		if err != nil {
+			return nil, err
 		}
+	case util.RoleAdmin:
+		id = user.ID.String()
 	}
-
-	practitionerID, err := s.practitionerSvc.GetPractitionerByUserID(ctx, user.ID.String())
-	if err != nil {
-		return nil, err
-	}
-
-	return s.issueTokens(ctx, user, practitionerID.ID.String())
+	return s.issueTokens(ctx, user, id)
 }
 
 func (s *service) GoogleAuthURL(state string) *RsGoogleAuthURL {
@@ -209,12 +226,12 @@ func (s *service) fetchGoogleUserInfo(ctx context.Context, token *oauth2.Token) 
 }
 
 func (s *service) issueTokens(ctx context.Context, user *User, practitionerID string) (*RsToken, error) {
-	accessToken, err := util.SignToken(user.ID.String(), practitionerID, 15*time.Hour, s.cfg.JWTSecret)
+	accessToken, err := util.SignToken(user.ID.String(), user.Role, practitionerID, 15*time.Hour, s.cfg.JWTSecret)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, err := util.SignToken(user.ID.String(), practitionerID, 7*24*time.Hour, s.cfg.JWTSecret)
+	refreshToken, err := util.SignToken(user.ID.String(), user.Role, practitionerID, 7*24*time.Hour, s.cfg.JWTSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -242,6 +259,6 @@ func (s *service) issueTokens(ctx context.Context, user *User, practitionerID st
 	return &RsToken{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
-		IsSuperadmin: user.IsSuperadmin,
+		Role:         &user.Role,
 	}, nil
 }
