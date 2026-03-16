@@ -15,6 +15,7 @@ import (
 	"github.com/iamarpitzala/acareca/internal/modules/builder/field"
 	"github.com/iamarpitzala/acareca/internal/modules/builder/form"
 	"github.com/iamarpitzala/acareca/internal/modules/builder/version"
+	accountant "github.com/iamarpitzala/acareca/internal/modules/business/Accountant"
 	"github.com/iamarpitzala/acareca/internal/modules/business/clinic"
 	"github.com/iamarpitzala/acareca/internal/modules/business/coa"
 	"github.com/iamarpitzala/acareca/internal/modules/business/fy"
@@ -124,4 +125,8 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 
 	setting.RegisterRoutes(settingGroup, settingHandler, cfg)
 
+	accountantRepo := accountant.NewRepository(dbConn)
+	accountantSvc := accountant.NewService(accountantRepo, cfg.ResendAPIKey)
+	accountantHandler := accountant.NewHandler(accountantSvc)
+	accountant.RegisterRoutes(v1, accountantHandler)
 }
