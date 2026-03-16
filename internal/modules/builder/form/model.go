@@ -59,5 +59,10 @@ type RsFormWithFields struct {
 }
 
 type Filter struct {
-	ClinicID *uuid.UUID `json:"clinic_id"`
+	ClinicID   *uuid.UUID `json:"clinic_id"`
+	ClinicName *string    `json:"clinic_name"`
+	Status     *string    `json:"status"`
+	Method     *string    `json:"method"`
+	SortBy     *string    `json:"sort_by"`
+	SortOrder  *string    `json:"sort_order"`
 }

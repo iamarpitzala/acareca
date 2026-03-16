@@ -59,22 +59,57 @@ func (r *Repository) Delete(ctx context.Context, formID uuid.UUID) error {
 
 // ListForm implements [IRepository].
 func (r *Repository) ListForm(ctx context.Context, filter Filter) ([]*FormDetail, error) {
-	query := `SELECT id, clinic_id, name, description, status, method, owner_share, clinic_share, created_at, updated_at FROM tbl_form WHERE deleted_at IS NULL AND clinic_id = $1`
-	args := []any{filter.ClinicID}
-	argNum := 2
+	query := `SELECT f.id, f.clinic_id, f.name, f.description, f.status, f.method, f.owner_share, f.clinic_share, f.created_at, f.updated_at 
+	          FROM tbl_form f 
+	          WHERE f.deleted_at IS NULL`
+	args := []any{}
+	argNum := 1
+
+	// Filter by practitioner's clinics - required
+	query += fmt.Sprintf(` AND f.clinic_id IN (SELECT id FROM tbl_clinic WHERE practitioner_id = $%d AND deleted_at IS NULL)`, argNum)
+	args = append(args, filter.PractitionerID)
+	argNum++
+
+	// Handle clinic_id filter - optional (further narrows down to specific clinic)
+	// IMPORTANT: Validate clinic belongs to practitioner for security
+	if filter.ClinicID != nil {
+		query += fmt.Sprintf(` AND f.clinic_id = $%d`, argNum)
+		args = append(args, *filter.ClinicID)
+		argNum++
+	}
+
 	if filter.Status != nil {
-		query += fmt.Sprintf(` AND status = $%d`, argNum)
+		query += fmt.Sprintf(` AND f.status = $%d`, argNum)
 		args = append(args, *filter.Status)
 		argNum++
 	}
 	if filter.Method != nil {
-		query += fmt.Sprintf(` AND method = $%d`, argNum)
+		query += fmt.Sprintf(` AND f.method = $%d`, argNum)
 		args = append(args, *filter.Method)
+		argNum++
 	}
+	if filter.ClinicName != nil {
+		query += fmt.Sprintf(` AND f.clinic_id IN (SELECT id FROM tbl_clinic WHERE name ILIKE $%d AND practitioner_id = $%d AND deleted_at IS NULL)`, argNum, argNum+1)
+		args = append(args, "%"+*filter.ClinicName+"%", filter.PractitionerID)
+		argNum += 2
+	}
+
+	// Add sorting - both sort_by and sort_order must be provided together
+	if filter.SortBy != nil && filter.SortOrder != nil {
+		sortColumn := "f." + *filter.SortBy
+		sortDir := *filter.SortOrder
+		// Validate sort direction
+		if sortDir != "asc" && sortDir != "desc" {
+			sortDir = "asc"
+		}
+		query += fmt.Sprintf(` ORDER BY %s %s`, sortColumn, sortDir)
+	}
+
 	var details []*FormDetail
 	if err := r.db.SelectContext(ctx, &details, query, args...); err != nil {
 		return nil, fmt.Errorf("list form details: %w", err)
 	}
+
 	return details, nil
 }
 
