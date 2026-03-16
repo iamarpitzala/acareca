@@ -1,7 +1,9 @@
 package calculation
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
@@ -9,10 +11,7 @@ import (
 )
 
 type IHandler interface {
-	NetAmount(c *gin.Context)
-	NetResult(c *gin.Context)
-	GrossResult(c *gin.Context)
-	OutWorkResult(c *gin.Context)
+	Calculation(c *gin.Context)
 }
 
 type handler struct {
@@ -20,97 +19,43 @@ type handler struct {
 }
 
 func NewHandler(svc Service) IHandler {
-	return &handler{svc: svc}
+	return &handler{
+		svc: svc,
+	}
 }
 
-// @Summary Calculate net amount
-// @Tags calculation
-// @Accept json
-// @Produce json
-// @Param request body Entry true "Calculation Entry Data"
-// @Success 200 {object} NetAmountResult
-// @Failure 400 {object} response.RsError
-// @Failure 500 {object} response.RsError
-// @Router /calculation/net-amount [post]
-func (h *handler) NetAmount(c *gin.Context) {
-	var entry Entry
-	if err := util.BindAndValidate(c, &entry); err != nil {
+// Calculation implements [IHandler].
+func (h *handler) Calculation(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	formID, ok := util.ParseUuidID(c, "form_id")
+	if !ok {
+		return
+	}
+
+	superComponent := c.Query("super_component")
+
+	var filter NetFilter
+
+	if superComponent != "" {
+		val, err := strconv.ParseFloat(superComponent, 64)
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, fmt.Errorf("invalid super_component"))
+			return
+		}
+		filter.SuperComponent = &val
+	}
+
+	if err := util.BindAndValidate(c, &filter); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	result, err := h.svc.NetAmount(c.Request.Context(), &entry)
+
+	result, err := h.svc.Calculate(ctx, formID, &filter)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, result, "Net amount calculated successfully")
-}
 
-// @Summary Calculate net result
-// @Tags calculation
-// @Accept json
-// @Produce json
-// @Param request body Entry true "Calculation Entry Data"
-// @Success 200 {object} NetResult
-// @Failure 400 {object} response.RsError
-// @Failure 500 {object} response.RsError
-// @Router /calculation/net-result [post]
-func (h *handler) NetResult(c *gin.Context) {
-	var entry Entry
-	if err := util.BindAndValidate(c, &entry); err != nil {
-		response.Error(c, http.StatusBadRequest, err)
-		return
-	}
-	result, err := h.svc.NetResult(c.Request.Context(), &entry)
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, err)
-		return
-	}
-	response.JSON(c, http.StatusOK, result, "Net result calculated successfully")
-}
-
-// @Summary Calculate gross result
-// @Tags calculation
-// @Accept json
-// @Produce json
-// @Param request body Entry true "Calculation Entry Data"
-// @Success 200 {object} GrossResult
-// @Failure 400 {object} response.RsError
-// @Failure 500 {object} response.RsError
-// @Router /calculation/gross-result [post]
-func (h *handler) GrossResult(c *gin.Context) {
-	var entry Entry
-	if err := util.BindAndValidate(c, &entry); err != nil {
-		response.Error(c, http.StatusBadRequest, err)
-		return
-	}
-	result, err := h.svc.GrossResult(c.Request.Context(), &entry)
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, err)
-		return
-	}
-	response.JSON(c, http.StatusOK, result, "Gross result calculated successfully")
-}
-
-// @Summary Calculate outwork result
-// @Tags calculation
-// @Accept json
-// @Produce json
-// @Param request body Entry true "Calculation Entry Data"
-// @Success 200 {object} OutWorkResult
-// @Failure 400 {object} response.RsError
-// @Failure 500 {object} response.RsError
-// @Router /calculation/outwork-result [post]
-func (h *handler) OutWorkResult(c *gin.Context) {
-	var entry Entry
-	if err := util.BindAndValidate(c, &entry); err != nil {
-		response.Error(c, http.StatusBadRequest, err)
-		return
-	}
-	result, err := h.svc.OutWorkResult(c.Request.Context(), &entry)
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, err)
-		return
-	}
-	response.JSON(c, http.StatusOK, result, "Outwork result calculated successfully")
+	c.JSON(http.StatusOK, result)
 }

@@ -5,16 +5,23 @@ import "github.com/iamarpitzala/acareca/internal/modules/engine/method"
 type PaidBy string
 
 const (
-	PaidByClinic PaidBy = "clinic"
-	PaidByOwner  PaidBy = "owner"
+	PaidByClinic PaidBy = "CLINIC"
+	PaidByOwner  PaidBy = "OWNER"
+)
+
+type Method string
+
+const (
+	IndependentContractor Method = "INDEPENDENT_CONTRACTOR"
+	ServiceFee            Method = "SERVICE_FEE"
 )
 
 type Input struct {
 	Name     string              `json:"name" validate:"omitempty,max=255"`
 	Value    float64             `json:"value" validate:"omitempty,min=0"`
-	TaxType  method.TaxTreatment `json:"tax" validate:"omitempty,oneof=inclusive exclusive manual zero"`
+	TaxType  method.TaxTreatment `json:"tax" validate:"omitempty,oneof=INCLUSIVE EXCLUSIVE MANUAL ZERO"`
 	TaxValue *float64            `json:"tax_value" validate:"omitempty"`
-	PaidBy   *PaidBy             `json:"paid_by" validate:"omitempty,oneof=clinic owner"`
+	PaidBy   *PaidBy             `json:"paid_by" validate:"omitempty,oneof=CLINIC OWNER"`
 }
 
 type Entry struct {
@@ -58,4 +65,21 @@ type OutWorkResult struct {
 	GstServiceFee   float64 `json:"gst_service_fee"`
 	TotalServiceFee float64 `json:"total_service_fee"`
 	NetPayable      float64 `json:"net_payable"`
+}
+
+// func combineEntries(base *Entry, add *Entry) *Entry {
+// 	if base == nil {
+// 		return add
+// 	}
+// 	if add == nil {
+// 		return base
+// 	}
+// 	base.Income = append(base.Income, add.Income...)
+// 	base.Expense = append(base.Expense, add.Expense...)
+// 	base.OtherCosts = append(base.OtherCosts, add.OtherCosts...)
+// 	return base
+// }
+
+type NetFilter struct {
+	SuperComponent *float64 `json:"super_component"`
 }

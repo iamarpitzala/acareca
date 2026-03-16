@@ -57,11 +57,6 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	authHandler := auth.NewHandler(authSvc)
 	auth.RegisterRoutes(v1, authHandler)
 
-	calculationRepo := calculation.NewRepository(dbConn)
-	calculationSvc := calculation.NewService(calculationRepo, method.NewService())
-	calculationHandler := calculation.NewHandler(calculationSvc)
-	calculation.RegisterRoutes(v1, calculationHandler)
-
 	superadminCheck := func(ctx context.Context, userID uuid.UUID) (bool, error) {
 		u, err := authRepo.FindByID(ctx, userID)
 		if err != nil {
@@ -103,12 +98,23 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	fieldRepo := field.NewRepository(dbConn)
 	entryRepo := entry.NewRepository(dbConn)
 	detailSvc := detail.NewService(detailRepo, version.NewService(versionRepo, clinicSvc))
-	fieldSvc := field.NewService(fieldRepo, coaSvc, clinicSvc, practitionerSvc, version.NewService(versionRepo, clinicSvc), entryRepo)
+	fieldSvc := field.NewService(fieldRepo, coaSvc, clinicSvc, practitionerSvc, version.NewService(versionRepo, clinicSvc))
 
 	versionSvc := version.NewService(versionRepo, clinicSvc)
 	formSvc := form.NewService(detailSvc, versionSvc, fieldSvc, entryRepo, coaSvc)
 	formHandler := form.NewHandler(formSvc)
 	form.RegisterRoutes(formGroup, formHandler)
+
+	entryGroup := v1.Group("/entry")
+	entriesRepo := entry.NewRepository(dbConn)
+	entriesSvc := entry.NewService(entriesRepo, fieldRepo, method.NewService())
+	entriesHandler := entry.NewHandler(entriesSvc)
+
+	entry.RegisterRoutes(entryGroup, entriesHandler)
+
+	calculationSvc := calculation.NewService(method.NewService(), clinicSvc, formSvc, versionSvc, fieldSvc, entriesSvc)
+	calculationHandler := calculation.NewHandler(calculationSvc)
+	calculation.RegisterRoutes(v1, calculationHandler)
 
 	settingGroup := v1.Group("/setting")
 	settingRepo := setting.NewRepository(dbConn)
@@ -116,4 +122,5 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	settingHandler := setting.NewHandler(settingSvc)
 
 	setting.RegisterRoutes(settingGroup, settingHandler, cfg)
+
 }

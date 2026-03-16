@@ -12,7 +12,8 @@ import (
 )
 
 type IHandler interface {
-	Sync(c *gin.Context)
+	// Sync(c *gin.Context)
+	GetById(c *gin.Context)
 	CreateFormWithFields(c *gin.Context)
 	UpdateFormWithFields(c *gin.Context)
 	GetFormWithFields(c *gin.Context)
@@ -28,33 +29,58 @@ func NewHandler(svc IService) IHandler {
 	return &handler{svc: svc}
 }
 
-// @Summary Bulk sync fields
-// @Description Synchronize multiple fields for a practitioner
+// // @Summary Bulk sync fields
+// // @Description Synchronize multiple fields for a practitioner
+// // @Tags form
+// // @Accept json
+// // @Produce json
+// // @Param request body RqBulkSyncFields true "Sync request"
+// // @Success 200 {object} RsBulkSyncFields
+// // @Failure 400 {object} response.RsError
+// // @Failure 500 {object} response.RsError
+// // @Router /form/sync [post]
+// func (h *handler) Sync(c *gin.Context) {
+// 	practitionerID, ok := util.GetPractitionerID(c)
+// 	if !ok {
+// 		return
+// 	}
+
+// 	var req RqBulkSyncFields
+// 	if err := util.BindAndValidate(c, &req); err != nil {
+// 		response.Error(c, http.StatusBadRequest, err)
+// 		return
+// 	}
+// 	result, err := h.svc.BulkSyncFields(c.Request.Context(), practitionerID, &req)
+// 	if err != nil {
+// 		response.Error(c, http.StatusInternalServerError, err)
+// 		return
+// 	}
+// 	response.JSON(c, http.StatusOK, result, "Fields synchronized successfully")
+// }
+
+// @Summary fetch form details
+// @Description fetch form detail
 // @Tags form
 // @Accept json
 // @Produce json
-// @Param request body RqBulkSyncFields true "Sync request"
-// @Success 200 {object} RsBulkSyncFields
+// @Success 201 {object} RsFormWithFields
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
-// @Router /form/sync [post]
-func (h *handler) Sync(c *gin.Context) {
-	practitionerID, ok := util.GetPractitionerID(c)
+// @Router /form/{id} [post]
+func (h *handler) GetById(c *gin.Context) {
+	formId, ok := util.ParseUuidID(c, "id")
 	if !ok {
+		response.Error(c, http.StatusBadRequest, errors.New("invaild form id"))
 		return
 	}
 
-	var req RqBulkSyncFields
-	if err := util.BindAndValidate(c, &req); err != nil {
-		response.Error(c, http.StatusBadRequest, err)
-		return
-	}
-	result, err := h.svc.BulkSyncFields(c.Request.Context(), practitionerID, &req)
+	form, err := h.svc.GetFormByID(c.Request.Context(), formId)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, result, "Fields synchronized successfully")
+
+	response.JSON(c, http.StatusCreated, gin.H{"form": form}, "Form fetch successfully")
 }
 
 // @Summary Create form with fields
@@ -69,7 +95,6 @@ func (h *handler) Sync(c *gin.Context) {
 // @Router /form [post]
 func (h *handler) CreateFormWithFields(c *gin.Context) {
 	practitionerID, ok := util.GetPractitionerID(c)
-
 	if !ok {
 		return
 	}

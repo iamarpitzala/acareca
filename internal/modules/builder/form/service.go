@@ -13,6 +13,7 @@ import (
 )
 
 type IService interface {
+	GetFormByID(ctx context.Context, formId uuid.UUID) (*detail.RsFormDetail, error)
 	BulkSyncFields(ctx context.Context, practitionerID uuid.UUID, req *RqBulkSyncFields) (*RsBulkSyncFields, error)
 	CreateWithFields(ctx context.Context, d *RqCreateFormWithFields, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error)
 	UpdateWithFields(ctx context.Context, d *RqUpdateFormWithFields, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error)
@@ -119,13 +120,10 @@ func (s *service) BulkSyncFields(ctx context.Context, practitionerID uuid.UUID, 
 			existing.SectionType = *item.SectionType
 		}
 		if item.PaymentResponsibility != nil {
-			existing.PaymentResponsibility = *item.PaymentResponsibility
+			existing.PaymentResponsibility = item.PaymentResponsibility
 		}
 		if item.TaxType != nil {
-			existing.TaxType = *item.TaxType
-		}
-		if item.SortOrder != nil {
-			existing.SortOrder = *item.SortOrder
+			existing.TaxType = item.TaxType
 		}
 		updated, err := s.fieldSvc.Update(ctx, existing.ID, req.ClinicID, practitionerID, &field.RqUpdateFormField{
 			CoaID:                 item.CoaID,
@@ -133,7 +131,6 @@ func (s *service) BulkSyncFields(ctx context.Context, practitionerID uuid.UUID, 
 			SectionType:           item.SectionType,
 			PaymentResponsibility: item.PaymentResponsibility,
 			TaxType:               item.TaxType,
-			SortOrder:             item.SortOrder,
 		})
 		if err != nil {
 			return nil, err
@@ -158,7 +155,6 @@ func (s *service) BulkSyncFields(ctx context.Context, practitionerID uuid.UUID, 
 			SectionType:           item.SectionType,
 			PaymentResponsibility: item.PaymentResponsibility,
 			TaxType:               item.TaxType,
-			SortOrder:             item.SortOrder,
 		})
 		if err != nil {
 			return nil, err
@@ -212,9 +208,6 @@ func (s *service) CreateWithFields(ctx context.Context, d *RqCreateFormWithField
 			PaymentResponsibility: f.PaymentResponsibility,
 			TaxType:               f.TaxType,
 			CoaID:                 f.CoaID,
-		}
-		if f.SortOrder != nil {
-			r.SortOrder = f.SortOrder
 		}
 		createList = append(createList, r)
 	}
@@ -299,20 +292,14 @@ func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFie
 				TaxType:               f.TaxType,
 				CoaID:                 f.CoaID,
 			}
-			if f.SortOrder != nil {
-				item.SortOrder = f.SortOrder
-			}
 			updateList = append(updateList, item)
 		} else {
 			r := field.RqFormField{
 				Label:                 *f.Label,
 				SectionType:           *f.SectionType,
-				PaymentResponsibility: *f.PaymentResponsibility,
-				TaxType:               *f.TaxType,
+				PaymentResponsibility: f.PaymentResponsibility,
+				TaxType:               f.TaxType,
 				CoaID:                 *f.CoaID,
-			}
-			if f.SortOrder != nil {
-				r.SortOrder = f.SortOrder
 			}
 			createList = append(createList, r)
 		}
@@ -388,4 +375,15 @@ func (s *service) Delete(ctx context.Context, formID uuid.UUID) error {
 		return err
 	}
 	return s.detailSvc.Delete(ctx, formDetail.ID)
+}
+
+// GetByID implements [IService].
+func (s *service) GetFormByID(ctx context.Context, formId uuid.UUID) (*detail.RsFormDetail, error) {
+
+	detail, err := s.detailSvc.GetByID(ctx, formId)
+	if err != nil {
+		return detail, err
+	}
+
+	return detail, err
 }

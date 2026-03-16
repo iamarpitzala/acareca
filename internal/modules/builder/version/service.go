@@ -14,6 +14,8 @@ type IService interface {
 	Update(ctx context.Context, id, clinicID uuid.UUID, req *RqUpdateFormVersion) (*RsFormVersion, error)
 	Delete(ctx context.Context, id, clinicID uuid.UUID) error
 	List(ctx context.Context, formID, clinicID uuid.UUID) ([]*RsFormVersion, error)
+
+	GetVersionByFormID(ctx context.Context, formID uuid.UUID) (RsFormVersion, error)
 }
 
 type service struct {
@@ -126,4 +128,12 @@ func (s *service) List(ctx context.Context, formID, clinicID uuid.UUID) ([]*RsFo
 		rs = append(rs, v.ToRs())
 	}
 	return rs, nil
+}
+
+func (s *service) GetVersionByFormID(ctx context.Context, formID uuid.UUID) (RsFormVersion, error) {
+	v, err := s.repo.ListVersionByFormID(ctx, formID)
+	if err != nil {
+		return *v.ToRs(), err
+	}
+	return *v.ToRs(), nil
 }
