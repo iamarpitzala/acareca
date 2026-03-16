@@ -2,6 +2,7 @@ package form
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -171,12 +172,15 @@ func (h *handler) GetFormWithFields(c *gin.Context) {
 // @Router /form [get]
 func (h *handler) List(c *gin.Context) {
 
-	var filter Filter
-	if err := util.BindAndValidate(c, &filter); err != nil {
-		response.Error(c, http.StatusBadRequest, err)
+	clinic_id, err := util.ParseUUID(c.Query("clinic_id"))
+
+	if err != nil {
+		fmt.Println(err.Error())
+		response.Error(c, http.StatusBadRequest, fmt.Errorf("clinic id not found"))
 		return
 	}
-	list, err := h.svc.List(c.Request.Context(), filter)
+
+	list, err := h.svc.List(c.Request.Context(), clinic_id)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
