@@ -40,7 +40,7 @@ func (h *handler) CreatePractitioner(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusCreated, created)
+	response.JSON(c, http.StatusCreated, created, "Practitioner created successfully")
 }
 
 // @Summary Get a practitioner by ID
@@ -68,7 +68,7 @@ func (h *handler) GetPractitioner(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, t)
+	response.JSON(c, http.StatusOK, t, "Practitioner fetched successfully")
 }
 
 // @Summary Get a practitioner by user ID
@@ -96,7 +96,7 @@ func (h *handler) GetPractitionerByUserID(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, t)
+	response.JSON(c, http.StatusOK, t, "Practitioner fetched successfully")
 }
 
 // @Summary List practitioners
@@ -113,7 +113,7 @@ func (h *handler) ListPractitioners(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, list)
+	response.JSON(c, http.StatusOK, list, "Practitioners fetched successfully")
 }
 
 // @Summary Update a practitioner
@@ -145,7 +145,7 @@ func (h *handler) UpdatePractitioner(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, updated)
+	response.JSON(c, http.StatusOK, updated, "Practitioner updated successfully")
 }
 
 // @Summary Delete a practitioner
@@ -171,7 +171,7 @@ func (h *handler) DeletePractitioner(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, map[string]string{"message": "deleted"})
+	response.JSON(c, http.StatusOK, map[string]string{"message": "deleted"}, "Practitioner deleted successfully")
 }
 
 // @Summary Get a setting by practitioner ID
@@ -198,7 +198,7 @@ func (h *handler) GetSetting(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, setting)
+	response.JSON(c, http.StatusOK, setting, "Setting fetched successfully")
 }
 
 // @Summary Upsert a setting by practitioner ID
@@ -226,5 +226,5 @@ func (h *handler) UpsertSetting(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, setting)
+	response.JSON(c, http.StatusOK, setting, "Setting upserted successfully")
 }

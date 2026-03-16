@@ -62,7 +62,7 @@ func (h *handler) Create(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusCreated, created)
+	response.JSON(c, http.StatusCreated, created, "Subscription created successfully")
 }
 
 // @Summary List subscriptions by practitioner ID
@@ -89,7 +89,7 @@ func (h *handler) GetByID(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, sub)
+	response.JSON(c, http.StatusOK, sub, "Subscription fetched successfully")
 }
 
 // @Summary List subscriptions by practitioner ID
@@ -112,7 +112,7 @@ func (h *handler) ListByPractitionerID(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, list)
+	response.JSON(c, http.StatusOK, list, "Subscriptions fetched successfully")
 }
 
 // @Summary Update a subscription
@@ -145,7 +145,7 @@ func (h *handler) Update(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, updated)
+	response.JSON(c, http.StatusOK, updated, "Subscription updated successfully")
 }
 
 // @Summary Delete a subscription
@@ -172,5 +172,5 @@ func (h *handler) Delete(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, map[string]string{"message": "deleted"})
+	response.JSON(c, http.StatusOK, map[string]string{"message": "deleted"}, "Subscription deleted successfully")
 }
