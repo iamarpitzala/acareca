@@ -106,6 +106,9 @@ func (r *Repository) ListForm(ctx context.Context, filter Filter) ([]*FormDetail
 	}
 
 	var details []*FormDetail
+	fmt.Println(query)
+	fmt.Println(filter.PractitionerID)
+	fmt.Println(filter.ClinicID)
 	if err := r.db.SelectContext(ctx, &details, query, args...); err != nil {
 		return nil, fmt.Errorf("list form details: %w", err)
 	}

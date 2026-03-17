@@ -11,7 +11,7 @@ import (
 
 type Service interface {
 	CreateClinic(ctx context.Context, practitionerID uuid.UUID, req *RqCreateClinic) (*RsClinic, error)
-	GetClinics(ctx context.Context, practitionerID uuid.UUID) ([]RsClinic, error)
+	ListClinies(ctx context.Context, practitionerID uuid.UUID) ([]RsClinic, error)
 	GetClinicByID(ctx context.Context, practitionerID uuid.UUID, id uuid.UUID) (*RsClinic, error)
 	UpdateClinic(ctx context.Context, practitionerID uuid.UUID, id uuid.UUID, req *RqUpdateClinic) (*RsClinic, error)
 	BulkUpdateClinics(ctx context.Context, practitionerID uuid.UUID, req *RqBulkUpdateClinic) ([]RsClinic, error)
@@ -158,8 +158,8 @@ func (s *service) CreateClinic(ctx context.Context, practitionerID uuid.UUID, re
 	return result, nil
 }
 
-func (s *service) GetClinics(ctx context.Context, practitionerID uuid.UUID) ([]RsClinic, error) {
-	clinics, err := s.repo.GetClinicsByPractitioner(ctx, practitionerID)
+func (s *service) ListClinies(ctx context.Context, practitionerID uuid.UUID) ([]RsClinic, error) {
+	clinics, err := s.repo.ListCliniesByPractitioner(ctx, practitionerID)
 	if err != nil {
 		return nil, err
 	}

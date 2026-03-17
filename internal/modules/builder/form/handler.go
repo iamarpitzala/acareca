@@ -77,6 +77,7 @@ func (h *handler) CreateFormWithFields(c *gin.Context) {
 
 	var req RqCreateFormWithFields
 	if err := util.BindAndValidate(c, &req); err != nil {
+
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
@@ -85,6 +86,7 @@ func (h *handler) CreateFormWithFields(c *gin.Context) {
 		req.Status = detail.StatusDraft
 	}
 	form, syncResult, err := h.svc.CreateWithFields(c.Request.Context(), &req, practitionerID)
+
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return

@@ -14,8 +14,8 @@ var ErrNotFound = errors.New("clinic not found")
 
 type Repository interface {
 	// Read operations (kept for non-transactional reads)
-	GetClinics(ctx context.Context) ([]Clinic, error)
-	GetClinicsByPractitioner(ctx context.Context, practitionerID uuid.UUID) ([]Clinic, error)
+	ListClinies(ctx context.Context) ([]Clinic, error)
+	ListCliniesByPractitioner(ctx context.Context, practitionerID uuid.UUID) ([]Clinic, error)
 	GetClinicByID(ctx context.Context, id uuid.UUID) (*Clinic, error)
 	GetClinicByIDAndPractitioner(ctx context.Context, id uuid.UUID, practitionerID uuid.UUID) (*Clinic, error)
 	GetClinicAddresses(ctx context.Context, clinicID uuid.UUID) ([]ClinicAddress, error)
@@ -65,7 +65,7 @@ func NewRepository(db *sqlx.DB) Repository {
 	return &repository{db: db}
 }
 
-func (r *repository) GetClinics(ctx context.Context) ([]Clinic, error) {
+func (r *repository) ListClinies(ctx context.Context) ([]Clinic, error) {
 	query := `
 		SELECT id, practitioner_id, profile_picture, name, abn, description, is_active, created_at, updated_at
 		FROM tbl_clinic
@@ -238,7 +238,7 @@ func (r *repository) GetPractitionerIDByUserID(ctx context.Context, userID strin
 	}
 	return &id, nil
 }
-func (r *repository) GetClinicsByPractitioner(ctx context.Context, practitionerID uuid.UUID) ([]Clinic, error) {
+func (r *repository) ListCliniesByPractitioner(ctx context.Context, practitionerID uuid.UUID) ([]Clinic, error) {
 	query := `
 		SELECT id, practitioner_id, profile_picture, name, abn, description, is_active, created_at, updated_at
 		FROM tbl_clinic
