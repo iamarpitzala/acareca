@@ -38,6 +38,7 @@ func NewHandler(svc IService) IHandler {
 // @Success 200 {object} RsBulkSyncFields
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /form/sync [post]
 func (h *handler) Sync(c *gin.Context) {
 	practitionerID, ok := util.GetPractitionerID(c)
@@ -67,6 +68,7 @@ func (h *handler) Sync(c *gin.Context) {
 // @Success 201 {object} RsFormWithFields
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /form [post]
 func (h *handler) CreateFormWithFields(c *gin.Context) {
 	practitionerID, ok := util.GetPractitionerID(c)
@@ -102,6 +104,7 @@ func (h *handler) CreateFormWithFields(c *gin.Context) {
 // @Success 200 {object} RsFormWithFields
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /form [put]
 func (h *handler) UpdateFormWithFields(c *gin.Context) {
 	formID, ok := util.ParseUuidID(c, "id")
@@ -141,6 +144,7 @@ func (h *handler) UpdateFormWithFields(c *gin.Context) {
 // @Success 200 {object} RsFormWithFields
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /form/{id} [get]
 func (h *handler) GetFormWithFields(c *gin.Context) {
 	formID, ok := util.ParseUuidID(c, "id")
@@ -169,6 +173,7 @@ func (h *handler) GetFormWithFields(c *gin.Context) {
 // @Success 200 {array} detail.RsFormDetail
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /form [get]
 func (h *handler) List(c *gin.Context) {
 	clinicId, err := util.ParseUUID(c.Query("clinic_id"))
@@ -203,6 +208,7 @@ func (h *handler) List(c *gin.Context) {
 // @Success 204 "No Content"
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /form/{id} [delete]
 func (h *handler) Delete(c *gin.Context) {
 	formID, ok := util.ParseUuidID(c, "id")
