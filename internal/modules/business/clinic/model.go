@@ -159,3 +159,6 @@ type RsFinancialSettings struct {
 	FinancialYearID uuid.UUID  `json:"financial_year_id"`
 	LockDate        *time.Time `json:"lock_date,omitempty"`
 }
+
+type Filter struct {
+}

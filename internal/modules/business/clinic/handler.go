@@ -12,13 +12,13 @@ import (
 )
 
 type IHandler interface {
-	CreateClinic(c *gin.Context)
-	ListClinies(c *gin.Context)
-	GetClinicByID(c *gin.Context)
-	UpdateClinic(c *gin.Context)
-	BulkUpdateClinics(c *gin.Context)
-	DeleteClinic(c *gin.Context)
-	BulkDeleteClinics(c *gin.Context)
+	Create(c *gin.Context)
+	List(c *gin.Context)
+	GetByID(c *gin.Context)
+	Update(c *gin.Context)
+	BulkUpdate(c *gin.Context)
+	Delete(c *gin.Context)
+	BulkDelete(c *gin.Context)
 }
 
 type handler struct {
@@ -37,8 +37,8 @@ func NewHandler(svc Service) IHandler {
 // @Success 201 {object} RsClinic
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
-// @Router /clinic/create [post]
-func (h *handler) CreateClinic(c *gin.Context) {
+// @Router /clinic [post]
+func (h *handler) Create(c *gin.Context) {
 	PractID, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
@@ -65,15 +65,20 @@ func (h *handler) CreateClinic(c *gin.Context) {
 // @Produce json
 // @Success 200 {array} RsClinic
 // @Failure 500 {object} response.RsError
-// @Router /clinic/all [get]
-func (h *handler) ListClinies(c *gin.Context) {
+// @Router /clinic [get]
+func (h *handler) List(c *gin.Context) {
 	// Get user ID from JWT token context
 	PractID, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
 
-	clinics, err := h.svc.ListClinies(c.Request.Context(), PractID)
+	var filter Filter
+	if err := util.BindAndValidate(c, &filter); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+	clinics, err := h.svc.ListClinic(c.Request.Context(), PractID, filter)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
@@ -92,7 +97,7 @@ func (h *handler) ListClinies(c *gin.Context) {
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
 // @Router /clinic/{id} [get]
-func (h *handler) GetClinicByID(c *gin.Context) {
+func (h *handler) GetByID(c *gin.Context) {
 	// Get user ID from JWT token context
 	PractID, ok := util.GetPractitionerID(c)
 	if !ok {
@@ -130,7 +135,7 @@ func (h *handler) GetClinicByID(c *gin.Context) {
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
 // @Router /clinic/{id} [put]
-func (h *handler) UpdateClinic(c *gin.Context) {
+func (h *handler) Update(c *gin.Context) {
 	// Get user ID from JWT token context
 	PractID, ok := util.GetPractitionerID(c)
 	if !ok {
@@ -172,7 +177,7 @@ func (h *handler) UpdateClinic(c *gin.Context) {
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
 // @Router /clinic/{id} [delete]
-func (h *handler) DeleteClinic(c *gin.Context) {
+func (h *handler) Delete(c *gin.Context) {
 	// Get user ID from JWT token context
 	PractID, ok := util.GetPractitionerID(c)
 	if !ok {
@@ -197,8 +202,7 @@ func (h *handler) DeleteClinic(c *gin.Context) {
 
 	response.JSON(c, http.StatusOK, gin.H{"message": "clinic deleted successfully"}, "Clinic deleted successfully")
 }
-func (h *handler) BulkUpdateClinics(c *gin.Context) {
-	// Get user ID from JWT token context
+func (h *handler) BulkUpdate(c *gin.Context) {
 	PractID, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
@@ -223,8 +227,7 @@ func (h *handler) BulkUpdateClinics(c *gin.Context) {
 	response.JSON(c, http.StatusOK, gin.H{"clinics": clinics}, "Clinics updated successfully")
 }
 
-func (h *handler) BulkDeleteClinics(c *gin.Context) {
-	// Get user ID from JWT token context
+func (h *handler) BulkDelete(c *gin.Context) {
 	PractID, ok := util.GetPractitionerID(c)
 	if !ok {
 		return

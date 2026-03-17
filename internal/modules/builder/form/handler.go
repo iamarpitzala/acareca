@@ -12,7 +12,6 @@ import (
 )
 
 type IHandler interface {
-	// Sync(c *gin.Context)
 	GetById(c *gin.Context)
 	CreateFormWithFields(c *gin.Context)
 	UpdateFormWithFields(c *gin.Context)
@@ -192,7 +191,7 @@ func (h *handler) GetFormWithFields(c *gin.Context) {
 // @Param status     query string false "Filter by status"     Enums(DRAFT, PUBLISHED, ARCHIVED)
 // @Param sort_by    query string false "Field to sort by"     Enums(status, method, clinic_id, created_at)
 // @Param sort_order query string false "Sort direction"       Enums(asc, desc)
-// @Success 200 {object} response.RsSuccess{data=[]detail.RsFormDetail}
+// @Success 200 {object} []detail.RsFormDetail
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
 // @Router /form [get]
