@@ -126,7 +126,7 @@ func (h *handler) GetAccountTax(c *gin.Context) {
 // @Param order_by query string false "Order direction (ASC/DESC)"
 // @Param limit query int false "Page size (default 20, max 100)"
 // @Param offset query int false "Offset"
-// @Success 200 {object} RsChartOfAccountList
+// @Success 200 {object} util.RsList
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
 // @Router /coa/chart [get]
