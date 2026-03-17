@@ -11,7 +11,8 @@ import (
 
 type Service interface {
 	CreateClinic(ctx context.Context, practitionerID uuid.UUID, req *RqCreateClinic) (*RsClinic, error)
-	ListClinic(ctx context.Context, practitionerID uuid.UUID, filter Filter) ([]RsClinic, error)
+	ListClinic(ctx context.Context, practitionerID uuid.UUID, filter Filter) (*util.RsList, error)
+	CountClinic(ctx context.Context, practitionerID uuid.UUID, filter Filter) (int, error)
 	GetClinicByID(ctx context.Context, practitionerID uuid.UUID, id uuid.UUID) (*RsClinic, error)
 	UpdateClinic(ctx context.Context, practitionerID uuid.UUID, id uuid.UUID, req *RqUpdateClinic) (*RsClinic, error)
 	BulkUpdateClinics(ctx context.Context, practitionerID uuid.UUID, req *RqBulkUpdateClinic) ([]RsClinic, error)
@@ -159,7 +160,7 @@ func (s *service) CreateClinic(ctx context.Context, practitionerID uuid.UUID, re
 	return result, nil
 }
 
-func (s *service) ListClinic(ctx context.Context, practitionerID uuid.UUID, filter Filter) ([]RsClinic, error) {
+func (s *service) ListClinic(ctx context.Context, practitionerID uuid.UUID, filter Filter) (*util.RsList, error) {
 	f := filter.MapToFilter()
 
 	clinics, err := s.repo.ListClinicByPractitioner(ctx, practitionerID, f)
@@ -169,50 +170,41 @@ func (s *service) ListClinic(ctx context.Context, practitionerID uuid.UUID, filt
 
 	result := make([]RsClinic, 0, len(clinics))
 	for _, clinic := range clinics {
-		// Get addresses for this clinic
-		addresses, err := s.repo.GetClinicAddresses(ctx, clinic.ID)
-		if err != nil {
-			return nil, err
+		addresses, addrErr := s.repo.GetClinicAddresses(ctx, clinic.ID)
+		if addrErr != nil {
+			return nil, addrErr
 		}
-
-		// Get contacts for this clinic
-		contacts, err := s.repo.GetClinicContacts(ctx, clinic.ID)
-		if err != nil {
-			return nil, err
-		}
-
-		// Get financial settings for this clinic
-		financialSettings, err := s.repo.GetFinancialSettings(ctx, clinic.ID)
-		if err != nil {
-			return nil, err
-		}
-
-		// Convert addresses to response format
-		rsAddresses := make([]RsClinicAddress, 0, len(addresses))
-		for _, addr := range addresses {
-			rsAddresses = append(rsAddresses, RsClinicAddress{
+		rsAddresses := make([]RsClinicAddress, len(addresses))
+		for i, addr := range addresses {
+			rsAddresses[i] = RsClinicAddress{
 				ID:        addr.ID,
 				Address:   addr.Address,
 				City:      addr.City,
 				State:     addr.State,
 				Postcode:  addr.Postcode,
 				IsPrimary: addr.IsPrimary,
-			})
+			}
 		}
 
-		// Convert contacts to response format
-		rsContacts := make([]RsClinicContact, 0, len(contacts))
-		for _, cont := range contacts {
-			rsContacts = append(rsContacts, RsClinicContact{
+		contacts, contErr := s.repo.GetClinicContacts(ctx, clinic.ID)
+		if contErr != nil {
+			return nil, contErr
+		}
+		rsContacts := make([]RsClinicContact, len(contacts))
+		for i, cont := range contacts {
+			rsContacts[i] = RsClinicContact{
 				ID:          cont.ID,
 				ContactType: cont.ContactType,
 				Value:       cont.Value,
 				Label:       cont.Label,
 				IsPrimary:   cont.IsPrimary,
-			})
+			}
 		}
 
-		// Convert financial settings to response format
+		financialSettings, fsErr := s.repo.GetFinancialSettings(ctx, clinic.ID)
+		if fsErr != nil {
+			return nil, fsErr
+		}
 		var rsFinancialSettings *RsFinancialSettings
 		if financialSettings != nil {
 			rsFinancialSettings = &RsFinancialSettings{
@@ -238,11 +230,23 @@ func (s *service) ListClinic(ctx context.Context, practitionerID uuid.UUID, filt
 		})
 	}
 
-	return result, nil
+	total, err := s.CountClinic(ctx, practitionerID, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	rsList := &util.RsList{}
+	rsList.MapToList(result, total, f.Offset, f.Limit)
+
+	return rsList, nil
+}
+
+func (s *service) CountClinic(ctx context.Context, practitionerID uuid.UUID, filter Filter) (int, error) {
+	f := filter.MapToFilter()
+	return s.repo.CountClinicByPractitioner(ctx, practitionerID, f)
 }
 
 func (s *service) GetClinicByID(ctx context.Context, practitionerID uuid.UUID, id uuid.UUID) (*RsClinic, error) {
-
 	clinic, err := s.repo.GetClinicByIDAndPractitioner(ctx, id, practitionerID)
 	if err != nil {
 		return nil, err
