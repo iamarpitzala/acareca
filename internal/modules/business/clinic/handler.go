@@ -13,7 +13,7 @@ import (
 
 type IHandler interface {
 	CreateClinic(c *gin.Context)
-	GetClinics(c *gin.Context)
+	ListClinies(c *gin.Context)
 	GetClinicByID(c *gin.Context)
 	UpdateClinic(c *gin.Context)
 	BulkUpdateClinics(c *gin.Context)
@@ -66,14 +66,14 @@ func (h *handler) CreateClinic(c *gin.Context) {
 // @Success 200 {array} RsClinic
 // @Failure 500 {object} response.RsError
 // @Router /clinic/all [get]
-func (h *handler) GetClinics(c *gin.Context) {
+func (h *handler) ListClinies(c *gin.Context) {
 	// Get user ID from JWT token context
 	PractID, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
 
-	clinics, err := h.svc.GetClinics(c.Request.Context(), PractID)
+	clinics, err := h.svc.ListClinies(c.Request.Context(), PractID)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
@@ -116,7 +116,7 @@ func (h *handler) GetClinicByID(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusOK, clinic, "Clinic updated successfully")
+	response.JSON(c, http.StatusOK, clinic, "Clinic fetched successfully")
 }
 
 // @Summary Update clinic details
@@ -160,7 +160,7 @@ func (h *handler) UpdateClinic(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusOK, clinic, "Clinic deleted successfully")
+	response.JSON(c, http.StatusOK, clinic, "Clinic updated successfully")
 }
 
 // @Summary Delete a clinic

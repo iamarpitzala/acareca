@@ -18,7 +18,7 @@ type IService interface {
 	CreateWithFields(ctx context.Context, d *RqCreateFormWithFields, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error)
 	UpdateWithFields(ctx context.Context, d *RqUpdateFormWithFields, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error)
 	GetFormWithFields(ctx context.Context, formID uuid.UUID) (*RsFormWithFields, error)
-	List(ctx context.Context, filter Filter) ([]*detail.RsFormDetail, error)
+	List(ctx context.Context, filter Filter, practitionerID uuid.UUID) ([]*detail.RsFormDetail, error)
 	Delete(ctx context.Context, formID uuid.UUID) error
 }
 
@@ -28,6 +28,7 @@ type service struct {
 	fieldSvc   field.IService
 	entryRepo  entry.IRepository
 	coaSvc     coa.Service
+	clinicSvc  interface{} // Will be clinic.Service but avoiding circular import
 }
 
 func NewService(detailSvc detail.IService, versionSvc version.IService, fieldSvc field.IService, entryRepo entry.IRepository, coaSvc coa.Service) IService {
@@ -360,13 +361,17 @@ func (s *service) GetFormWithFields(ctx context.Context, formID uuid.UUID) (*RsF
 	return out, nil
 }
 
-func (s *service) List(ctx context.Context, filter Filter) ([]*detail.RsFormDetail, error) {
-	clinicID := filter.ClinicID
-	if clinicID == nil {
-		clinicID = &uuid.Nil
-	}
-
-	return s.detailSvc.ListForm(ctx, detail.Filter{ClinicID: *clinicID})
+func (s *service) List(ctx context.Context, filter Filter, practitionerID uuid.UUID) ([]*detail.RsFormDetail, error) {
+	// Pass practitioner ID to detail service for filtering by practitioner's clinics
+	return s.detailSvc.ListForm(ctx, detail.Filter{
+		PractitionerID: practitionerID,
+		ClinicID:       filter.ClinicID,
+		ClinicName:     filter.ClinicName,
+		Status:         filter.Status,
+		Method:         filter.Method,
+		SortBy:         filter.SortBy,
+		SortOrder:      filter.SortOrder,
+	})
 }
 
 func (s *service) Delete(ctx context.Context, formID uuid.UUID) error {

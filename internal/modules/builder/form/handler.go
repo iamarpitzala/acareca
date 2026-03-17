@@ -2,6 +2,7 @@ package form
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -101,6 +102,7 @@ func (h *handler) CreateFormWithFields(c *gin.Context) {
 
 	var req RqCreateFormWithFields
 	if err := util.BindAndValidate(c, &req); err != nil {
+
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
@@ -109,6 +111,7 @@ func (h *handler) CreateFormWithFields(c *gin.Context) {
 		req.Status = detail.StatusDraft
 	}
 	form, syncResult, err := h.svc.CreateWithFields(c.Request.Context(), &req, practitionerID)
+
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
@@ -185,23 +188,73 @@ func (h *handler) GetFormWithFields(c *gin.Context) {
 }
 
 // @Summary List forms
-// @Description List forms filtered by clinic and query parameters
+// @Description List forms filtered by clinic, clinic name, method type, and sorted by clinic/owner share. If clinic_id not provided, lists all forms for practitioner's clinics.
 // @Tags form
 // @Accept json
 // @Produce json
-// @Param clinic_id query string false "Clinic ID"
+// @Param clinic_id query string false "Clinic ID (optional - if not provided, lists all practitioner's clinics)"
+// @Param clinic_name query string false "Filter by clinic name (partial match)"
+// @Param method query string false "Filter by method type (INDEPENDENT_CONTRACTOR or SERVICE_FEE)"
+// @Param status query string false "Filter by status (DRAFT, PUBLISHED, or ARCHIVED)"
+// @Param sort_by query string false "Sort by field (clinic_share or owner_share) - required if sort_order is provided"
+// @Param sort_order query string false "Sort order (asc or desc) - required if sort_by is provided"
 // @Success 200 {array} detail.RsFormDetail
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
 // @Router /form [get]
 func (h *handler) List(c *gin.Context) {
+	practitionerID, ok := util.GetPractitionerID(c)
+	if !ok {
+		return
+	}
+
+	clinicIdStr := c.Query("clinic_id")
+	clinicName := c.Query("clinic_name")
+	method := c.Query("method")
+	status := c.Query("status")
+	sortBy := c.Query("sort_by")
+	sortOrder := c.Query("sort_order")
+
+	// Validate that both sort_by and sort_order are provided together
+	if (sortBy != "" && sortOrder == "") || (sortBy == "" && sortOrder != "") {
+		response.Error(c, http.StatusBadRequest, errors.New("both sort_by and sort_order must be provided together"))
+		return
+	}
 
 	var filter Filter
+
+	// Parse clinic_id if provided
+	if clinicIdStr != "" {
+		clinicId, err := util.ParseUUID(clinicIdStr)
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, errors.New("invalid clinic_id format"))
+			return
+		}
+		filter.ClinicID = &clinicId
+	}
+	// If clinic_id not provided, filter.ClinicID remains nil
+
+	if clinicName != "" {
+		filter.ClinicName = &clinicName
+	}
+	if method != "" {
+		filter.Method = &method
+	}
+	if status != "" {
+		filter.Status = &status
+	}
+	if sortBy != "" && sortOrder != "" {
+		filter.SortBy = &sortBy
+		filter.SortOrder = &sortOrder
+	}
+
 	if err := util.BindAndValidate(c, &filter); err != nil {
+		fmt.Println(err.Error())
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	list, err := h.svc.List(c.Request.Context(), filter)
+
+	list, err := h.svc.List(c.Request.Context(), filter, practitionerID)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
