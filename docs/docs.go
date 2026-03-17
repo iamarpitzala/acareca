@@ -465,11 +465,6 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "security": [
-                    {
-                        "BearerToken": []
-                    }
-                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -508,91 +503,6 @@ const docTemplate = `{
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/response.RsError"
-                        }
-                    }
-                }
-            }
-        },
-        "/clinic/bulk-delete": {
-            "delete": {
-                "security": [
-                    {
-                        "BearerToken": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "clinic"
-                ],
-                "summary": "Bulk delete clinics",
-                "parameters": [
-                    {
-                        "description": "IDs to delete",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/clinic.RqBulkDeleteClinic"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/clinic/bulk-update": {
-            "put": {
-                "security": [
-                    {
-                        "BearerToken": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "clinic"
-                ],
-                "summary": "Bulk update clinics",
-                "parameters": [
-                    {
-                        "description": "Bulk Update Data",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/clinic.RqBulkUpdateClinic"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "array",
-                                "items": {
-                                    "$ref": "#/definitions/clinic.RsClinic"
-                                }
-                            }
                         }
                     }
                 }
@@ -1505,6 +1415,11 @@ const docTemplate = `{
         },
         "/form": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "List all forms belonging to the practitioner's clinics. Optionally filter by clinic, method, or status. If clinic_id is omitted, all clinics are included.",
                 "produces": [
                     "application/json"
@@ -1695,6 +1610,11 @@ const docTemplate = `{
         },
         "/form/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "Retrieve a specific form and its fields by ID",
                 "consumes": [
                     "application/json"
