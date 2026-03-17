@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	"github.com/iamarpitzala/acareca/internal/modules/builder/form"
 	"github.com/iamarpitzala/acareca/internal/modules/builder/version"
 	"github.com/jmoiron/sqlx"
 )
@@ -16,7 +15,7 @@ type IService interface {
 	Update(ctx context.Context, d *RqUpdateFormDetail, practitionerID uuid.UUID) (*RsFormDetail, error)
 	UpdateMetadata(ctx context.Context, d *RqUpdateFormDetail) (*RsFormDetail, error)
 	Delete(ctx context.Context, formID uuid.UUID) error
-	List(ctx context.Context, filter form.Filter, practitionerID uuid.UUID) ([]*RsFormDetail, error)
+	List(ctx context.Context, filter Filter, practitionerID uuid.UUID) ([]*RsFormDetail, error)
 }
 
 type Service struct {
@@ -50,7 +49,7 @@ func (s *Service) Delete(ctx context.Context, formID uuid.UUID) error {
 }
 
 // ListForm implements [IService].
-func (s *Service) List(ctx context.Context, filter form.Filter, practitionerID uuid.UUID) ([]*RsFormDetail, error) {
+func (s *Service) List(ctx context.Context, filter Filter, practitionerID uuid.UUID) ([]*RsFormDetail, error) {
 	formDetails, err := s.repo.ListForm(ctx, filter.MapToFilter(), practitionerID)
 	if err != nil {
 		return nil, err
@@ -64,10 +63,10 @@ func (s *Service) List(ctx context.Context, filter form.Filter, practitionerID u
 }
 
 func applyFormUpdatePatch(existing *FormDetail, d *RqUpdateFormDetail) error {
-	if existing.Status == form.StatusArchived {
+	if existing.Status == StatusArchived {
 		return errors.New("form is archived")
 	}
-	if existing.Status == form.StatusPublished {
+	if existing.Status == StatusPublished {
 		if d.Status != nil || d.Method != nil || d.OwnerShare != nil || d.ClinicShare != nil {
 			return errors.New("form is published and cannot be updated")
 		}
@@ -78,7 +77,7 @@ func applyFormUpdatePatch(existing *FormDetail, d *RqUpdateFormDetail) error {
 	if d.Description != nil {
 		existing.Description = d.Description
 	}
-	if existing.Status != form.StatusPublished {
+	if existing.Status != StatusPublished {
 		if d.Status != nil {
 			existing.Status = *d.Status
 		}

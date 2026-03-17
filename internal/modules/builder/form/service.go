@@ -362,7 +362,7 @@ func (s *service) GetFormWithFields(ctx context.Context, formID uuid.UUID) (*RsF
 }
 
 func (s *service) List(ctx context.Context, filter Filter, practitionerID uuid.UUID) ([]*detail.RsFormDetail, error) {
-	return s.detailSvc.List(ctx, Filter{
+	return s.detailSvc.List(ctx, detail.Filter{
 		ClinicID:   filter.ClinicID,
 		ClinicName: filter.ClinicName,
 		Status:     filter.Status,

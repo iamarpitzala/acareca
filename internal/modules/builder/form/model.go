@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/iamarpitzala/acareca/internal/modules/builder/detail"
 	"github.com/iamarpitzala/acareca/internal/modules/builder/field"
-	"github.com/iamarpitzala/acareca/internal/shared/common"
 )
 
 const (
@@ -82,29 +81,4 @@ func (f Filter) Validate() error {
 		return errors.New("both sort_by and sort_order must be provided together")
 	}
 	return nil
-}
-
-func (filter *Filter) MapToFilter() common.Filter {
-	filters := map[string]interface{}{}
-
-	if filter.ClinicID != nil {
-		filters["clinic_id"] = *filter.ClinicID
-	}
-	if filter.Status != nil {
-		filters["status"] = *filter.Status
-	}
-	if filter.Method != nil {
-		filters["method"] = *filter.Method
-	}
-
-	f := common.NewFilter(nil, filters, nil, nil, nil)
-
-	if filter.SortBy != nil {
-		f.SortBy = *filter.SortBy
-	}
-	if filter.SortOrder != nil {
-		f.OrderBy = *filter.SortOrder
-	}
-
-	return f
 }
