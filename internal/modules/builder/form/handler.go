@@ -91,6 +91,7 @@ func (h *handler) GetById(c *gin.Context) {
 // @Success 201 {object} RsFormWithFields
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /form [post]
 func (h *handler) CreateFormWithFields(c *gin.Context) {
 	practitionerID, ok := util.GetPractitionerID(c)
@@ -127,6 +128,7 @@ func (h *handler) CreateFormWithFields(c *gin.Context) {
 // @Success 200 {object} RsFormWithFields
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /form [put]
 func (h *handler) UpdateFormWithFields(c *gin.Context) {
 	formID, ok := util.ParseUuidID(c, "id")
@@ -166,6 +168,7 @@ func (h *handler) UpdateFormWithFields(c *gin.Context) {
 // @Success 200 {object} RsFormWithFields
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /form/{id} [get]
 func (h *handler) GetFormWithFields(c *gin.Context) {
 	formID, ok := util.ParseUuidID(c, "id")
@@ -194,6 +197,7 @@ func (h *handler) GetFormWithFields(c *gin.Context) {
 // @Success 200 {object} []detail.RsFormDetail
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /form [get]
 func (h *handler) List(c *gin.Context) {
 	practitionerID, ok := util.GetPractitionerID(c)
@@ -225,6 +229,7 @@ func (h *handler) List(c *gin.Context) {
 // @Success 204 "No Content"
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /form/{id} [delete]
 func (h *handler) Delete(c *gin.Context) {
 	formID, ok := util.ParseUuidID(c, "id")

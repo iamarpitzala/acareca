@@ -29,6 +29,17 @@ func NewHandler(svc Service) IHandler {
 	return &handler{svc: svc}
 }
 
+// @Summary      Create a new practitioner
+// @Description  Register a new practitioner in the system
+// @Tags         setting
+// @Accept       json
+// @Produce      json
+// @Param        request body RqCreatePractitioner true "Practitioner Data"
+// @Success      201 {object} RsPractitioner
+// @Failure      400 {object} response.RsError
+// @Failure      500 {object} response.RsError
+// @Security     BearerToken
+// @Router       /practitioner [post]
 func (h *handler) CreatePractitioner(c *gin.Context) {
 	var req RqCreatePractitioner
 	if err := util.BindAndValidate(c, &req); err != nil {
@@ -45,12 +56,13 @@ func (h *handler) CreatePractitioner(c *gin.Context) {
 
 // @Summary Get a practitioner by ID
 // @Description get a practitioner by ID
-// @Tags practitioner
+// @Tags setting
 // @Accept json
 // @Produce json
 // @Success 200 {object} RsPractitioner
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /practitioner/{id} [get]
 // @Param id path string true "Practitioner ID"
 func (h *handler) GetPractitioner(c *gin.Context) {
@@ -73,12 +85,13 @@ func (h *handler) GetPractitioner(c *gin.Context) {
 
 // @Summary Get a practitioner by user ID
 // @Description get a practitioner by user ID
-// @Tags practitioner
+// @Tags setting
 // @Accept json
 // @Produce json
 // @Success 200 {object} RsPractitioner
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /practitioner/user/{user_id} [get]
 // @Param user_id path string true "User ID"
 func (h *handler) GetPractitionerByUserID(c *gin.Context) {
@@ -101,11 +114,12 @@ func (h *handler) GetPractitionerByUserID(c *gin.Context) {
 
 // @Summary List practitioners
 // @Description list practitioners
-// @Tags practitioner
+// @Tags setting
 // @Accept json
 // @Produce json
 // @Success 200 {object} RsPractitioner
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /practitioner [get]
 func (h *handler) ListPractitioners(c *gin.Context) {
 	list, err := h.svc.ListPractitioners(c.Request.Context())
@@ -118,12 +132,13 @@ func (h *handler) ListPractitioners(c *gin.Context) {
 
 // @Summary Update a practitioner
 // @Description update a practitioner
-// @Tags practitioner
+// @Tags setting
 // @Accept json
 // @Produce json
 // @Success 200 {object} RsPractitioner
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /practitioner/{id} [put]
 // @Param id path string true "Practitioner ID"
 func (h *handler) UpdatePractitioner(c *gin.Context) {
@@ -150,12 +165,13 @@ func (h *handler) UpdatePractitioner(c *gin.Context) {
 
 // @Summary Delete a practitioner
 // @Description delete a practitioner
-// @Tags practitioner
+// @Tags setting
 // @Accept json
 // @Produce json
 // @Success 200 {object} map[string]string
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /practitioner/{id} [delete]
 // @Param id path string true "Practitioner ID"
 func (h *handler) DeletePractitioner(c *gin.Context) {
@@ -182,6 +198,7 @@ func (h *handler) DeletePractitioner(c *gin.Context) {
 // @Success 200 {object} RsPractitionerSetting
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /practitioner/setting/{id} [get]
 // @Param id path string true "Practitioner ID"
 func (h *handler) GetSetting(c *gin.Context) {
@@ -209,6 +226,7 @@ func (h *handler) GetSetting(c *gin.Context) {
 // @Success 200 {object} RsPractitionerSetting
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /practitioner/setting/{id} [put]
 // @Param id path string true "Practitioner ID"
 func (h *handler) UpsertSetting(c *gin.Context) {

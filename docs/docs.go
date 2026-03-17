@@ -19,6 +19,11 @@ const docTemplate = `{
     "paths": {
         "/admin/subscription": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "list subscriptions",
                 "consumes": [
                     "application/json"
@@ -46,6 +51,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "create a new subscription",
                 "consumes": [
                     "application/json"
@@ -81,6 +91,11 @@ const docTemplate = `{
         },
         "/admin/subscription/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "get a subscription",
                 "consumes": [
                     "application/json"
@@ -123,6 +138,11 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "update a subscription",
                 "consumes": [
                     "application/json"
@@ -165,6 +185,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "delete a subscription",
                 "consumes": [
                     "application/json"
@@ -440,6 +465,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -483,8 +513,98 @@ const docTemplate = `{
                 }
             }
         },
+        "/clinic/bulk-delete": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clinic"
+                ],
+                "summary": "Bulk delete clinics",
+                "parameters": [
+                    {
+                        "description": "IDs to delete",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/clinic.RqBulkDeleteClinic"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/clinic/bulk-update": {
+            "put": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clinic"
+                ],
+                "summary": "Bulk update clinics",
+                "parameters": [
+                    {
+                        "description": "Bulk Update Data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/clinic.RqBulkUpdateClinic"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/clinic.RsClinic"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/clinic/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -529,6 +649,11 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -585,6 +710,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -634,6 +764,11 @@ const docTemplate = `{
         },
         "/coa/account-taxes": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -662,6 +797,11 @@ const docTemplate = `{
         },
         "/coa/account-taxes/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -708,6 +848,11 @@ const docTemplate = `{
         },
         "/coa/account-types": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -736,6 +881,11 @@ const docTemplate = `{
         },
         "/coa/account-types/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -780,8 +930,13 @@ const docTemplate = `{
                 }
             }
         },
-        "/coa/chart": {
+        "/coa/chart-of-account": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -855,6 +1010,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -904,8 +1064,13 @@ const docTemplate = `{
                 }
             }
         },
-        "/coa/chart/{id}": {
+        "/coa/chart-of-account/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -950,6 +1115,11 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -1018,6 +1188,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1073,6 +1248,11 @@ const docTemplate = `{
         },
         "/entry/version/{version_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "List all entries for a specific version and clinic",
                 "consumes": [
                     "application/json"
@@ -1112,6 +1292,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "Create a new entry for a specific form version",
                 "consumes": [
                     "application/json"
@@ -1165,6 +1350,11 @@ const docTemplate = `{
         },
         "/entry/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "Fetch details of a specific entry",
                 "consumes": [
                     "application/json"
@@ -1207,6 +1397,11 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "Update data for an existing entry",
                 "consumes": [
                     "application/json"
@@ -1264,6 +1459,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "Remove an entry from the system",
                 "consumes": [
                     "application/json"
@@ -1395,6 +1595,11 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "Update an existing form and sync its fields",
                 "consumes": [
                     "application/json"
@@ -1439,6 +1644,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "Create a new custom form along with its associated fields",
                 "consumes": [
                     "application/json"
@@ -1560,6 +1770,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "Remove a form by its ID",
                 "consumes": [
                     "application/json"
@@ -1601,6 +1816,11 @@ const docTemplate = `{
         },
         "/fy": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1627,6 +1847,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -1678,6 +1903,11 @@ const docTemplate = `{
         },
         "/fy/{financial_year_id}/label": {
             "put": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -1736,6 +1966,11 @@ const docTemplate = `{
         },
         "/fy/{financial_year_id}/quarters": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1785,6 +2020,11 @@ const docTemplate = `{
         },
         "/practitioner": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "list practitioners",
                 "consumes": [
                     "application/json"
@@ -1793,7 +2033,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "practitioner"
+                    "setting"
                 ],
                 "summary": "List practitioners",
                 "responses": {
@@ -1810,10 +2050,64 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
+                "description": "Register a new practitioner in the system",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "setting"
+                ],
+                "summary": "Create a new practitioner",
+                "parameters": [
+                    {
+                        "description": "Practitioner Data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/setting.RqCreatePractitioner"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/setting.RsPractitioner"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    }
+                }
             }
         },
         "/practitioner/setting/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "get a setting by practitioner ID",
                 "consumes": [
                     "application/json"
@@ -1856,6 +2150,11 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "upsert a setting by practitioner ID",
                 "consumes": [
                     "application/json"
@@ -1900,6 +2199,11 @@ const docTemplate = `{
         },
         "/practitioner/subscription": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "list subscriptions by practitioner ID",
                 "consumes": [
                     "application/json"
@@ -1944,6 +2248,11 @@ const docTemplate = `{
         },
         "/practitioner/subscription/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "get a subscription by ID",
                 "consumes": [
                     "application/json"
@@ -1986,6 +2295,11 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "update a subscription",
                 "consumes": [
                     "application/json"
@@ -2035,6 +2349,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "delete a subscription",
                 "consumes": [
                     "application/json"
@@ -2089,6 +2408,11 @@ const docTemplate = `{
         },
         "/practitioner/user/{user_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "get a practitioner by user ID",
                 "consumes": [
                     "application/json"
@@ -2097,7 +2421,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "practitioner"
+                    "setting"
                 ],
                 "summary": "Get a practitioner by user ID",
                 "parameters": [
@@ -2133,6 +2457,11 @@ const docTemplate = `{
         },
         "/practitioner/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "get a practitioner by ID",
                 "consumes": [
                     "application/json"
@@ -2141,7 +2470,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "practitioner"
+                    "setting"
                 ],
                 "summary": "Get a practitioner by ID",
                 "parameters": [
@@ -2175,6 +2504,11 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "update a practitioner",
                 "consumes": [
                     "application/json"
@@ -2183,7 +2517,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "practitioner"
+                    "setting"
                 ],
                 "summary": "Update a practitioner",
                 "parameters": [
@@ -2217,6 +2551,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "delete a practitioner",
                 "consumes": [
                     "application/json"
@@ -2225,7 +2564,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "practitioner"
+                    "setting"
                 ],
                 "summary": "Delete a practitioner",
                 "parameters": [
@@ -3174,6 +3513,24 @@ const docTemplate = `{
                 }
             }
         },
+        "setting.RqCreatePractitioner": {
+            "type": "object",
+            "required": [
+                "user_id"
+            ],
+            "properties": {
+                "abn": {
+                    "type": "string",
+                    "maxLength": 20
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "verified": {
+                    "type": "boolean"
+                }
+            }
+        },
         "setting.RsPractitioner": {
             "type": "object",
             "properties": {
@@ -3267,15 +3624,23 @@ const docTemplate = `{
                 }
             }
         }
+    },
+    "securityDefinitions": {
+        "BearerToken": {
+            "description": "Type \"Bearer \u003cyour_token\u003e\" to authenticate",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
     }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0.0",
-	Host:             "localhost:8080",
+	Host:             "",
 	BasePath:         "/api/v1",
-	Schemes:          []string{"http"},
+	Schemes:          []string{"http", "https"},
 	Title:            "Backend API",
 	Description:      "Backend API for acareca",
 	InfoInstanceName: "swagger",

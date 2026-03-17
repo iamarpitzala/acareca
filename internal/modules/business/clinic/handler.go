@@ -105,6 +105,7 @@ func (h *handler) List(c *gin.Context) {
 // @Failure 400 {object} response.RsError
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /clinic/{id} [get]
 func (h *handler) GetByID(c *gin.Context) {
 	// Get user ID from JWT token context
@@ -143,6 +144,7 @@ func (h *handler) GetByID(c *gin.Context) {
 // @Failure 400 {object} response.RsError
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /clinic/{id} [put]
 func (h *handler) Update(c *gin.Context) {
 	// Get user ID from JWT token context
@@ -185,6 +187,7 @@ func (h *handler) Update(c *gin.Context) {
 // @Failure 400 {object} response.RsError
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /clinic/{id} [delete]
 func (h *handler) Delete(c *gin.Context) {
 	// Get user ID from JWT token context
