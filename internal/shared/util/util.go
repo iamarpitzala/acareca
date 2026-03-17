@@ -145,3 +145,17 @@ func RunInTransaction(ctx context.Context, db *sqlx.DB, fn func(ctx context.Cont
 	}
 	return tx.Commit()
 }
+
+type RsList struct {
+	Items interface{} `json:"items"`
+	Total int         `json:"total"`
+	Page  int         `json:"page"`
+	Limit int         `json:"limit"`
+}
+
+func (rs *RsList) MapToList(data interface{}, total, page, limit int) {
+	rs.Items = data
+	rs.Total = total
+	rs.Page = page
+	rs.Limit = limit
+}

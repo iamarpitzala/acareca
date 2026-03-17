@@ -14,7 +14,7 @@ type Service interface {
 	ListAccountTaxes(ctx context.Context) ([]AccountTax, error)
 	GetAccountTax(ctx context.Context, id int16) (*AccountTax, error)
 
-	ListChartOfAccount(ctx context.Context, practitionerID uuid.UUID, f ListChartOfAccountFilter) (*RsChartOfAccountList, error)
+	ListChartOfAccount(ctx context.Context, practitionerID uuid.UUID, f *Filter) (*util.RsList, error)
 	GetChartOfAccount(ctx context.Context, id uuid.UUID, practitionerID uuid.UUID) (*RsChartOfAccount, error)
 	CreateChartOfAccount(ctx context.Context, practitionerID uuid.UUID, req *RqCreateChartOfAccountOfAccount) (*RsChartOfAccount, error)
 	UpdateCharOfAccount(ctx context.Context, id uuid.UUID, practitionerID uuid.UUID, req *RqUpdateCharOfAccountOfAccount) (*RsChartOfAccount, error)
@@ -72,7 +72,7 @@ func (s *service) GetAccountTax(ctx context.Context, id int16) (*AccountTax, err
 	return &rs, nil
 }
 
-func (s *service) ListChartOfAccount(ctx context.Context, practitionerID uuid.UUID, f ListChartOfAccountFilter) (*RsChartOfAccountList, error) {
+func (s *service) ListChartOfAccount(ctx context.Context, practitionerID uuid.UUID, f *Filter) (*util.RsList, error) {
 	list, err := s.repo.ListChartOfAccountWithFilter(ctx, practitionerID, f)
 	if err != nil {
 		return nil, err
@@ -81,27 +81,16 @@ func (s *service) ListChartOfAccount(ctx context.Context, practitionerID uuid.UU
 	if err != nil {
 		return nil, err
 	}
-	limit := f.Limit
-	if limit <= 0 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
-	}
-	page := f.Page
-	if page < 1 {
-		page = 1
-	}
-	out := make([]RsChartOfAccount, len(list))
+
+	data := make([]RsChartOfAccount, 0, len(list))
 	for i := range list {
-		out[i] = list[i].ToRs()
+		data[i] = list[i].ToRs()
 	}
-	return &RsChartOfAccountList{
-		Data:  out,
-		Total: total,
-		Page:  page,
-		Limit: limit,
-	}, nil
+
+	var rsList util.RsList
+	rsList.MapToList(data, total, *f.Offset, *f.Limit)
+
+	return &util.RsList{}, nil
 }
 
 func (s *service) GetChartOfAccount(ctx context.Context, id uuid.UUID, practitionerID uuid.UUID) (*RsChartOfAccount, error) {

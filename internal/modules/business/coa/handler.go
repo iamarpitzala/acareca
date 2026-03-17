@@ -127,27 +127,13 @@ func (h *handler) ListChartOfAccount(c *gin.Context) {
 	if !ok {
 		return
 	}
-	f := ListChartOfAccountFilter{
-		Page:  1,
-		Limit: 0,
+	var filter *Filter
+	if err := util.BindAndValidate(c, filter); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
 	}
-	if v := c.Query("page"); v != "" {
-		if p, err := strconv.Atoi(v); err == nil && p > 0 {
-			f.Page = p
-		}
-	}
-	if v := c.Query("limit"); v != "" {
-		if l, err := strconv.Atoi(v); err == nil && l > 0 {
-			f.Limit = l
-		}
-	}
-	if v := c.Query("account_type_id"); v != "" {
-		if id, err := strconv.ParseInt(v, 10, 16); err == nil && id > 0 {
-			t := int16(id)
-			f.AccountTypeID = &t
-		}
-	}
-	result, err := h.svc.ListChartOfAccount(c.Request.Context(), practitionerID, f)
+
+	result, err := h.svc.ListChartOfAccount(c.Request.Context(), practitionerID, nil)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
