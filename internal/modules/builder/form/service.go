@@ -10,6 +10,7 @@ import (
 	"github.com/iamarpitzala/acareca/internal/modules/builder/field"
 	"github.com/iamarpitzala/acareca/internal/modules/builder/version"
 	"github.com/iamarpitzala/acareca/internal/modules/business/coa"
+	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
 
 type IService interface {
@@ -18,7 +19,8 @@ type IService interface {
 	CreateWithFields(ctx context.Context, d *RqCreateFormWithFields, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error)
 	UpdateWithFields(ctx context.Context, d *RqUpdateFormWithFields, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error)
 	GetFormWithFields(ctx context.Context, formID uuid.UUID) (*RsFormWithFields, error)
-	List(ctx context.Context, filter Filter, practitionerID uuid.UUID) ([]*detail.RsFormDetail, error)
+	List(ctx context.Context, filter Filter, practitionerID uuid.UUID) (*util.RsList, error)
+	Count(ctx context.Context, filter Filter, practitionerID uuid.UUID) (int, error)
 	Delete(ctx context.Context, formID uuid.UUID) error
 }
 
@@ -361,8 +363,8 @@ func (s *service) GetFormWithFields(ctx context.Context, formID uuid.UUID) (*RsF
 	return out, nil
 }
 
-func (s *service) List(ctx context.Context, filter Filter, practitionerID uuid.UUID) ([]*detail.RsFormDetail, error) {
-	return s.detailSvc.List(ctx, detail.Filter{
+func (s *service) List(ctx context.Context, filter Filter, practitionerID uuid.UUID) (*util.RsList, error) {
+	list, err := s.detailSvc.List(ctx, detail.Filter{
 		ClinicID:   filter.ClinicID,
 		ClinicName: filter.ClinicName,
 		Status:     filter.Status,
@@ -370,6 +372,9 @@ func (s *service) List(ctx context.Context, filter Filter, practitionerID uuid.U
 		SortBy:     filter.SortBy,
 		SortOrder:  filter.SortOrder,
 	}, practitionerID)
+	if err != nil {
+		return nil, err
+	}
 }
 
 func (s *service) Delete(ctx context.Context, formID uuid.UUID) error {

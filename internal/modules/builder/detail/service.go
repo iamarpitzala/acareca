@@ -16,6 +16,7 @@ type IService interface {
 	UpdateMetadata(ctx context.Context, d *RqUpdateFormDetail) (*RsFormDetail, error)
 	Delete(ctx context.Context, formID uuid.UUID) error
 	List(ctx context.Context, filter Filter, practitionerID uuid.UUID) ([]*RsFormDetail, error)
+	Count(ctx context.Context, filter Filter, practitionerID uuid.UUID) (int, error)
 }
 
 type Service struct {
@@ -60,6 +61,11 @@ func (s *Service) List(ctx context.Context, filter Filter, practitionerID uuid.U
 		rs = append(rs, d.ToRs())
 	}
 	return rs, nil
+}
+
+// Count implements [IService].
+func (s *Service) Count(ctx context.Context, filter Filter, practitionerID uuid.UUID) (int, error) {
+	return s.repo.CountForm(ctx, filter.MapToFilter(), practitionerID)
 }
 
 func applyFormUpdatePatch(existing *FormDetail, d *RqUpdateFormDetail) error {
