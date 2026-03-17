@@ -119,7 +119,15 @@ func (h *handler) GetAccountTax(c *gin.Context) {
 // @Summary List chart of accounts for practitioner
 // @Tags coa
 // @Produce json
-// @Success 200 {array} RsChartOfAccount
+// @Param name query string false "Filter by name"
+// @Param code query int false "Filter by code"
+// @Param search query string false "Search keyword"
+// @Param sort_by query string false "Sort field"
+// @Param order_by query string false "Order direction (ASC/DESC)"
+// @Param limit query int false "Page size (default 20, max 100)"
+// @Param offset query int false "Offset"
+// @Success 200 {object} RsChartOfAccountList
+// @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
 // @Router /coa/chart [get]
 func (h *handler) ListChartOfAccount(c *gin.Context) {
@@ -127,13 +135,13 @@ func (h *handler) ListChartOfAccount(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var filter *Filter
-	if err := util.BindAndValidate(c, filter); err != nil {
+	var filter Filter
+	if err := util.BindAndValidate(c, &filter); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
 
-	result, err := h.svc.ListChartOfAccount(c.Request.Context(), practitionerID, nil)
+	result, err := h.svc.ListChartOfAccount(c.Request.Context(), practitionerID, &filter)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return

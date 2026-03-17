@@ -73,11 +73,12 @@ func (s *service) GetAccountTax(ctx context.Context, id int16) (*AccountTax, err
 }
 
 func (s *service) ListChartOfAccount(ctx context.Context, practitionerID uuid.UUID, f *Filter) (*util.RsList, error) {
-	list, err := s.repo.ListChartOfAccountWithFilter(ctx, practitionerID, f)
+	ft := f.MapToFilter()
+	list, err := s.repo.ListChartOfAccount(ctx, practitionerID, ft)
 	if err != nil {
 		return nil, err
 	}
-	total, err := s.repo.CountChartOfAccount(ctx, practitionerID, f)
+	total, err := s.repo.CountChartOfAccount(ctx, practitionerID, ft)
 	if err != nil {
 		return nil, err
 	}
