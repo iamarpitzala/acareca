@@ -46,13 +46,18 @@ func (filter *Filter) MapToFilter() common.Filter {
 	if filter.ClinicName != nil {
 		filters["clinic_name"] = *filter.ClinicName
 	}
-	f := common.NewFilter(nil, filters, nil, nil, nil)
+	f := common.NewFilter(nil, filters, nil, filter.Limit, filter.Offset)
 	if filter.SortBy != nil {
 		f.SortBy = *filter.SortBy
 	}
-	if filter.SortOrder != nil {
-		f.OrderBy = *filter.SortOrder
+	if filter.OrderBy != nil {
+		f.OrderBy = *filter.OrderBy
 	}
+
+	if filter.Search != nil {
+		f.Search = filter.Search
+	}
+
 	return f
 }
 

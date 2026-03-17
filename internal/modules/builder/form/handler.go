@@ -207,8 +207,9 @@ func (h *handler) List(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
+	// filter.SetDefaults()
 
-	list, err := h.svc.List(c.Request.Context(), filter, practitionerID)
+	list, err := h.svc.List(c.Request.Context(), &filter, practitionerID)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return

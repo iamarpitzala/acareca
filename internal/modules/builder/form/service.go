@@ -19,8 +19,7 @@ type IService interface {
 	CreateWithFields(ctx context.Context, d *RqCreateFormWithFields, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error)
 	UpdateWithFields(ctx context.Context, d *RqUpdateFormWithFields, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error)
 	GetFormWithFields(ctx context.Context, formID uuid.UUID) (*RsFormWithFields, error)
-	List(ctx context.Context, filter Filter, practitionerID uuid.UUID) (*util.RsList, error)
-	Count(ctx context.Context, filter Filter, practitionerID uuid.UUID) (int, error)
+	List(ctx context.Context, filter *Filter, practitionerID uuid.UUID) (*util.RsList, error)
 	Delete(ctx context.Context, formID uuid.UUID) error
 }
 
@@ -363,18 +362,46 @@ func (s *service) GetFormWithFields(ctx context.Context, formID uuid.UUID) (*RsF
 	return out, nil
 }
 
-func (s *service) List(ctx context.Context, filter Filter, practitionerID uuid.UUID) (*util.RsList, error) {
+func (s *service) List(ctx context.Context, filter *Filter, practitionerID uuid.UUID) (*util.RsList, error) {
 	list, err := s.detailSvc.List(ctx, detail.Filter{
 		ClinicID:   filter.ClinicID,
 		ClinicName: filter.ClinicName,
 		Status:     filter.Status,
 		Method:     filter.Method,
 		SortBy:     filter.SortBy,
-		SortOrder:  filter.SortOrder,
+		OrderBy:    filter.OrderBy,
+		Limit:      filter.Limit,
+		Offset:     filter.Offset,
+		Search:     filter.Search,
 	}, practitionerID)
 	if err != nil {
 		return nil, err
 	}
+
+	total, err := s.detailSvc.Count(ctx, detail.Filter{
+		ClinicID:   filter.ClinicID,
+		ClinicName: filter.ClinicName,
+		Status:     filter.Status,
+		Method:     filter.Method,
+		SortBy:     filter.SortBy,
+		OrderBy:    filter.OrderBy,
+		Limit:      filter.Limit,
+		Offset:     filter.Offset,
+		Search:     filter.Search,
+	}, practitionerID)
+	if err != nil {
+		return nil, err
+	}
+
+	data := make([]*detail.RsFormDetail, 0, len(list))
+	for _, item := range list {
+		data = append(data, item)
+	}
+
+	var rsList util.RsList
+	rsList.MapToList(data, total, *filter.Offset, *filter.Limit)
+
+	return &rsList, nil
 }
 
 func (s *service) Delete(ctx context.Context, formID uuid.UUID) error {

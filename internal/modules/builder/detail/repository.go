@@ -61,18 +61,18 @@ func (r *Repository) Delete(ctx context.Context, formID uuid.UUID) error {
 
 // ListForm implements [IRepository].
 func (r *Repository) ListForm(ctx context.Context, filter common.Filter, practitionerID uuid.UUID) ([]*FormDetail, error) {
-
 	base := `
-	FROM tbl_form f
-	WHERE f.deleted_at IS NULL
-	AND f.clinic_id IN (
-		SELECT id FROM tbl_clinic 
-		WHERE practitioner_id = ? AND deleted_at IS NULL
-	)
+		FROM tbl_form f
+		WHERE f.deleted_at IS NULL
+		AND f.clinic_id IN (
+			SELECT id FROM tbl_clinic 
+			WHERE practitioner_id = ? AND deleted_at IS NULL
+		)
 	`
-
+	// Prepare arguments slice with practitionerID as the first filter
 	args := []any{practitionerID}
 
+	// Define which columns can be filtered/sorted by
 	allowedColumns := map[string]string{
 		"status":     "f.status",
 		"method":     "f.method",
@@ -80,12 +80,11 @@ func (r *Repository) ListForm(ctx context.Context, filter common.Filter, practit
 		"created_at": "f.created_at",
 	}
 
-	searchCols := []string{
-		"f.name",
-		"f.description",
-	}
+	// Specify columns that can be searched against
+	searchCols := []string{"f.name", "f.description"}
 
-	query, qArgs := common.BuildQuery(
+	// Build query part for filtering, searching, sorting, and pagination
+	queryExtension, filterArgs := common.BuildQuery(
 		base,
 		filter,
 		allowedColumns,
@@ -93,21 +92,21 @@ func (r *Repository) ListForm(ctx context.Context, filter common.Filter, practit
 		false,
 	)
 
-	args = append(args, qArgs...)
+	args = append(args, filterArgs...)
 
-	query = `
-	SELECT f.id, f.clinic_id, f.name, f.description, f.status, f.method,
-	       f.owner_share, f.clinic_share, f.created_at, f.updated_at
-	` + query
+	fullQuery := `
+		SELECT f.id, f.clinic_id, f.name, f.description, f.status, f.method,
+			   f.owner_share, f.clinic_share, f.created_at, f.updated_at
+	` + queryExtension
 
-	query = r.db.Rebind(query)
+	fullQuery = r.db.Rebind(fullQuery)
 
-	var details []*FormDetail
-	if err := r.db.SelectContext(ctx, &details, query, args...); err != nil {
+	var formDetails []*FormDetail
+	if err := r.db.SelectContext(ctx, &formDetails, fullQuery, args...); err != nil {
 		return nil, fmt.Errorf("list form details: %w", err)
 	}
 
-	return details, nil
+	return formDetails, nil
 }
 
 // CountForm implements [IRepository].

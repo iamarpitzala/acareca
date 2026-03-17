@@ -72,12 +72,15 @@ type Filter struct {
 	Method     *string    `form:"method"`
 	Status     *string    `form:"status"`
 	SortBy     *string    `form:"sort_by"`
-	SortOrder  *string    `form:"sort_order"`
+	OrderBy    *string    `form:"order_by"`
+	Limit      *int       `form:"limit"`
+	Offset     *int       `form:"offset"`
+	Search     *string    `form:"search"`
 }
 
 // Custom validation for sort pair
 func (f Filter) Validate() error {
-	if (f.SortBy != nil) != (f.SortOrder != nil) {
+	if (f.SortBy != nil) != (f.OrderBy != nil) {
 		return errors.New("both sort_by and sort_order must be provided together")
 	}
 	return nil
