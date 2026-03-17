@@ -84,14 +84,14 @@ func (s *service) ListChartOfAccount(ctx context.Context, practitionerID uuid.UU
 	}
 
 	data := make([]RsChartOfAccount, 0, len(list))
-	for _, item := range list {
-		data = append(data, item.ToRs())
+	for i := range list {
+		data[i] = list[i].ToRs()
 	}
 
 	var rsList util.RsList
-	rsList.MapToList(data, total, ft.Offset, ft.Limit)
+	rsList.MapToList(data, total, *f.Offset, *f.Limit)
 
-	return &rsList, nil
+	return &util.RsList{}, nil
 }
 
 func (s *service) GetChartOfAccount(ctx context.Context, id uuid.UUID, practitionerID uuid.UUID) (*RsChartOfAccount, error) {
