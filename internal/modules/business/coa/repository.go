@@ -18,9 +18,9 @@ var (
 )
 
 type Repository interface {
-	ListAccountTypes(ctx context.Context) ([]*AccountType, error)
+	ListAccountTypes(ctx context.Context, f common.Filter) ([]*AccountType, error)
 	GetAccountType(ctx context.Context, id int16) (*AccountType, error)
-	ListAccountTaxes(ctx context.Context) ([]*AccountTax, error)
+	ListAccountTaxes(ctx context.Context, f common.Filter) ([]*AccountTax, error)
 	GetAccountTax(ctx context.Context, id int16) (*AccountTax, error)
 	GetAccountTypeByName(ctx context.Context, name string) (int, error)
 
@@ -41,27 +41,40 @@ func NewRepository(db *sqlx.DB) Repository {
 	return &repository{db: db}
 }
 
-func (r *repository) ListAccountTypes(ctx context.Context) ([]*AccountType, error) {
-	query := `
+func (r *repository) ListAccountTypes(ctx context.Context, f common.Filter) ([]*AccountType, error) {
+	base := `
 		SELECT id, name, created_at, updated_at
 		FROM tbl_account_type
-		ORDER BY id
-	`
+		WHERE 1=1
+		`
+
+	searchCols := []string{"name"}
+	colMap := map[string]string{"id": "id", "name": "name"}
+
+	query, filterArgs := common.BuildQuery(base, f, colMap, searchCols, false)
+	query = r.db.Rebind(query)
+
 	var list []*AccountType
-	if err := r.db.SelectContext(ctx, &list, query); err != nil {
+	if err := r.db.SelectContext(ctx, &list, query, filterArgs...); err != nil {
 		return nil, fmt.Errorf("list account types: %w", err)
 	}
 	return list, nil
 }
 
-func (r *repository) ListAccountTaxes(ctx context.Context) ([]*AccountTax, error) {
-	query := `
+func (r *repository) ListAccountTaxes(ctx context.Context, f common.Filter) ([]*AccountTax, error) {
+	base := `
 		SELECT id, name, rate, is_taxable, created_at, updated_at
 		FROM tbl_account_tax
-		ORDER BY id
+		WHERE 1=1
 	`
+	searchCols := []string{"name", "is_taxable"}
+	colMap := map[string]string{"id": "id", "name": "name", "rate": "rate"}
+
+	query, filterArgs := common.BuildQuery(base, f, colMap, searchCols, false)
+	query = r.db.Rebind(query)
+
 	var list []*AccountTax
-	if err := r.db.SelectContext(ctx, &list, query); err != nil {
+	if err := r.db.SelectContext(ctx, &list, query, filterArgs...); err != nil {
 		return nil, fmt.Errorf("list account taxes: %w", err)
 	}
 	return list, nil

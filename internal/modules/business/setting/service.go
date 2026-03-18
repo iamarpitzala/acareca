@@ -5,13 +5,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
 
 type Service interface {
 	CreatePractitioner(ctx context.Context, req *RqCreatePractitioner) (*RsPractitioner, error)
 	GetPractitioner(ctx context.Context, id uuid.UUID) (*RsPractitioner, error)
 	GetPractitionerByUserID(ctx context.Context, userID string) (*RsPractitioner, error)
-	ListPractitioners(ctx context.Context) ([]*RsPractitioner, error)
+	ListPractitioners(ctx context.Context, f *Filter) (*util.RsList, error)
 	UpdatePractitioner(ctx context.Context, id uuid.UUID, req *RqUpdatePractitioner) (*RsPractitioner, error)
 	DeletePractitioner(ctx context.Context, id uuid.UUID) error
 
@@ -52,16 +53,25 @@ func (s *service) GetPractitionerByUserID(ctx context.Context, userID string) (*
 	return t.ToRs(), nil
 }
 
-func (s *service) ListPractitioners(ctx context.Context) ([]*RsPractitioner, error) {
-	list, err := s.repo.List(ctx)
+func (s *service) ListPractitioners(ctx context.Context, f *Filter) (*util.RsList, error) {
+	ft := f.MapToFilter()
+	list, err := s.repo.List(ctx, ft)
 	if err != nil {
 		return nil, err
 	}
+	total, err := s.repo.Count(ctx, ft)
+	if err != nil {
+		return nil, err
+	}
+
 	out := make([]*RsPractitioner, len(list))
 	for i := range list {
 		out[i] = list[i].ToRs()
 	}
-	return out, nil
+
+	var rsList util.RsList
+	rsList.MapToList(out, total, ft.Offset, ft.Limit)
+	return &rsList, nil
 }
 
 func (s *service) UpdatePractitioner(ctx context.Context, id uuid.UUID, req *RqUpdatePractitioner) (*RsPractitioner, error) {
