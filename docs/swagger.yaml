@@ -630,6 +630,30 @@ definitions:
       start_date:
         type: string
     type: object
+  practitioner.RsPractitioner:
+    properties:
+      abn:
+        type: string
+      id:
+        type: string
+      user:
+        $ref: '#/definitions/practitioner.RsUserInfo'
+      verified:
+        type: boolean
+    type: object
+  practitioner.RsUserInfo:
+    properties:
+      email:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: string
+      last_name:
+        type: string
+      phone:
+        type: string
+    type: object
   response.RsError:
     properties:
       code:

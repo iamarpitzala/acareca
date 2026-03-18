@@ -3684,6 +3684,43 @@ const docTemplate = `{
                 }
             }
         },
+        "practitioner.RsPractitioner": {
+            "type": "object",
+            "properties": {
+                "abn": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/practitioner.RsUserInfo"
+                },
+                "verified": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "practitioner.RsUserInfo": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                }
+            }
+        },
         "response.RsError": {
             "type": "object",
             "properties": {
