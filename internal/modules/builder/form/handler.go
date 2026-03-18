@@ -220,7 +220,7 @@ func (h *handler) List(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, util.RsList{Items: list, Total: len(list)}, "Forms fetched successfully")
+	response.JSON(c, http.StatusOK, list, "Forms fetched successfully")
 }
 
 // @Summary Delete form
