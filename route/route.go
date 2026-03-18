@@ -131,9 +131,11 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 
 	entry.RegisterRoutes(entryGroup, entriesHandler)
 
+	calculationGroup := v1.Group("")
+	calculationGroup.Use(middleware.Auth(cfg))
 	calculationSvc := calculation.NewService(formSvc, versionSvc, fieldSvc, entriesSvc)
 	calculationHandler := calculation.NewHandler(calculationSvc)
-	calculation.RegisterRoutes(v1, calculationHandler)
+	calculation.RegisterRoutes(calculationGroup, calculationHandler)
 
 	settingGroup := v1.Group("/setting")
 	settingRepo := setting.NewRepository(dbConn)
