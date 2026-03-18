@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
+	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
 
 type Handler interface {
@@ -37,7 +38,7 @@ func NewHandler(svc Service) Handler {
 // @Param end_date query string false "End date (RFC3339)"
 // @Param limit query int false "Limit" default(100)
 // @Param offset query int false "Offset" default(0)
-// @Success 200 {array} RsAuditLog
+// @Success 200 {object} util.RsList
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
 // @Router /admin/audit [get]
@@ -109,7 +110,7 @@ func (h *handler) ListAuditLogs(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusOK, logs, "Audit logs fetched successfully")
+	response.JSON(c, http.StatusOK, util.RsList{Items: logs, Total: len(logs)}, "Audit logs fetched successfully")
 }
 
 // @Summary Get audit log by ID
