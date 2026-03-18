@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
+	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
 
 type Handler struct {
@@ -43,7 +44,7 @@ func (h *Handler) GetPractitioner(c *gin.Context) {
 // @Summary List all practitioners
 // @Tags practitioner
 // @Produce json
-// @Success 200 {array} RsPractitioner
+// @Success 200 {object} util.RsList
 // @Router /practitioner [get]
 // @Security BearerToken
 func (h *Handler) ListPractitioners(c *gin.Context) {
@@ -52,5 +53,5 @@ func (h *Handler) ListPractitioners(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, list, "")
+	response.JSON(c, http.StatusOK, util.RsList{Items: list, Total: len(list)}, "")
 }
