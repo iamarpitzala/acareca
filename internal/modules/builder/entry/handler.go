@@ -210,12 +210,21 @@ func (h *handler) List(c *gin.Context) {
 // @Security BearerToken
 // @Router /entry/transactions [get]
 func (h *handler) ListTransactions(c *gin.Context) {
+	practitionerID, ok := util.GetPractitionerID(c)
+	if !ok {
+		return
+	}
+
 	var filter TransactionFilter
 	if err := util.BindAndValidate(c, &filter); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	list, err := h.svc.ListTransactions(c.Request.Context(), filter)
+
+	pracIDStr := practitionerID.String()
+	filter.PractitionerID = &pracIDStr
+
+	list, err := h.svc.ListTransactions(c.Request.Context(), practitionerID, filter)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return

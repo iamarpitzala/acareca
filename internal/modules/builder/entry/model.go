@@ -126,24 +126,36 @@ type RsTransaction struct {
 }
 
 type TransactionFilter struct {
-	ClinicID  *string `form:"clinic_id"`
-	FormID    *string `form:"form_id"`
-	VersionID *string `form:"version_id"`
-	Status    *string `form:"status" validate:"omitempty,oneof=DRAFT SUBMITTED"`
-	Limit     *int    `form:"limit"`
-	Offset    *int    `form:"offset"`
+	PractitionerID *string `form:"-"`
+	ClinicID       *string `form:"clinic_id"`
+	FormID         *string `form:"form_id"`
+	VersionID      *string `form:"version_id"`
+	Status         *string `form:"status" validate:"omitempty,oneof=DRAFT SUBMITTED"`
+	Limit          *int    `form:"limit"`
+	Offset         *int    `form:"offset"`
 }
 
 func (f *TransactionFilter) ToCommonFilter() common.Filter {
 	filters := map[string]interface{}{}
+	if f.PractitionerID != nil && *f.PractitionerID != "" {
+		if id, err := uuid.Parse(*f.PractitionerID); err == nil {
+			filters["practitioner_id"] = id
+		}
+	}
 	if f.ClinicID != nil && *f.ClinicID != "" {
-		filters["clinic_id"] = *f.ClinicID
+		if id, err := uuid.Parse(*f.ClinicID); err == nil {
+			filters["clinic_id"] = id
+		}
 	}
 	if f.FormID != nil && *f.FormID != "" {
-		filters["form_id"] = *f.FormID
+		if id, err := uuid.Parse(*f.FormID); err == nil {
+			filters["form_id"] = id
+		}
 	}
 	if f.VersionID != nil && *f.VersionID != "" {
-		filters["version_id"] = *f.VersionID
+		if id, err := uuid.Parse(*f.VersionID); err == nil {
+			filters["version_id"] = id
+		}
 	}
 	if f.Status != nil && *f.Status != "" {
 		filters["status"] = *f.Status

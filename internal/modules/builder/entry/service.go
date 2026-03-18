@@ -21,7 +21,7 @@ type IService interface {
 	List(ctx context.Context, formVersionID uuid.UUID, filter Filter) (*util.RsList, error)
 	GetByVersionID(ctx context.Context, id uuid.UUID) (*RsFormEntry, error)
 
-	ListTransactions(ctx context.Context, filter TransactionFilter) (*util.RsList, error)
+	ListTransactions(ctx context.Context, practitionerID uuid.UUID, filter TransactionFilter) (*util.RsList, error)
 }
 
 type Service struct {
@@ -150,12 +150,15 @@ func (s *Service) GetByVersionID(ctx context.Context, id uuid.UUID) (*RsFormEntr
 }
 
 // ListTransactions implements [IService].
-func (s *Service) ListTransactions(ctx context.Context, filter TransactionFilter) (*util.RsList, error) {
-	items, err := s.repo.ListTransactions(ctx, filter)
+func (s *Service) ListTransactions(ctx context.Context, practitionerID uuid.UUID, filter TransactionFilter) (*util.RsList, error) {
+	pid := practitionerID.String()
+	filter.PractitionerID = &pid
+	f := filter.ToCommonFilter()
+	items, err := s.repo.ListTransactions(ctx, f)
 	if err != nil {
 		return nil, err
 	}
-	total, err := s.repo.CountTransactions(ctx, filter)
+	total, err := s.repo.CountTransactions(ctx, f)
 	if err != nil {
 		return nil, err
 	}
