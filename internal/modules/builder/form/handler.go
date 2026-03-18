@@ -136,7 +136,7 @@ func (h *handler) CreateFormWithFields(c *gin.Context) {
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
 // @Security BearerToken
-// @Router /form/{id}/update [patch]
+// @Router /form/{id} [patch]
 func (h *handler) UpdateFormWithFields(c *gin.Context) {
 	formID, ok := util.ParseUuidID(c, "id")
 	if !ok {

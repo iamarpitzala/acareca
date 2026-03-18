@@ -563,6 +563,126 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/subscription/{id}/permissions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
+                "description": "Returns all permission keys and their limits for a given plan",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subscription"
+                ],
+                "summary": "List permissions for a subscription plan",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Subscription ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/subscription.RsSubscriptionPermission"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/subscription/{id}/permissions/{key}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
+                "description": "Update usage_limit or is_enabled for a specific permission key on a plan",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subscription"
+                ],
+                "summary": "Update a permission limit for a subscription plan",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Subscription ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Permission key (e.g. clinic.create)",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Permission update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/subscription.RqUpdatePermission"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/subscription.RsSubscriptionPermission"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/update-fy/{financial_year_id}": {
             "put": {
                 "security": [
@@ -1496,6 +1616,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "description": "Filter by account type name",
+                        "name": "account_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
                         "description": "Search keyword",
                         "name": "search",
                         "in": "query"
@@ -1783,7 +1909,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/entry": {
+        "/entry/version/{version_id}": {
             "get": {
                 "security": [
                     {
@@ -1801,14 +1927,62 @@ const docTemplate = `{
                     "entry"
                 ],
                 "summary": "List form entries",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Version ID",
+                        "name": "version_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by clinic ID",
+                        "name": "clinic_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search keyword",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort field",
+                        "name": "sort_by",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Order direction (ASC/DESC)",
+                        "name": "order_by",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 10, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/entry.RsFormEntry"
-                            }
+                            "$ref": "#/definitions/util.RsList"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
                         }
                     },
                     "500": {
@@ -1818,9 +1992,7 @@ const docTemplate = `{
                         }
                     }
                 }
-            }
-        },
-        "/entry/version/{version_id}": {
+            },
             "post": {
                 "security": [
                     {
@@ -2316,9 +2488,7 @@ const docTemplate = `{
                         }
                     }
                 }
-            }
-        },
-        "/form/{id}/update": {
+            },
             "patch": {
                 "security": [
                     {
@@ -3865,14 +4035,20 @@ const docTemplate = `{
                     "maximum": 100,
                     "minimum": 0
                 },
-                "description": {
-                    "type": "string"
-                },
-                "fields": {
+                "create": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/field.RqUpdateFormField"
+                        "$ref": "#/definitions/field.RqFormField"
                     }
+                },
+                "delete": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "type": "string"
                 },
                 "id": {
                     "type": "string"
@@ -3899,6 +4075,12 @@ const docTemplate = `{
                         "PUBLISHED",
                         "ARCHIVED"
                     ]
+                },
+                "update": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/field.RqUpdateFormField"
+                    }
                 }
             }
         },
@@ -4153,6 +4335,18 @@ const docTemplate = `{
                 }
             }
         },
+        "subscription.RqUpdatePermission": {
+            "type": "object",
+            "properties": {
+                "is_enabled": {
+                    "type": "boolean"
+                },
+                "usage_limit": {
+                    "description": "-1 = unlimited, 0 = blocked, \u003e0 = capped",
+                    "type": "integer"
+                }
+            }
+        },
         "subscription.RqUpdatePractitionerSubscription": {
             "type": "object",
             "properties": {
@@ -4250,6 +4444,20 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "subscription.RsSubscriptionPermission": {
+            "type": "object",
+            "properties": {
+                "is_enabled": {
+                    "type": "boolean"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "usage_limit": {
+                    "type": "integer"
                 }
             }
         },

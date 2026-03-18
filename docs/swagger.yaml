@@ -571,12 +571,16 @@ definitions:
         maximum: 100
         minimum: 0
         type: integer
+      create:
+        items:
+          $ref: '#/definitions/field.RqFormField'
+        type: array
+      delete:
+        items:
+          type: string
+        type: array
       description:
         type: string
-      fields:
-        items:
-          $ref: '#/definitions/field.RqUpdateFormField'
-        type: array
       id:
         type: string
       method:
@@ -596,6 +600,10 @@ definitions:
         - PUBLISHED
         - ARCHIVED
         type: string
+      update:
+        items:
+          $ref: '#/definitions/field.RqUpdateFormField'
+        type: array
     required:
     - clinic_id
     type: object
@@ -765,6 +773,14 @@ definitions:
     - duration_days
     - name
     type: object
+  subscription.RqUpdatePermission:
+    properties:
+      is_enabled:
+        type: boolean
+      usage_limit:
+        description: -1 = unlimited, 0 = blocked, >0 = capped
+        type: integer
+    type: object
   subscription.RqUpdatePractitionerSubscription:
     properties:
       status:
@@ -830,6 +846,15 @@ definitions:
         type: number
       updated_at:
         type: string
+    type: object
+  subscription.RsSubscriptionPermission:
+    properties:
+      is_enabled:
+        type: boolean
+      key:
+        type: string
+      usage_limit:
+        type: integer
     type: object
   subscription.Status:
     enum:
@@ -1209,6 +1234,84 @@ paths:
       summary: Update a subscription
       tags:
       - admin-subscription
+  /admin/subscription/{id}/permissions:
+    get:
+      description: Returns all permission keys and their limits for a given plan
+      parameters:
+      - description: Subscription ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/subscription.RsSubscriptionPermission'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: List permissions for a subscription plan
+      tags:
+      - subscription
+  /admin/subscription/{id}/permissions/{key}:
+    put:
+      consumes:
+      - application/json
+      description: Update usage_limit or is_enabled for a specific permission key
+        on a plan
+      parameters:
+      - description: Subscription ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Permission key (e.g. clinic.create)
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: Permission update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/subscription.RqUpdatePermission'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/subscription.RsSubscriptionPermission'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: Update a permission limit for a subscription plan
+      tags:
+      - subscription
   /admin/update-fy/{financial_year_id}:
     put:
       consumes:
@@ -1795,6 +1898,10 @@ paths:
         in: query
         name: code
         type: integer
+      - description: Filter by account type name
+        in: query
+        name: account_type
+        type: string
       - description: Search keyword
         in: query
         name: search
@@ -1985,29 +2092,6 @@ paths:
       summary: Update an existing chart of account
       tags:
       - coa
-  /entry:
-    get:
-      consumes:
-      - application/json
-      description: List all entries for a specific version
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/entry.RsFormEntry'
-            type: array
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.RsError'
-      security:
-      - BearerToken: []
-      summary: List form entries
-      tags:
-      - entry
   /entry/{id}:
     delete:
       consumes:
@@ -2108,6 +2192,60 @@ paths:
       tags:
       - entry
   /entry/version/{version_id}:
+    get:
+      consumes:
+      - application/json
+      description: List all entries for a specific version
+      parameters:
+      - description: Version ID
+        in: path
+        name: version_id
+        required: true
+        type: string
+      - description: Filter by clinic ID
+        in: query
+        name: clinic_id
+        type: string
+      - description: Search keyword
+        in: query
+        name: search
+        type: string
+      - description: Sort field
+        in: query
+        name: sort_by
+        type: string
+      - description: Order direction (ASC/DESC)
+        in: query
+        name: order_by
+        type: string
+      - description: Page size (default 10, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/util.RsList'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: List form entries
+      tags:
+      - entry
     post:
       consumes:
       - application/json
@@ -2299,7 +2437,6 @@ paths:
       summary: Get form by ID
       tags:
       - form
-  /form/{id}/update:
     patch:
       consumes:
       - application/json
