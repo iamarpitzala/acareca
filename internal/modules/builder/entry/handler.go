@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/shared/limits"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
@@ -26,13 +27,24 @@ func NewHandler(svc IService) IHandler {
 	return &handler{svc: svc}
 }
 
-// Create implements [IHandler].
+// @Summary Create a new form entry
+// @Description Create a new entry for a specific form version
+// @Tags entry
+// @Accept json
+// @Produce json
+// @Param version_id path string true "Version ID"
+// @Param request body RqFormEntry true "Entry details"
+// @Success 201 {object} RsFormEntry
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /entry/version/{version_id} [post]
 func (h *handler) Create(c *gin.Context) {
 	versionID, ok := util.ParseUuidID(c, "version_id")
 	if !ok {
 		return
 	}
-	clinicID, ok := util.GetClinicID(c)
+	practitionerID, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
@@ -42,15 +54,29 @@ func (h *handler) Create(c *gin.Context) {
 		return
 	}
 	var submittedBy *uuid.UUID
-	created, err := h.svc.Create(c.Request.Context(), versionID, clinicID, &req, submittedBy)
+	created, err := h.svc.Create(c.Request.Context(), versionID, &req, submittedBy, practitionerID)
 	if err != nil {
+		if errors.Is(err, limits.ErrLimitReached) {
+			response.Error(c, http.StatusForbidden, err)
+			return
+		}
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusCreated, created)
+	response.JSON(c, http.StatusCreated, created, "Form entry created successfully")
 }
 
-// Get implements [IHandler].
+// @Summary Get a form entry by ID
+// @Description Fetch details of a specific entry
+// @Tags entry
+// @Accept json
+// @Produce json
+// @Param id path string true "Entry ID"
+// @Success 200 {object} RsFormEntry
+// @Failure 404 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /entry/{id} [get]
 func (h *handler) Get(c *gin.Context) {
 	id, ok := util.ParseUuidID(c, "id")
 	if !ok {
@@ -65,26 +91,35 @@ func (h *handler) Get(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, e)
+	response.JSON(c, http.StatusOK, e, "Form entry fetched successfully")
 }
 
-// Update implements [IHandler].
+// @Summary Update a form entry
+// @Description Update data for an existing entry
+// @Tags entry
+// @Accept json
+// @Produce json
+// @Param id path string true "Entry ID"
+// @Param request body RqUpdateFormEntry true "Updated details"
+// @Success 200 {object} RsFormEntry
+// @Failure 400 {object} response.RsError
+// @Failure 404 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /entry/{id} [patch]
 func (h *handler) Update(c *gin.Context) {
 	id, ok := util.ParseUuidID(c, "id")
 	if !ok {
 		return
 	}
-	clinicID, ok := util.GetClinicID(c)
-	if !ok {
-		return
-	}
+
 	var req RqUpdateFormEntry
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
 	var submittedBy *uuid.UUID
-	updated, err := h.svc.Update(c.Request.Context(), id, clinicID, &req, submittedBy)
+	updated, err := h.svc.Update(c.Request.Context(), id, &req, submittedBy)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
@@ -93,10 +128,20 @@ func (h *handler) Update(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, updated)
+	response.JSON(c, http.StatusOK, updated, "Form entry updated successfully")
 }
 
-// Delete implements [IHandler].
+// @Summary Delete a form entry
+// @Description Remove an entry from the system
+// @Tags entry
+// @Accept json
+// @Produce json
+// @Param id path string true "Entry ID"
+// @Success 204 "No Content"
+// @Failure 404 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /entry/{id} [delete]
 func (h *handler) Delete(c *gin.Context) {
 	id, ok := util.ParseUuidID(c, "id")
 	if !ok {
@@ -110,23 +155,42 @@ func (h *handler) Delete(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusNoContent, nil)
+	response.JSON(c, http.StatusNoContent, nil, "Form entry deleted successfully")
 }
 
-// List implements [IHandler].
+// @Summary List form entries
+// @Description List all entries for a specific version
+// @Tags entry
+// @Accept json
+// @Produce json
+// @Param version_id path string true "Version ID"
+// @Param clinic_id query string false "Filter by clinic ID"
+// @Param search query string false "Search keyword"
+// @Param sort_by query string false "Sort field"
+// @Param order_by query string false "Order direction (ASC/DESC)"
+// @Param limit query int false "Page size (default 10, max 100)"
+// @Param offset query int false "Offset"
+// @Success 200 {object} util.RsList
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /entry/version/{version_id} [get]
 func (h *handler) List(c *gin.Context) {
 	versionID, ok := util.ParseUuidID(c, "version_id")
 	if !ok {
 		return
 	}
-	clinicID, ok := util.GetClinicID(c)
-	if !ok {
+
+	var filter Filter
+	if err := util.BindAndValidate(c, &filter); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	list, err := h.svc.List(c.Request.Context(), versionID, &clinicID)
+
+	list, err := h.svc.List(c.Request.Context(), versionID, filter)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, list)
+	response.JSON(c, http.StatusOK, list, "Form entries fetched successfully")
 }

@@ -4,9 +4,11 @@ import (
 	"log"
 
 	"context"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/modules/admin/audit"
 	"github.com/iamarpitzala/acareca/internal/modules/admin/subscription"
 	"github.com/iamarpitzala/acareca/internal/modules/auth"
 	"github.com/iamarpitzala/acareca/internal/modules/builder/detail"
@@ -18,6 +20,7 @@ import (
 	"github.com/iamarpitzala/acareca/internal/modules/business/coa"
 	"github.com/iamarpitzala/acareca/internal/modules/business/fy"
 	"github.com/iamarpitzala/acareca/internal/modules/business/practitioner"
+	"github.com/iamarpitzala/acareca/internal/modules/business/setting"
 	userSubscription "github.com/iamarpitzala/acareca/internal/modules/business/subscription"
 	"github.com/iamarpitzala/acareca/internal/modules/engine/calculation"
 	"github.com/iamarpitzala/acareca/internal/modules/engine/method"
@@ -25,9 +28,17 @@ import (
 	"github.com/iamarpitzala/acareca/internal/shared/middleware"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 	"github.com/iamarpitzala/acareca/pkg/config"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
+
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 	v1 := r.Group("/api/v1")
 
 	dbConn, err := db.DBConn(cfg)
@@ -39,18 +50,18 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	practitionerRepo := practitioner.NewRepository(dbConn)
 	userSubscriptionRepo := userSubscription.NewRepository(dbConn)
 	coaRepo := coa.NewRepository(dbConn)
-	subscriptionSvc := subscription.NewService(subscriptionRepo)
+
+	// Initialize audit service
+	auditRepo := audit.NewRepository(dbConn)
+	auditSvc := audit.NewService(auditRepo)
+
+	subscriptionSvc := subscription.NewService(subscriptionRepo, auditSvc)
 	userSubscriptionSvc := userSubscription.NewService(userSubscriptionRepo)
 	practitionerSvc := practitioner.NewService(practitionerRepo, subscriptionSvc, userSubscriptionSvc, coaRepo)
 
-	authSvc := auth.NewService(authRepo, cfg, practitionerSvc)
+	authSvc := auth.NewService(authRepo, cfg, dbConn, practitionerSvc, auditSvc)
 	authHandler := auth.NewHandler(authSvc)
 	auth.RegisterRoutes(v1, authHandler)
-
-	calculationRepo := calculation.NewRepository(dbConn)
-	calculationSvc := calculation.NewService(calculationRepo, method.NewService())
-	calculationHandler := calculation.NewHandler(calculationSvc)
-	calculation.RegisterRoutes(v1, calculationHandler)
 
 	superadminCheck := func(ctx context.Context, userID uuid.UUID) (bool, error) {
 		u, err := authRepo.FindByID(ctx, userID)
@@ -67,21 +78,33 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 			return false, err
 		}
 		return superadminCheck(ctx, id)
-	}))
+	}), middleware.AuditContext())
 	subscriptionHandler := subscription.NewHandler(subscriptionSvc)
 	subscription.RegisterRoutes(subscriptionGroup, subscriptionHandler)
 
+	// Audit routes
+	auditGroup := adminGroup.Group("/audit")
+	auditGroup.Use(middleware.Auth(cfg), middleware.RequireSuperadmin(func(ctx context.Context, userID string) (bool, error) {
+		id, err := util.ParseUUID(userID)
+		if err != nil {
+			return false, err
+		}
+		return superadminCheck(ctx, id)
+	}))
+	auditHandler := audit.NewHandler(auditSvc)
+	audit.RegisterRoutes(auditGroup, auditHandler)
+
 	// clinic
 	clinicRepo := clinic.NewRepository(dbConn)
-	clinicSvc := clinic.NewService(clinicRepo)
+	clinicSvc := clinic.NewService(dbConn, clinicRepo, auditSvc)
 	clinicHandler := clinic.NewHandler(clinicSvc)
 	clinic.RegisterRoutes(v1, clinicHandler, cfg)
 
-	coaSvc := coa.NewService(coaRepo)
+	coaSvc := coa.NewService(coaRepo, dbConn, auditSvc)
 	coaHandler := coa.NewHandler(coaSvc)
 	coa.RegisterRoutes(v1.Group("/coa"), coaHandler, cfg)
 	fyRepo := fy.NewRepository(dbConn)
-	fySvc := fy.NewService(fyRepo, dbConn)
+	fySvc := fy.NewService(fyRepo, dbConn, auditSvc)
 	fyHandler := fy.NewHandler(fySvc)
 	fy.RegisterRoutes(v1, fyHandler)
 
@@ -92,11 +115,33 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	versionRepo := version.NewRepository(dbConn)
 	fieldRepo := field.NewRepository(dbConn)
 	entryRepo := entry.NewRepository(dbConn)
-	detailSvc := detail.NewService(detailRepo, version.NewService(versionRepo, clinicSvc))
-	fieldSvc := field.NewService(fieldRepo, coaSvc, clinicSvc, practitionerSvc, version.NewService(versionRepo, clinicSvc), entryRepo)
+	detailSvc := detail.NewService(dbConn, detailRepo, version.NewService(dbConn, versionRepo, clinicSvc))
+	fieldSvc := field.NewService(fieldRepo, coaSvc, clinicSvc, practitionerSvc, version.NewService(dbConn, versionRepo, clinicSvc))
 
-	versionSvc := version.NewService(versionRepo, clinicSvc)
+	versionSvc := version.NewService(dbConn, versionRepo, clinicSvc)
 	formSvc := form.NewService(detailSvc, versionSvc, fieldSvc, entryRepo, coaSvc)
 	formHandler := form.NewHandler(formSvc)
 	form.RegisterRoutes(formGroup, formHandler)
+
+	entryGroup := v1.Group("/entry")
+	entriesRepo := entry.NewRepository(dbConn)
+	entriesSvc := entry.NewService(dbConn, entriesRepo, fieldRepo, method.NewService())
+	entriesHandler := entry.NewHandler(entriesSvc)
+
+	entry.RegisterRoutes(entryGroup, entriesHandler)
+
+	calculationSvc := calculation.NewService(formSvc, versionSvc, fieldSvc, entriesSvc)
+	calculationHandler := calculation.NewHandler(calculationSvc)
+	calculation.RegisterRoutes(v1, calculationHandler)
+
+	settingGroup := v1.Group("/setting")
+	settingRepo := setting.NewRepository(dbConn)
+	settingSvc := setting.NewService(settingRepo)
+	settingHandler := setting.NewHandler(settingSvc)
+
+	setting.RegisterRoutes(settingGroup, settingHandler, cfg)
+
+	practitionerHandler := practitioner.NewHandler(practitionerSvc)
+	practitioner.RegisterRoutes(v1, practitionerHandler, cfg)
+
 }

@@ -12,6 +12,7 @@ import (
 type IHandler interface {
 	Register(c *gin.Context)
 	Login(c *gin.Context)
+	Logout(c *gin.Context)
 	GoogleAuthURL(c *gin.Context)
 	GoogleCallback(c *gin.Context)
 }
@@ -24,6 +25,18 @@ func NewHandler(svc Service) IHandler {
 	return &handler{svc: svc}
 }
 
+// Register godoc
+// @Summary Register a new user
+// @Description register a new user
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body RqUser true "Registration Data"
+// @Success 201 {object} response.RsBase
+// @Failure 400 {object} response.RsError
+// @Failure 409 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Router /auth/register [post]
 func (h *handler) Register(c *gin.Context) {
 	var req RqUser
 	if err := util.BindAndValidate(c, &req); err != nil {
@@ -41,9 +54,20 @@ func (h *handler) Register(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusCreated, user)
+	response.JSON(c, http.StatusCreated, user, "User registered successfully")
 }
 
+// Login godoc
+// @Summary Login a user
+// @Description login a user
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Success 200 {object} RsToken
+// @Failure 400 {object} response.RsError
+// @Failure 401 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Router /auth/login [post]
 func (h *handler) Login(c *gin.Context) {
 	var req RqLogin
 	if err := util.BindAndValidate(c, &req); err != nil {
@@ -61,17 +85,34 @@ func (h *handler) Login(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusOK, token)
+	response.JSON(c, http.StatusOK, token, "User logged in successfully")
 }
 
-// GoogleLogin returns the Google OAuth consent-screen URL.
+// GoogleLogin godoc
+// @Summary Get Google OAuth consent-screen URL
+// @Description get Google OAuth consent-screen URL
+// @Tags auth
+// @Produce json
+// @Success 200 {object} RsGoogleAuthURL
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Router /auth/google [get]
 func (h *handler) GoogleLogin(c *gin.Context) {
 	state := util.NewUUID()
 	result := h.svc.GoogleAuthURL(state)
-	response.JSON(c, http.StatusOK, result)
+	response.JSON(c, http.StatusOK, result, "Google OAuth consent-screen URL fetched successfully")
 }
 
-// GoogleCallback handles the redirect from Google after the user consents.
+// GoogleCallback godoc
+// @Summary Handle Google OAuth callback
+// @Description handle Google OAuth callback and return tokens
+// @Tags auth
+// @Produce json
+// @Param code query string true "OAuth authorization code"
+// @Success 200 {object} RsToken
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Router /auth/google/callback [get]
 func (h *handler) GoogleCallback(c *gin.Context) {
 	code := c.Query("code")
 	if code == "" {
@@ -85,12 +126,45 @@ func (h *handler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusOK, token)
+	response.JSON(c, http.StatusOK, token, "Google OAuth callback handled successfully")
 }
 
-// GoogleAuthURL implements [IHandler].
+// Logout godoc
+// @Summary Logout a user
+// @Description revoke the current session using the refresh token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} response.RsError
+// @Failure 401 {object} response.RsError
+// @Router /auth/logout [post]
+func (h *handler) Logout(c *gin.Context) {
+	var req struct {
+		RefreshToken string `json:"refresh_token" validate:"required"`
+	}
+	if err := util.BindAndValidate(c, &req); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+	if err := h.svc.Logout(c.Request.Context(), req.RefreshToken); err != nil {
+		response.Error(c, http.StatusUnauthorized, err)
+		return
+	}
+	response.JSON(c, http.StatusOK, nil, "Logged out successfully")
+}
+
+// GoogleAuthURL godoc
+// @Summary Get Google OAuth consent-screen URL
+// @Description get Google OAuth consent-screen URL
+// @Tags auth
+// @Produce json
+// @Success 200 {object} RsGoogleAuthURL
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Router /auth/google [get]
 func (h *handler) GoogleAuthURL(c *gin.Context) {
 	state := util.NewUUID()
 	result := h.svc.GoogleAuthURL(state)
-	response.JSON(c, http.StatusOK, result)
+	response.JSON(c, http.StatusOK, result, "Google OAuth consent-screen URL fetched successfully")
 }

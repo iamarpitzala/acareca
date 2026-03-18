@@ -32,15 +32,32 @@ func NewHandler(svc Service) IHandler {
 	return &handler{svc: svc}
 }
 
+// @Summary List all account types
+// @Tags coa
+// @Produce json
+// @Success 200 {object} util.RsList
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /coa/account-types [get]
 func (h *handler) ListAccountTypes(c *gin.Context) {
 	list, err := h.svc.ListAccountTypes(c.Request.Context())
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, list)
+	response.JSON(c, http.StatusOK, util.RsList{Items: list, Total: len(list)}, "Account types fetched successfully")
 }
 
+// @Summary Get account type by ID
+// @Tags coa
+// @Produce json
+// @Param id path int true "Account Type ID"
+// @Success 200 {object} AccountType
+// @Failure 400 {object} response.RsError
+// @Failure 404 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /coa/account-types/{id} [get]
 func (h *handler) GetAccountType(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 16)
 	if err != nil {
@@ -56,18 +73,35 @@ func (h *handler) GetAccountType(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, one)
+	response.JSON(c, http.StatusOK, one, "Account tax fetched successfully")
 }
 
+// @Summary List all account tax types
+// @Tags coa
+// @Produce json
+// @Success 200 {object} util.RsList
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /coa/account-taxes [get]
 func (h *handler) ListAccountTaxes(c *gin.Context) {
 	list, err := h.svc.ListAccountTaxes(c.Request.Context())
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, list)
+	response.JSON(c, http.StatusOK, util.RsList{Items: list, Total: len(list)}, "Account taxes fetched successfully")
 }
 
+// @Summary Get account tax by ID
+// @Tags coa
+// @Produce json
+// @Param id path int true "Account Tax ID"
+// @Success 200 {object} AccountTax
+// @Failure 400 {object} response.RsError
+// @Failure 404 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /coa/account-taxes/{id} [get]
 func (h *handler) GetAccountTax(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 16)
 	if err != nil {
@@ -83,22 +117,54 @@ func (h *handler) GetAccountTax(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, one)
+	response.JSON(c, http.StatusOK, one, "Account tax fetched successfully")
 }
 
+// @Summary List chart of accounts for practitioner
+// @Tags coa
+// @Produce json
+// @Param name query string false "Filter by name"
+// @Param code query int false "Filter by code"
+// @Param account_type query string false "Filter by account type name"
+// @Param search query string false "Search keyword"
+// @Param sort_by query string false "Sort field"
+// @Param order_by query string false "Order direction (ASC/DESC)"
+// @Param limit query int false "Page size (default 20, max 100)"
+// @Param offset query int false "Offset"
+// @Success 200 {object} util.RsList
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /coa/chart-of-account [get]
 func (h *handler) ListChartOfAccount(c *gin.Context) {
 	practitionerID, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
-	list, err := h.svc.ListChartOfAccount(c.Request.Context(), practitionerID)
+	var filter Filter
+	if err := util.BindAndValidate(c, &filter); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	result, err := h.svc.ListChartOfAccount(c.Request.Context(), practitionerID, &filter)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, list)
+	response.JSON(c, http.StatusOK, result, "Chart of accounts fetched successfully")
 }
 
+// @Summary Get chart of account by ID
+// @Tags coa
+// @Produce json
+// @Param id path string true "Chart of Account UUID"
+// @Success 200 {object} RsChartOfAccount
+// @Failure 400 {object} response.RsError
+// @Failure 404 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /coa/chart-of-account/{id} [get]
 func (h *handler) GetChartOfAccount(c *gin.Context) {
 	practitionerID, ok := util.GetPractitionerID(c)
 	if !ok {
@@ -118,9 +184,20 @@ func (h *handler) GetChartOfAccount(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, chart)
+	response.JSON(c, http.StatusOK, chart, "Chart of account fetched successfully")
 }
 
+// @Summary Create a new chart of account
+// @Tags coa
+// @Accept json
+// @Produce json
+// @Param request body RqCreateChartOfAccountOfAccount true "COA Data"
+// @Success 201 {object} RsChartOfAccount
+// @Failure 400 {object} response.RsError
+// @Failure 409 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /coa/chart-of-account [post]
 func (h *handler) CreateChartOfAccount(c *gin.Context) {
 	practitionerID, ok := util.GetPractitionerID(c)
 	if !ok {
@@ -144,9 +221,23 @@ func (h *handler) CreateChartOfAccount(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusCreated, created)
+	response.JSON(c, http.StatusCreated, created, "Chart of account created successfully")
 }
 
+// @Summary Update an existing chart of account
+// @Tags coa
+// @Accept json
+// @Produce json
+// @Param id path string true "Chart of Account UUID"
+// @Param request body RqUpdateCharOfAccountOfAccount true "Updated COA Data"
+// @Success 200 {object} RsChartOfAccount
+// @Failure 400 {object} response.RsError
+// @Failure 403 {object} response.RsError
+// @Failure 404 {object} response.RsError
+// @Failure 409 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /coa/chart-of-account/{id} [put]
 func (h *handler) UpdateCharOfAccount(c *gin.Context) {
 	practitionerID, ok := util.GetPractitionerID(c)
 	if !ok {
@@ -179,9 +270,20 @@ func (h *handler) UpdateCharOfAccount(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, updated)
+	response.JSON(c, http.StatusOK, updated, "Chart of account updated successfully")
 }
 
+// @Summary Delete chart of account
+// @Tags coa
+// @Produce json
+// @Param id path string true "Chart of Account UUID"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} response.RsError
+// @Failure 403 {object} response.RsError
+// @Failure 404 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /coa/chart-of-account/{id} [delete]
 func (h *handler) DeleteChartOfAccount(c *gin.Context) {
 	practitionerID, ok := util.GetPractitionerID(c)
 	if !ok {
@@ -204,5 +306,5 @@ func (h *handler) DeleteChartOfAccount(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, gin.H{"message": "deleted"})
+	response.JSON(c, http.StatusOK, gin.H{"message": "deleted"}, "Chart of account deleted successfully")
 }

@@ -2,29 +2,43 @@ package entry
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/modules/builder/field"
+	"github.com/iamarpitzala/acareca/internal/modules/engine/method"
+	"github.com/iamarpitzala/acareca/internal/shared/util"
+	"github.com/iamarpitzala/acareca/internal/shared/limits"
+	"github.com/jmoiron/sqlx"
 )
 
 type IService interface {
-	Create(ctx context.Context, formVersionID, clinicID uuid.UUID, req *RqFormEntry, submittedBy *uuid.UUID) (*RsFormEntry, error)
+	Create(ctx context.Context, formVersionID uuid.UUID, req *RqFormEntry, submittedBy *uuid.UUID, practitionerID uuid.UUID) (*RsFormEntry, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*RsFormEntry, error)
-	Update(ctx context.Context, id uuid.UUID, clinicID uuid.UUID, req *RqUpdateFormEntry, submittedBy *uuid.UUID) (*RsFormEntry, error)
+	Update(ctx context.Context, id uuid.UUID, req *RqUpdateFormEntry, submittedBy *uuid.UUID) (*RsFormEntry, error)
 	Delete(ctx context.Context, id uuid.UUID) error
-	List(ctx context.Context, formVersionID uuid.UUID, clinicID *uuid.UUID) ([]*RsFormEntry, error)
+	List(ctx context.Context, formVersionID uuid.UUID, filter Filter) (*util.RsList, error)
+	GetByVersionID(ctx context.Context, id uuid.UUID) (*RsFormEntry, error)
 }
 
 type Service struct {
-	repo IRepository
+	repo      IRepository
+	fieldRepo field.IRepository
+	methodSvc method.IService
+	limitsSvc limits.Service
 }
 
-func NewService(repo IRepository) IService {
-	return &Service{repo: repo}
+func NewService(db *sqlx.DB, repo IRepository, fieldRepo field.IRepository, methodSvc method.IService) IService {
+	return &Service{repo: repo, fieldRepo: fieldRepo, methodSvc: methodSvc, limitsSvc: limits.NewService(db)}
 }
 
 // Create implements [IService].
-func (s *Service) Create(ctx context.Context, formVersionID, clinicID uuid.UUID, req *RqFormEntry, submittedBy *uuid.UUID) (*RsFormEntry, error) {
+func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, req *RqFormEntry, submittedBy *uuid.UUID, practitionerID uuid.UUID) (*RsFormEntry, error) {
+	if err := s.limitsSvc.Check(ctx, practitionerID, limits.KeyTransactionCreate); err != nil {
+		return nil, err
+	}
+
 	status := EntryStatusDraft
 	if req.Status != "" {
 		status = req.Status
@@ -37,12 +51,15 @@ func (s *Service) Create(ctx context.Context, formVersionID, clinicID uuid.UUID,
 	e := &FormEntry{
 		ID:            uuid.New(),
 		FormVersionID: formVersionID,
-		ClinicID:      clinicID,
+		ClinicID:      req.ClinicID,
 		SubmittedBy:   submittedBy,
 		SubmittedAt:   submittedAt,
 		Status:        status,
 	}
-	values := makeValues(e.ID, req.Values)
+	values, err := s.CalculateValues(ctx, e.ID, req.Values)
+	if err != nil {
+		return nil, err
+	}
 	if err := s.repo.Create(ctx, e, values); err != nil {
 		return nil, err
 	}
@@ -63,7 +80,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*RsFormEntry, erro
 }
 
 // Update implements [IService].
-func (s *Service) Update(ctx context.Context, id uuid.UUID, clinicID uuid.UUID, req *RqUpdateFormEntry, submittedBy *uuid.UUID) (*RsFormEntry, error) {
+func (s *Service) Update(ctx context.Context, id uuid.UUID, req *RqUpdateFormEntry, submittedBy *uuid.UUID) (*RsFormEntry, error) {
 	existing, values, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -78,7 +95,10 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, clinicID uuid.UUID, 
 	}
 	newValues := values
 	if len(req.Values) > 0 {
-		newValues = makeValues(existing.ID, req.Values)
+		newValues, err = s.CalculateValues(ctx, existing.ID, req.Values)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if err := s.repo.Update(ctx, existing, newValues); err != nil {
 		return nil, err
@@ -96,33 +116,90 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 // List implements [IService].
-func (s *Service) List(ctx context.Context, formVersionID uuid.UUID, clinicID *uuid.UUID) ([]*RsFormEntry, error) {
-	list, err := s.repo.ListByFormVersionID(ctx, formVersionID, clinicID)
+func (s *Service) List(ctx context.Context, formVersionID uuid.UUID, filter Filter) (*util.RsList, error) {
+	f := filter.MapToFilter()
+
+	list, err := s.repo.ListByFormVersionID(ctx, formVersionID, f)
 	if err != nil {
 		return nil, err
 	}
-	rs := make([]*RsFormEntry, 0, len(list))
-	for _, e := range list {
-		rs = append(rs, e.ToRs(nil))
+	total, err := s.repo.CountByFormVersionID(ctx, formVersionID, f)
+	if err != nil {
+		return nil, err
 	}
-	return rs, nil
+
+	data := make([]*RsFormEntry, 0, len(list))
+	for _, e := range list {
+		data = append(data, e.ToRs(nil))
+	}
+
+	var rs util.RsList
+	rs.MapToList(data, total, f.Offset, f.Limit)
+	return &rs, nil
 }
 
-func makeValues(entryID uuid.UUID, rq []RqEntryValue) []*FormEntryValue {
+// GetByVersionID implements [IService].
+func (s *Service) GetByVersionID(ctx context.Context, id uuid.UUID) (*RsFormEntry, error) {
+	e, values, err := s.repo.GetByVersionID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return e.ToRs(values), nil
+}
+
+func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []RqEntryValue) ([]*FormEntryValue, error) {
 	out := make([]*FormEntryValue, 0, len(rq))
+
 	for _, v := range rq {
 		fieldID, err := uuid.Parse(v.FormFieldID)
 		if err != nil {
-			continue
+			return nil, err
 		}
-		out = append(out, &FormEntryValue{
+
+		field, err := s.fieldRepo.GetByID(ctx, fieldID)
+		if err != nil {
+			return nil, err
+		}
+
+		var gstAmount *float64
+
+		taxType := method.TaxTreatment(*field.TaxType)
+		switch taxType {
+		case method.TaxTreatmentInclusive, method.TaxTreatmentExclusive:
+			result, err := s.methodSvc.Calculate(ctx, taxType, &method.Input{
+				Amount: v.Amount,
+			})
+			if err != nil {
+				return nil, err
+			}
+			gstAmount = &result.GstAmount
+
+		case method.TaxTreatmentManual:
+			gstAmount = v.GstAmount
+
+		case method.TaxTreatmentZero:
+			gstAmount = nil
+
+		default:
+			return nil, fmt.Errorf("unsupported tax treatment: %s", taxType)
+		}
+
+		totalAmount := v.Amount
+		if gstAmount != nil {
+			totalAmount += *gstAmount
+		}
+
+		formValue := &FormEntryValue{
 			ID:          uuid.New(),
 			EntryID:     entryID,
 			FormFieldID: fieldID,
-			NetAmount:   v.NetAmount,
-			GstAmount:   v.GstAmount,
-			GrossAmount: v.GrossAmount,
-		})
+			NetAmount:   &v.Amount,
+			GstAmount:   gstAmount,
+			GrossAmount: &totalAmount,
+		}
+
+		out = append(out, formValue)
 	}
-	return out
+
+	return out, nil
 }

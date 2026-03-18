@@ -11,7 +11,7 @@ import (
 var errNotFound = errors.New("practitioner not found")
 
 type Repository interface {
-	CreatePractitioner(ctx context.Context, req *RqCreatePractitioner) (*RsPractitioner, error)
+	CreatePractitioner(ctx context.Context, req *RqCreatePractitioner, tx *sqlx.Tx) (*RsPractitioner, error)
 	GetPractitioner(ctx context.Context, id uuid.UUID) (*RsPractitioner, error)
 	DeletePractitioner(ctx context.Context, id uuid.UUID) error
 	ListPractitioners(ctx context.Context) ([]*RsPractitioner, error)
@@ -27,14 +27,14 @@ func NewRepository(db *sqlx.DB) Repository {
 }
 
 // CreatePractitioner implements [Repository].
-func (r *repository) CreatePractitioner(ctx context.Context, req *RqCreatePractitioner) (*RsPractitioner, error) {
+func (r *repository) CreatePractitioner(ctx context.Context, req *RqCreatePractitioner, tx *sqlx.Tx) (*RsPractitioner, error) {
 	query := `
 		INSERT INTO tbl_practitioner (user_id)
 		VALUES ($1)
 		RETURNING id, user_id, abn, verified, created_at, updated_at, deleted_at
 	`
 	var p Practitioner
-	if err := r.db.QueryRowxContext(ctx, query, req.UserID).StructScan(&p); err != nil {
+	if err := tx.QueryRowxContext(ctx, query, req.UserID).StructScan(&p); err != nil {
 		return nil, err
 	}
 	return p.ToRs(), nil
@@ -57,9 +57,13 @@ func (r *repository) DeletePractitioner(ctx context.Context, id uuid.UUID) error
 // GetPractitioner implements [Repository].
 func (r *repository) GetPractitioner(ctx context.Context, id uuid.UUID) (*RsPractitioner, error) {
 	query := `
-		SELECT id, user_id, abn, verified, created_at, updated_at, deleted_at FROM tbl_practitioner WHERE id = $1 AND deleted_at IS NULL
+		SELECT p.id, p.user_id, p.abn, p.verified, p.created_at, p.updated_at, p.deleted_at,
+		       u.email, u.first_name, u.last_name, u.phone
+		FROM tbl_practitioner p
+		JOIN tbl_user u ON u.id = p.user_id AND u.deleted_at IS NULL
+		WHERE p.id = $1 AND p.deleted_at IS NULL
 	`
-	var p Practitioner
+	var p PractitionerWithUser
 	if err := r.db.QueryRowxContext(ctx, query, id).StructScan(&p); err != nil {
 		return nil, err
 	}
@@ -81,9 +85,13 @@ func (r *repository) GetPractitionerByUserID(ctx context.Context, userID string)
 // ListPractitioners implements [Repository].
 func (r *repository) ListPractitioners(ctx context.Context) ([]*RsPractitioner, error) {
 	query := `
-		SELECT id, user_id, abn, verified, created_at, updated_at, deleted_at FROM tbl_practitioner WHERE deleted_at IS NULL
+		SELECT p.id, p.user_id, p.abn, p.verified, p.created_at, p.updated_at, p.deleted_at,
+		       u.email, u.first_name, u.last_name, u.phone
+		FROM tbl_practitioner p
+		JOIN tbl_user u ON u.id = p.user_id AND u.deleted_at IS NULL
+		WHERE p.deleted_at IS NULL
 	`
-	var list []*Practitioner
+	var list []*PractitionerWithUser
 	if err := r.db.SelectContext(ctx, &list, query); err != nil {
 		return nil, err
 	}

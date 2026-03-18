@@ -1,12 +1,14 @@
 package subscription
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
+	"github.com/jmoiron/sqlx"
 )
 
 type IHandler interface {
@@ -19,12 +21,23 @@ type IHandler interface {
 
 type handler struct {
 	svc Service
+	db  *sqlx.DB
 }
 
-func NewHandler(svc Service) IHandler {
-	return &handler{svc: svc}
+func NewHandler(svc Service, db *sqlx.DB) IHandler {
+	return &handler{svc: svc, db: db}
 }
 
+// @Summary Create a subscription
+// @Description create a subscription for a practitioner
+// @Tags subscription
+// @Accept json
+// @Produce json
+// @Success 201 {object} RsPractitionerSubscription
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /practitioner/subscription [post]
 func (h *handler) Create(c *gin.Context) {
 	practitionerID, ok := util.GetPractitionerID(c)
 	if !ok {
@@ -35,14 +48,34 @@ func (h *handler) Create(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	created, err := h.svc.Create(c.Request.Context(), practitionerID, &req)
+	var created *RsPractitionerSubscription
+	err := util.RunInTransaction(c, h.db, func(ctx context.Context, tx *sqlx.Tx) error {
+		Created, err := h.svc.Create(c.Request.Context(), practitionerID, &req, tx)
+		if err != nil {
+			return err
+		}
+		created = Created
+		return nil
+	})
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusCreated, created)
+
+	response.JSON(c, http.StatusCreated, created, "Subscription created successfully")
 }
 
+// @Summary Get a subscription by ID
+// @Description get a subscription by ID
+// @Tags subscription
+// @Accept json
+// @Produce json
+// @Param sub_id path int true "Subscription ID"
+// @Success 200 {object} RsSubscription
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /practitioner/subscription/{sub_id} [get]
 func (h *handler) GetByID(c *gin.Context) {
 	id, ok := util.ParseIntID(c, "sub_id")
 	if !ok {
@@ -57,9 +90,19 @@ func (h *handler) GetByID(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, sub)
+	response.JSON(c, http.StatusOK, sub, "Subscription fetched successfully")
 }
 
+// @Summary List subscriptions by practitioner ID
+// @Description list subscriptions by practitioner ID
+// @Tags subscription
+// @Accept json
+// @Produce json
+// @Success 200 {object} util.RsList
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /practitioner/subscription [get]
 func (h *handler) ListByPractitionerID(c *gin.Context) {
 	practitionerID, ok := util.GetPractitionerID(c)
 	if !ok {
@@ -70,9 +113,21 @@ func (h *handler) ListByPractitionerID(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, list)
+	response.JSON(c, http.StatusOK, util.RsList{Items: list, Total: len(list)}, "Subscriptions fetched successfully")
 }
 
+// @Summary Update a subscription
+// @Description update a subscription
+// @Tags subscription
+// @Accept json
+// @Produce json
+// @Param sub_id path int true "Subscription ID"
+// @Param request body RqUpdatePractitionerSubscription true "Updated Subscription Data"
+// @Success 200 {object} RsSubscription
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /practitioner/subscription/{sub_id} [patch]
 func (h *handler) Update(c *gin.Context) {
 	id, ok := util.ParseIntID(c, "sub_id")
 	if !ok {
@@ -92,9 +147,20 @@ func (h *handler) Update(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, updated)
+	response.JSON(c, http.StatusOK, updated, "Subscription updated successfully")
 }
 
+// @Summary Delete a subscription
+// @Description delete a subscription
+// @Tags subscription
+// @Accept json
+// @Produce json
+// @Param sub_id path int true "Subscription ID"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /practitioner/subscription/{sub_id} [delete]
 func (h *handler) Delete(c *gin.Context) {
 	id, ok := util.ParseIntID(c, "sub_id")
 	if !ok {
@@ -108,5 +174,5 @@ func (h *handler) Delete(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, gin.H{"message": "deleted"})
+	response.JSON(c, http.StatusOK, map[string]string{"message": "deleted"}, "Subscription deleted successfully")
 }

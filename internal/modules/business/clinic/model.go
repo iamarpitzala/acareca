@@ -1,9 +1,11 @@
 package clinic
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/shared/common"
 )
 
 // Database models
@@ -84,23 +86,41 @@ type RqFinancialSettings struct {
 }
 
 type RqUpdateClinic struct {
-	Name           *string           `json:"name"`
-	ProfilePicture *string           `json:"profile_picture"`
-	ABN            *string           `json:"abn" validate:"omitempty,len=11"`
-	Description    *string           `json:"description"`
-	IsActive       *bool             `json:"is_active"`
-	AddressData    *RqUpdateAddress  `json:"address_data"`
-	ContactData    map[string]string `json:"contact_data"`
-	FinancialYear  *uuid.UUID        `json:"financial_year"`
-	LockDate       *time.Time        `json:"lock_date"`
+	ID              *uuid.UUID        `json:"id"`
+	Name            *string           `json:"name"`
+	ProfilePicture  *string           `json:"profile_picture"`
+	ABN             *string           `json:"abn" validate:"omitempty,len=11"`
+	Description     *string           `json:"description"`
+	IsActive        *bool             `json:"is_active"`
+	Addresses       []RqUpdateAddress `json:"addresses"`
+	Contacts        []RqUpdateContact `json:"contacts"`
+	FinancialYearID *uuid.UUID        `json:"financial_year_id"`
+	LockDate        *time.Time        `json:"lock_date"`
 }
 
 type RqUpdateAddress struct {
-	Address   *string `json:"address"`
-	City      *string `json:"city"`
-	State     *string `json:"state"`
-	Postcode  *string `json:"postcode" validate:"omitempty,len=4"`
-	IsPrimary *bool   `json:"is_primary"`
+	ID        *uuid.UUID `json:"id"`
+	Address   *string    `json:"address"`
+	City      *string    `json:"city"`
+	State     *string    `json:"state"`
+	Postcode  *string    `json:"postcode" validate:"omitempty,len=4"`
+	IsPrimary *bool      `json:"is_primary"`
+}
+
+type RqUpdateContact struct {
+	ID          *uuid.UUID `json:"id"`
+	ContactType *string    `json:"contact_type" validate:"omitempty,oneof=PHONE EMAIL WEBSITE FAX"`
+	Value       *string    `json:"value"`
+	Label       *string    `json:"label"`
+	IsPrimary   *bool      `json:"is_primary"`
+}
+
+type RqBulkUpdateClinic struct {
+	Clinics []RqUpdateClinic `json:"clinics" validate:"required,dive"`
+}
+
+type RqBulkDeleteClinic struct {
+	ClinicIDs []uuid.UUID `json:"clinic_ids" validate:"required,min=1"`
 }
 
 // Response models
@@ -140,4 +160,48 @@ type RsFinancialSettings struct {
 	ID              uuid.UUID  `json:"id"`
 	FinancialYearID uuid.UUID  `json:"financial_year_id"`
 	LockDate        *time.Time `json:"lock_date,omitempty"`
+}
+
+type Filter struct {
+	ClinicName *string `form:"name"`
+	ClinicId   *string `form:"id"`
+	IsActive   *bool   `form:"is_active"`
+	Search     *string `form:"search"`
+	SortBy     *string `form:"sort_by"`
+	OrderBy    *string `form:"order_by"`
+	Limit      *int    `form:"limit"`
+	Offset     *int    `form:"offset"`
+}
+
+func (filter *Filter) MapToFilter() common.Filter {
+	filters := map[string]interface{}{}
+	if filter.ClinicId != nil {
+		id, err := uuid.Parse(*filter.ClinicId)
+		if err != nil {
+			fmt.Println("invalid clinic_id: %w", err)
+		}
+		filters["id"] = uuid.UUID(id)
+	}
+	if filter.ClinicName != nil {
+		filters["name"] = *filter.ClinicName
+	}
+	if filter.IsActive != nil {
+		filters["is_active"] = *filter.IsActive
+	}
+
+	f := common.NewFilter(filter.Search, filters, nil, filter.Limit, filter.Offset)
+
+	if filter.SortBy != nil {
+		f.SortBy = *filter.SortBy
+	} else {
+		f.SortBy = "created_at"
+	}
+
+	if filter.OrderBy != nil {
+		f.OrderBy = *filter.OrderBy
+	} else {
+		f.OrderBy = "DESC"
+	}
+
+	return f
 }
