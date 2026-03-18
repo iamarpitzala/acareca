@@ -83,11 +83,11 @@ func applyFormUpdatePatch(existing *FormDetail, d *RqUpdateFormDetail) error {
 	if existing.Status == StatusArchived {
 		return errors.New("form is archived")
 	}
-	if existing.Status == StatusPublished {
-		if d.Status != nil || d.Method != nil || d.OwnerShare != nil || d.ClinicShare != nil {
-			return errors.New("form is published and cannot be updated")
-		}
-	}
+	// if existing.Status == StatusPublished {
+	// 	if d.Status != nil || d.Method != nil || d.OwnerShare != nil || d.ClinicShare != nil {
+	// 		return errors.New("form is published and cannot be updated")
+	// 	}
+	// }
 	if d.Name != nil {
 		existing.Name = *d.Name
 	}
