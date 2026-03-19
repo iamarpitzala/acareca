@@ -60,6 +60,22 @@ definitions:
       refresh_token:
         type: string
     type: object
+  calculation.RqCalculateFromEntries:
+    properties:
+      entries:
+        items:
+          $ref: '#/definitions/entry.RsEntryValue'
+        minItems: 1
+        type: array
+      form_id:
+        type: string
+      super_component:
+        minimum: 0
+        type: number
+    required:
+    - entries
+    - form_id
+    type: object
   clinic.RqBulkDeleteClinic:
     properties:
       clinic_ids:
@@ -1534,6 +1550,46 @@ paths:
       summary: Register a new user
       tags:
       - auth
+  /calculate:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Run GrossMethod or NetMethod using entries provided in the request body.
+        No database lookup of entries is performed — suitable for previewing
+        calculations before an entry is submitted.
+      parameters:
+      - description: Form ID, entries, and optional super component
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/calculation.RqCalculateFromEntries'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: Calculate from supplied entries
+      tags:
+      - calculation
   /calculate/{id}:
     get:
       description: Calculate results for a specific form by ID
@@ -2265,6 +2321,47 @@ paths:
       security:
       - BearerToken: []
       summary: Update a form entry
+      tags:
+      - entry
+  /entry/transactions:
+    get:
+      description: Returns all form entries enriched with clinic, form, and field
+        data
+      parameters:
+      - description: Filter by clinic ID
+        in: query
+        name: clinic_id
+        type: string
+      - description: Filter by status (DRAFT, SUBMITTED)
+        in: query
+        name: status
+        type: string
+      - description: Page size (default 10, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/util.RsList'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: List all transactions
       tags:
       - entry
   /entry/version/{version_id}:
