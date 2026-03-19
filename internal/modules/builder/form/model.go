@@ -1,9 +1,17 @@
 package form
 
 import (
+	"errors"
+
 	"github.com/google/uuid"
 	"github.com/iamarpitzala/acareca/internal/modules/builder/detail"
 	"github.com/iamarpitzala/acareca/internal/modules/builder/field"
+)
+
+const (
+	StatusDraft     = "DRAFT"
+	StatusPublished = "PUBLISHED"
+	StatusArchived  = "ARCHIVED"
 )
 
 type RqBulkSyncFields struct {
@@ -49,7 +57,9 @@ type RqUpdateFormWithFields struct {
 	OwnerShare  *int                      `json:"owner_share" validate:"omitempty,min=0,max=100"`
 	ClinicShare *int                      `json:"clinic_share" validate:"omitempty,min=0,max=100"`
 	ClinicID    uuid.UUID                 `json:"clinic_id" validate:"required,uuid"`
-	Fields      []field.RqUpdateFormField `json:"fields" validate:"omitempty,dive"`
+	Update      []field.RqUpdateFormField `json:"update" validate:"omitempty,dive"`
+	Create      []field.RqFormField       `json:"create" validate:"omitempty,dive"`
+	Delete      []string                  `json:"delete" validate:"omitempty,dive"`
 }
 
 type RsFormWithFields struct {
@@ -59,5 +69,21 @@ type RsFormWithFields struct {
 }
 
 type Filter struct {
-	ClinicID *uuid.UUID `json:"clinic_id"`
+	ClinicID  *string `form:"clinic_id"`
+	FormName  *string `form:"form_name"`
+	Method    *string `form:"method"`
+	Status    *string `form:"status"`
+	Search    *string `form:"search"`
+	SortBy    *string `form:"sort_by"`
+	SortOrder *string `form:"sort_order"`
+	Limit     *int    `form:"limit"`
+	Offset    *int    `form:"offset"`
+}
+
+// Custom validation for sort pair
+func (f Filter) Validate() error {
+	if (f.SortBy != nil) != (f.SortOrder != nil) {
+		return errors.New("both sort_by and sort_order must be provided together")
+	}
+	return nil
 }

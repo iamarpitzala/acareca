@@ -1,7 +1,11 @@
 package entry
 
 import (
+	"encoding/json"
+	"log"
+
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/shared/common"
 )
 
 const (
@@ -11,9 +15,8 @@ const (
 
 type RqEntryValue struct {
 	FormFieldID string   `json:"form_field_id" validate:"required,uuid"`
-	NetAmount   *float64 `json:"net_amount,omitempty"`
+	Amount      float64  `json:"amount" validate:"required,min=0"`
 	GstAmount   *float64 `json:"gst_amount,omitempty"`
-	GrossAmount *float64 `json:"gross_amount,omitempty"`
 }
 
 type RqFormEntry struct {
@@ -39,14 +42,14 @@ type FormEntry struct {
 }
 
 type FormEntryValue struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	EntryID     uuid.UUID `db:"entry_id" json:"entry_id"`
-	FormFieldID uuid.UUID `db:"form_field_id" json:"form_field_id"`
-	NetAmount   *float64  `db:"net_amount" json:"net_amount,omitempty"`
-	GstAmount   *float64  `db:"gst_amount" json:"gst_amount,omitempty"`
-	GrossAmount *float64  `db:"gross_amount" json:"gross_amount,omitempty"`
-	CreatedAt   string    `db:"created_at" json:"created_at"`
-	UpdatedAt   string    `db:"updated_at" json:"updated_at"`
+	ID          uuid.UUID `db:"id"`
+	EntryID     uuid.UUID `db:"entry_id"`
+	FormFieldID uuid.UUID `db:"form_field_id"`
+	NetAmount   *float64  `db:"net_amount"`
+	GstAmount   *float64  `db:"gst_amount"`
+	GrossAmount *float64  `db:"gross_amount"`
+	CreatedAt   string    `db:"created_at"`
+	UpdatedAt   string    `db:"updated_at"`
 }
 
 func (d *FormEntry) ToRs(values []*FormEntryValue) *RsFormEntry {
@@ -94,5 +97,105 @@ type RsEntryValue struct {
 }
 
 type Filter struct {
-	ClinicID *uuid.UUID `json:"clinic_id,omitempty"`
+	ClinicID *string `form:"clinic_id"`
+	Search   *string `form:"search"`
+	SortBy   *string `form:"sort_by"`
+	OrderBy  *string `form:"order_by"`
+	Limit    *int    `form:"limit"`
+	Offset   *int    `form:"offset"`
+}
+
+type RsTransactionDetail struct {
+	FieldName string   `json:"field_name"`
+	GstType   *string  `json:"gst_type"`
+	Amount    *float64 `json:"amount"`
+	GstAmount *float64 `json:"gst_amount"`
+	NetAmount *float64 `json:"net_amount"`
+}
+
+type RsTransaction struct {
+	ID            uuid.UUID             `json:"id"`
+	FormVersionID uuid.UUID             `json:"form_version_id"`
+	ClinicID      uuid.UUID             `json:"clinic_id"`
+	ClinicName    string                `json:"clinic_name"`
+	FormID        uuid.UUID             `json:"form_id"`
+	FormName      string                `json:"form_name"`
+	Method        string                `json:"method"`
+	FormStatus    string                `json:"form_status"`
+	EntryDetail   []RsTransactionDetail `json:"entry_detail"`
+}
+
+type TransactionFilter struct {
+	PractitionerID *string `form:"-"`
+	ClinicID       *string `form:"clinic_id"`
+	FormID         *string `form:"form_id"`
+	VersionID      *string `form:"version_id"`
+	Status         *string `form:"status" validate:"omitempty,oneof=DRAFT SUBMITTED"`
+	Limit          *int    `form:"limit"`
+	Offset         *int    `form:"offset"`
+}
+
+func (f *TransactionFilter) ToCommonFilter() common.Filter {
+	filters := map[string]interface{}{}
+	if f.PractitionerID != nil && *f.PractitionerID != "" {
+		if id, err := uuid.Parse(*f.PractitionerID); err == nil {
+			filters["practitioner_id"] = id
+		}
+	}
+	if f.ClinicID != nil && *f.ClinicID != "" {
+		if id, err := uuid.Parse(*f.ClinicID); err == nil {
+			filters["clinic_id"] = id
+		}
+	}
+	if f.FormID != nil && *f.FormID != "" {
+		if id, err := uuid.Parse(*f.FormID); err == nil {
+			filters["form_id"] = id
+		}
+	}
+	if f.VersionID != nil && *f.VersionID != "" {
+		if id, err := uuid.Parse(*f.VersionID); err == nil {
+			filters["version_id"] = id
+		}
+	}
+	if f.Status != nil && *f.Status != "" {
+		filters["status"] = *f.Status
+	}
+	return common.NewFilter(nil, filters, nil, f.Limit, f.Offset)
+}
+
+func (f *Filter) MapToFilter() common.Filter {
+	filters := map[string]interface{}{}
+	if f.ClinicID != nil {
+		id, err := uuid.Parse(*f.ClinicID)
+		if err != nil {
+			log.Printf("failed to parse clinic id: %v", err)
+		}
+		filters["clinic_id"] = id
+	}
+
+	cf := common.NewFilter(f.Search, filters, nil, f.Limit, f.Offset)
+
+	if f.SortBy != nil {
+		cf.SortBy = *f.SortBy
+	} else {
+		cf.SortBy = "created_at"
+	}
+	if f.OrderBy != nil {
+		cf.OrderBy = *f.OrderBy
+	} else {
+		cf.OrderBy = "DESC"
+	}
+	return cf
+}
+
+type transactionRow struct {
+	ID             uuid.UUID       `db:"id"`
+	FormVersionID  uuid.UUID       `db:"form_version_id"`
+	ClinicID       uuid.UUID       `db:"clinic_id"`
+	ClinicName     string          `db:"clinic_name"`
+	FormID         uuid.UUID       `db:"form_id"`
+	FormName       string          `db:"form_name"`
+	Method         string          `db:"method"`
+	FormStatus     string          `db:"form_status"`
+	EntryDetailRaw json.RawMessage `db:"entry_detail"`
 }

@@ -3,10 +3,12 @@ package entry
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/shared/common"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -17,8 +19,19 @@ type IRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*FormEntry, []*FormEntryValue, error)
 	Update(ctx context.Context, e *FormEntry, values []*FormEntryValue) error
 	Delete(ctx context.Context, id uuid.UUID) error
-	ListByFormVersionID(ctx context.Context, formVersionID uuid.UUID, clinicID *uuid.UUID) ([]*FormEntry, error)
+	ListByFormVersionID(ctx context.Context, formVersionID uuid.UUID, f common.Filter) ([]*FormEntry, error)
+	CountByFormVersionID(ctx context.Context, formVersionID uuid.UUID, f common.Filter) (int, error)
 	HasSubmittedEntryValuesForField(ctx context.Context, formFieldID uuid.UUID) (bool, error)
+
+	GetByVersionID(ctx context.Context, id uuid.UUID) (*FormEntry, []*FormEntryValue, error)
+
+	ListTransactions(ctx context.Context, f common.Filter) ([]*RsTransaction, error)
+	CountTransactions(ctx context.Context, f common.Filter) (int, error)
+
+	// Transaction-based variants
+	CreateTx(ctx context.Context, tx *sqlx.Tx, e *FormEntry, values []*FormEntryValue) error
+	UpdateTx(ctx context.Context, tx *sqlx.Tx, e *FormEntry, values []*FormEntryValue) error
+	DeleteTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID) error
 }
 
 type Repository struct {
@@ -143,20 +156,40 @@ func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 // ListByFormVersionID implements [IRepository].
-func (r *Repository) ListByFormVersionID(ctx context.Context, formVersionID uuid.UUID, clinicID *uuid.UUID) ([]*FormEntry, error) {
-	query := `SELECT id, form_version_id, clinic_id, submitted_by, submitted_at, status, created_at, updated_at
-		FROM tbl_form_entry WHERE form_version_id = $1 AND deleted_at IS NULL`
-	args := []interface{}{formVersionID}
-	if clinicID != nil {
-		query += ` AND clinic_id = $2`
-		args = append(args, *clinicID)
+func (r *Repository) ListByFormVersionID(ctx context.Context, formVersionID uuid.UUID, f common.Filter) ([]*FormEntry, error) {
+	allowedColumns := map[string]string{
+		"clinic_id":  "clinic_id",
+		"created_at": "created_at",
+		"status":     "status",
 	}
-	query += ` ORDER BY created_at DESC`
+	base := `SELECT id, form_version_id, clinic_id, submitted_by, submitted_at, status, created_at, updated_at
+		FROM tbl_form_entry WHERE form_version_id = ? AND deleted_at IS NULL`
+	q, args := common.BuildQuery(base, f, allowedColumns, []string{"status"}, false)
+	q = sqlx.Rebind(sqlx.DOLLAR, q)
+	args = append([]interface{}{formVersionID}, args...)
 	var list []*FormEntry
-	if err := r.db.SelectContext(ctx, &list, query, args...); err != nil {
+	if err := r.db.SelectContext(ctx, &list, q, args...); err != nil {
 		return nil, fmt.Errorf("list form entries: %w", err)
 	}
 	return list, nil
+}
+
+// CountByFormVersionID implements [IRepository].
+func (r *Repository) CountByFormVersionID(ctx context.Context, formVersionID uuid.UUID, f common.Filter) (int, error) {
+	allowedColumns := map[string]string{
+		"clinic_id":  "clinic_id",
+		"created_at": "created_at",
+		"status":     "status",
+	}
+	base := `FROM tbl_form_entry WHERE form_version_id = ? AND deleted_at IS NULL`
+	q, args := common.BuildQuery(base, f, allowedColumns, []string{"status"}, true)
+	q = sqlx.Rebind(sqlx.DOLLAR, q)
+	args = append([]interface{}{formVersionID}, args...)
+	var total int
+	if err := r.db.QueryRowContext(ctx, q, args...).Scan(&total); err != nil {
+		return 0, fmt.Errorf("count form entries: %w", err)
+	}
+	return total, nil
 }
 
 // HasSubmittedEntryValuesForField implements [IRepository]. Returns true if the field has any entry values in SUBMITTED entries.
@@ -171,4 +204,198 @@ func (r *Repository) HasSubmittedEntryValuesForField(ctx context.Context, formFi
 		return false, fmt.Errorf("has submitted entry values for field: %w", err)
 	}
 	return exists, nil
+}
+
+func (r *Repository) GetByVersionID(ctx context.Context, id uuid.UUID) (*FormEntry, []*FormEntryValue, error) {
+	query := `SELECT id, form_version_id, clinic_id, submitted_by, submitted_at, status, created_at, updated_at
+		FROM tbl_form_entry WHERE form_version_id = $1 AND deleted_at IS NULL`
+	var e FormEntry
+	if err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&e.ID, &e.FormVersionID, &e.ClinicID, &e.SubmittedBy, &e.SubmittedAt, &e.Status, &e.CreatedAt, &e.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil, ErrNotFound
+		}
+		return nil, nil, fmt.Errorf("get form entry: %w", err)
+	}
+
+	valQuery := `SELECT id, entry_id, form_field_id, net_amount, gst_amount, gross_amount, created_at, updated_at
+		FROM tbl_form_entry_value WHERE entry_id = $1`
+	var values []*FormEntryValue
+	if err := r.db.SelectContext(ctx, &values, valQuery, e.ID); err != nil {
+		return nil, nil, fmt.Errorf("get entry values: %w", err)
+	}
+	return &e, values, nil
+}
+
+var allowedTransactionColumns = map[string]string{
+	"clinic_id":       "e.clinic_id",
+	"version_id":      "e.form_version_id",
+	"form_id":         "fm.id",
+	"status":          "e.status",
+	"created_at":      "e.created_at",
+	"practitioner_id": "c.practitioner_id",
+}
+
+func (r *Repository) ListTransactions(ctx context.Context, f common.Filter) ([]*RsTransaction, error) {
+	base := `
+		SELECT
+			e.id,
+			e.form_version_id,
+			e.clinic_id,
+			c.name  AS clinic_name,
+			fm.id   AS form_id,
+			fm.name AS form_name,
+			fm.method,
+			e.status AS form_status,
+			COALESCE((
+				SELECT json_agg(
+					json_build_object(
+						'field_name', ff.label,
+						'gst_type',   ff.tax_type,
+						'amount',     ev.gross_amount,
+						'gst_amount', ev.gst_amount,
+						'net_amount', ev.net_amount
+					) ORDER BY ff.sort_order
+				)
+				FROM tbl_form_entry_value ev
+				INNER JOIN tbl_form_field ff ON ff.id = ev.form_field_id AND ff.deleted_at IS NULL
+				WHERE ev.entry_id = e.id
+			), '[]') AS entry_detail
+		FROM tbl_form_entry e
+		INNER JOIN tbl_custom_form_version fv ON fv.id = e.form_version_id AND fv.deleted_at IS NULL
+		INNER JOIN tbl_form                fm ON fm.id = fv.form_id        AND fm.deleted_at IS NULL
+		INNER JOIN tbl_clinic               c ON  c.id = e.clinic_id       AND  c.deleted_at IS NULL
+		WHERE e.deleted_at IS NULL`
+
+	q, args := common.BuildQuery(base, f, allowedTransactionColumns, nil, false)
+	q = sqlx.Rebind(sqlx.DOLLAR, q)
+
+	rows, err := r.db.QueryxContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list transactions: %w", err)
+	}
+	defer rows.Close()
+
+	var result []*RsTransaction
+	for rows.Next() {
+		var row transactionRow
+		if err := rows.StructScan(&row); err != nil {
+			return nil, fmt.Errorf("scan transaction row: %w", err)
+		}
+		tx := &RsTransaction{
+			ID:            row.ID,
+			FormVersionID: row.FormVersionID,
+			ClinicID:      row.ClinicID,
+			ClinicName:    row.ClinicName,
+			FormID:        row.FormID,
+			FormName:      row.FormName,
+			Method:        row.Method,
+			FormStatus:    row.FormStatus,
+			EntryDetail:   []RsTransactionDetail{},
+		}
+		if len(row.EntryDetailRaw) > 0 {
+			if err := json.Unmarshal(row.EntryDetailRaw, &tx.EntryDetail); err != nil {
+				return nil, fmt.Errorf("unmarshal entry_detail: %w", err)
+			}
+		}
+		result = append(result, tx)
+	}
+	return result, rows.Err()
+}
+
+func (r *Repository) CountTransactions(ctx context.Context, f common.Filter) (int, error) {
+	base := `
+		FROM tbl_form_entry e
+		INNER JOIN tbl_custom_form_version fv ON fv.id = e.form_version_id AND fv.deleted_at IS NULL
+		INNER JOIN tbl_form                fm ON fm.id = fv.form_id        AND fm.deleted_at IS NULL
+		INNER JOIN tbl_clinic               c ON  c.id = e.clinic_id       AND  c.deleted_at IS NULL
+		WHERE e.deleted_at IS NULL`
+
+	q, args := common.BuildQuery(base, f, allowedTransactionColumns, nil, true)
+	q = sqlx.Rebind(sqlx.DOLLAR, q)
+
+	var total int
+	if err := r.db.QueryRowContext(ctx, q, args...).Scan(&total); err != nil {
+		return 0, fmt.Errorf("count transactions: %w", err)
+	}
+	return total, nil
+}
+
+// CreateTx - Transaction variant of Create
+func (r *Repository) CreateTx(ctx context.Context, tx *sqlx.Tx, e *FormEntry, values []*FormEntryValue) error {
+	query := `
+		INSERT INTO tbl_form_entry (id, form_version_id, clinic_id, submitted_by, submitted_at, status)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING created_at, updated_at
+	`
+	if err := tx.QueryRowContext(ctx, query,
+		e.ID, e.FormVersionID, e.ClinicID, e.SubmittedBy, e.SubmittedAt, e.Status,
+	).Scan(&e.CreatedAt, &e.UpdatedAt); err != nil {
+		return fmt.Errorf("create form entry tx: %w", err)
+	}
+
+	for _, v := range values {
+		v.EntryID = e.ID
+		valQuery := `
+			INSERT INTO tbl_form_entry_value (id, entry_id, form_field_id, net_amount, gst_amount, gross_amount)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING created_at, updated_at
+		`
+		if err := tx.QueryRowContext(ctx, valQuery, v.ID, v.EntryID, v.FormFieldID, v.NetAmount, v.GstAmount, v.GrossAmount).
+			Scan(&v.CreatedAt, &v.UpdatedAt); err != nil {
+			return fmt.Errorf("create entry value tx: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// UpdateTx - Transaction variant of Update
+func (r *Repository) UpdateTx(ctx context.Context, tx *sqlx.Tx, e *FormEntry, values []*FormEntryValue) error {
+	query := `
+		UPDATE tbl_form_entry
+		SET submitted_by = $1, submitted_at = $2, status = $3, updated_at = now()
+		WHERE id = $4 AND deleted_at IS NULL
+		RETURNING created_at, updated_at
+	`
+	if err := tx.QueryRowContext(ctx, query, e.SubmittedBy, e.SubmittedAt, e.Status, e.ID).
+		Scan(&e.CreatedAt, &e.UpdatedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("update form entry tx: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM tbl_form_entry_value WHERE entry_id = $1`, e.ID); err != nil {
+		return fmt.Errorf("delete entry values tx: %w", err)
+	}
+	for _, v := range values {
+		v.EntryID = e.ID
+		valQuery := `
+			INSERT INTO tbl_form_entry_value (id, entry_id, form_field_id, net_amount, gst_amount, gross_amount)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING created_at, updated_at
+		`
+		if err := tx.QueryRowContext(ctx, valQuery, v.ID, v.EntryID, v.FormFieldID, v.NetAmount, v.GstAmount, v.GrossAmount).
+			Scan(&v.CreatedAt, &v.UpdatedAt); err != nil {
+			return fmt.Errorf("insert entry value tx: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// DeleteTx - Transaction variant of Delete
+func (r *Repository) DeleteTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID) error {
+	query := `UPDATE tbl_form_entry SET deleted_at = now(), updated_at = now() WHERE id = $1 AND deleted_at IS NULL`
+	res, err := tx.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("delete form entry tx: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

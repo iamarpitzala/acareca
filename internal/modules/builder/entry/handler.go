@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/shared/limits"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
@@ -16,6 +17,7 @@ type IHandler interface {
 	Update(c *gin.Context)
 	Delete(c *gin.Context)
 	List(c *gin.Context)
+	ListTransactions(c *gin.Context)
 }
 
 type handler struct {
@@ -36,9 +38,14 @@ func NewHandler(svc IService) IHandler {
 // @Success 201 {object} RsFormEntry
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /entry/version/{version_id} [post]
 func (h *handler) Create(c *gin.Context) {
 	versionID, ok := util.ParseUuidID(c, "version_id")
+	if !ok {
+		return
+	}
+	practitionerID, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
@@ -48,8 +55,12 @@ func (h *handler) Create(c *gin.Context) {
 		return
 	}
 	var submittedBy *uuid.UUID
-	created, err := h.svc.Create(c.Request.Context(), versionID, &req, submittedBy)
+	created, err := h.svc.Create(c.Request.Context(), versionID, &req, submittedBy, practitionerID)
 	if err != nil {
+		if errors.Is(err, limits.ErrLimitReached) {
+			response.Error(c, http.StatusForbidden, err)
+			return
+		}
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
@@ -65,6 +76,7 @@ func (h *handler) Create(c *gin.Context) {
 // @Success 200 {object} RsFormEntry
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /entry/{id} [get]
 func (h *handler) Get(c *gin.Context) {
 	id, ok := util.ParseUuidID(c, "id")
@@ -94,7 +106,8 @@ func (h *handler) Get(c *gin.Context) {
 // @Failure 400 {object} response.RsError
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
-// @Router /entry/{id} [put]
+// @Security BearerToken
+// @Router /entry/{id} [patch]
 func (h *handler) Update(c *gin.Context) {
 	id, ok := util.ParseUuidID(c, "id")
 	if !ok {
@@ -128,6 +141,7 @@ func (h *handler) Update(c *gin.Context) {
 // @Success 204 "No Content"
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /entry/{id} [delete]
 func (h *handler) Delete(c *gin.Context) {
 	id, ok := util.ParseUuidID(c, "id")
@@ -146,13 +160,21 @@ func (h *handler) Delete(c *gin.Context) {
 }
 
 // @Summary List form entries
-// @Description List all entries for a specific version and clinic
+// @Description List all entries for a specific version
 // @Tags entry
 // @Accept json
 // @Produce json
 // @Param version_id path string true "Version ID"
-// @Success 200 {array} RsFormEntry
+// @Param clinic_id query string false "Filter by clinic ID"
+// @Param search query string false "Search keyword"
+// @Param sort_by query string false "Sort field"
+// @Param order_by query string false "Order direction (ASC/DESC)"
+// @Param limit query int false "Page size (default 10, max 100)"
+// @Param offset query int false "Offset"
+// @Success 200 {object} util.RsList
+// @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /entry/version/{version_id} [get]
 func (h *handler) List(c *gin.Context) {
 	versionID, ok := util.ParseUuidID(c, "version_id")
@@ -167,6 +189,42 @@ func (h *handler) List(c *gin.Context) {
 	}
 
 	list, err := h.svc.List(c.Request.Context(), versionID, filter)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+	response.JSON(c, http.StatusOK, list, "Form entries fetched successfully")
+}
+
+// @Summary List all transactions
+// @Description Returns all form entries enriched with clinic, form, and field data
+// @Tags entry
+// @Produce json
+// @Param clinic_id query string false "Filter by clinic ID"
+// @Param status query string false "Filter by status (DRAFT, SUBMITTED)"
+// @Param limit query int false "Page size (default 10, max 100)"
+// @Param offset query int false "Offset"
+// @Success 200 {object} util.RsList
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /entry/transactions [get]
+func (h *handler) ListTransactions(c *gin.Context) {
+	practitionerID, ok := util.GetPractitionerID(c)
+	if !ok {
+		return
+	}
+
+	var filter TransactionFilter
+	if err := util.BindAndValidate(c, &filter); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	pracIDStr := practitionerID.String()
+	filter.PractitionerID = &pracIDStr
+
+	list, err := h.svc.ListTransactions(c.Request.Context(), practitionerID, filter)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return

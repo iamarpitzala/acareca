@@ -2,12 +2,15 @@ package main
 
 import (
 	"log"
+	_ "net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
+	"github.com/iamarpitzala/acareca/docs"
 	_ "github.com/iamarpitzala/acareca/docs"
 	"github.com/iamarpitzala/acareca/internal/shared/db"
 	"github.com/iamarpitzala/acareca/internal/shared/middleware"
@@ -20,9 +23,14 @@ import (
 // @version 1.0.0
 // @description Backend API for acareca
 // @contact.name API Support
-// @host localhost:8080
+
+// @securityDefinitions.apikey BearerToken
+// @in header
+// @name Authorization
+// @description Type "Bearer <your_token>" to authenticate
+
 // @BasePath /api/v1
-// @schemes http
+// @schemes http https
 // @consumes application/json
 // @produces application/json
 func main() {
@@ -31,6 +39,19 @@ func main() {
 	}
 
 	cfg := config.NewConfig()
+
+	// --- DYNAMIC SWAGGER CONFIGURATION ---
+	// This overrides the static comments based on the environment
+	docs.SwaggerInfo.BasePath = "/api/v1"
+	if os.Getenv("GIN_MODE") == "release" {
+		docs.SwaggerInfo.Host = "acareca-bam8.onrender.com"
+		docs.SwaggerInfo.Schemes = []string{"https"}
+	} else {
+		// Use server port from config or default 8080
+		docs.SwaggerInfo.Host = "localhost:" + cfg.ServerPort
+		docs.SwaggerInfo.Schemes = []string{"http"}
+	}
+	// -------------------------------------
 
 	dbConn, err := db.DBConn(cfg)
 	if err != nil {
@@ -59,15 +80,33 @@ func main() {
 		log.Print(" - using env:   export GIN_MODE=release\n")
 		log.Print(" - using code:  gin.SetMode(gin.ReleaseMode)\n\n")
 	}
+
+	// ALLOWED_ORIGINS must be explicitly set in production.
+	// e.g. "http://localhost:5173,https://your-frontend.com"
+	//
+	// AllowCredentials: true requires specific origins — browsers reject the
+	// combination of wildcard ("*") + credentials, so we only enable credentials
+	// when real origins are configured. In development (no env var set) the
+	// wildcard is kept for convenience but credentials are disabled.
+	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
+	var origins []string
+	allowCredentials := false
+	if allowedOrigins == "" {
+		origins = []string{"*"}
+		log.Println("[WARN] ALLOWED_ORIGINS not set — CORS running in wildcard mode, credentials disabled")
+	} else {
+		origins = strings.Split(allowedOrigins, ",")
+		allowCredentials = true
+	}
+
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
+		AllowOrigins:     origins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Authorization", "token"},
-		AllowCredentials: true,
+		AllowCredentials: allowCredentials,
 		MaxAge:           12 * time.Hour,
 	}))
-
 	r.Use(middleware.ClientInfo())
 	route.RegisterRoutes(r, cfg)
 

@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/modules/admin/audit"
 	"github.com/iamarpitzala/acareca/internal/modules/business/invitation"
 	"github.com/iamarpitzala/acareca/internal/modules/business/practitioner"
+	auditctx "github.com/iamarpitzala/acareca/internal/shared/audit"
 	"github.com/iamarpitzala/acareca/internal/shared/middleware"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 	"github.com/iamarpitzala/acareca/pkg/config"
@@ -32,6 +34,7 @@ type OnUserCreated func(ctx context.Context, userID string) error
 type Service interface {
 	Register(ctx context.Context, req *RqUser) (*RsUser, error)
 	Login(ctx context.Context, req *RqLogin) (*RsToken, error)
+	Logout(ctx context.Context, refreshToken string) error
 	GoogleAuthURL(state string) *RsGoogleAuthURL
 	GoogleCallback(ctx context.Context, code string) (*RsToken, error)
 }
@@ -42,10 +45,11 @@ type service struct {
 	db              *sqlx.DB
 	oauthConfig     *oauth2.Config
 	practitionerSvc practitioner.IService
+	auditSvc        audit.Service
 	invitationSvc   invitation.Service
 }
 
-func NewService(repo Repository, cfg *config.Config, db *sqlx.DB, practitionerSvc practitioner.IService, invitationSvc invitation.Service) Service {
+func NewService(repo Repository, cfg *config.Config, db *sqlx.DB, practitionerSvc practitioner.IService, auditSvc audit.Service, invitationSvc invitation.Service) Service {
 	oauthCfg := &oauth2.Config{
 		ClientID:     cfg.GoogleClientID,
 		ClientSecret: cfg.GoogleClientSecret,
@@ -56,7 +60,14 @@ func NewService(repo Repository, cfg *config.Config, db *sqlx.DB, practitionerSv
 		},
 		Endpoint: google.Endpoint,
 	}
-	return &service{repo: repo, cfg: cfg, oauthConfig: oauthCfg, db: db, practitionerSvc: practitionerSvc, invitationSvc: invitationSvc}
+	return &service{
+		repo:            repo,
+		cfg:             cfg,
+		oauthConfig:     oauthCfg,
+		db:              db,
+		practitionerSvc: practitionerSvc,
+		auditSvc:        auditSvc,
+		invitationSvc:   invitationSvc}
 }
 
 func (s *service) Register(ctx context.Context, req *RqUser) (*RsUser, error) {
@@ -96,6 +107,21 @@ func (s *service) Register(ctx context.Context, req *RqUser) (*RsUser, error) {
 		return nil, err
 	}
 
+	// Audit log: user registration
+	meta := auditctx.GetMetadata(ctx)
+	userIDStr := created.ID.String()
+	s.auditSvc.LogAsync(&audit.LogEntry{
+		PracticeID: meta.PracticeID,
+		UserID:     &userIDStr,
+		Action:     auditctx.ActionUserRegistered,
+		Module:     auditctx.ModuleAuth,
+		EntityType: strPtr(auditctx.EntityUser),
+		EntityID:   &userIDStr,
+		AfterState: sanitizeUser(created),
+		IPAddress:  meta.IPAddress,
+		UserAgent:  meta.UserAgent,
+	})
+
 	return created.ToRsUser(), nil
 }
 
@@ -124,7 +150,50 @@ func (s *service) Login(ctx context.Context, req *RqLogin) (*RsToken, error) {
 		return nil, err
 	}
 
+	// Audit log: user login
+	meta := auditctx.GetMetadata(ctx)
+	userIDStr := user.ID.String()
+	s.auditSvc.LogAsync(&audit.LogEntry{
+		PracticeID: meta.PracticeID,
+		UserID:     &userIDStr,
+		Action:     auditctx.ActionUserLoggedIn,
+		Module:     auditctx.ModuleAuth,
+		EntityType: strPtr(auditctx.EntitySession),
+		EntityID:   nil,
+		AfterState: map[string]interface{}{"email": user.Email},
+		IPAddress:  meta.IPAddress,
+		UserAgent:  meta.UserAgent,
+	})
+
 	return s.issueTokens(ctx, user, practitionerID.ID.String())
+}
+
+func (s *service) Logout(ctx context.Context, refreshToken string) error {
+	sess, err := s.repo.FindSessionByRefreshToken(ctx, refreshToken)
+	if err != nil {
+		return err
+	}
+
+	if err := s.repo.DeleteSession(ctx, sess.ID); err != nil {
+		return err
+	}
+
+	// Audit log: user logged out
+	meta := auditctx.GetMetadata(ctx)
+	sessIDStr := sess.ID.String()
+	userIDStr := sess.UserID.String()
+	s.auditSvc.LogAsync(&audit.LogEntry{
+		PracticeID: meta.PracticeID,
+		UserID:     &userIDStr,
+		Action:     auditctx.ActionUserLoggedOut,
+		Module:     auditctx.ModuleAuth,
+		EntityType: strPtr(auditctx.EntitySession),
+		EntityID:   &sessIDStr,
+		IPAddress:  meta.IPAddress,
+		UserAgent:  meta.UserAgent,
+	})
+
+	return nil
 }
 
 func (s *service) GoogleAuthURL(state string) *RsGoogleAuthURL {
@@ -146,7 +215,7 @@ func (s *service) GoogleCallback(ctx context.Context, code string) (*RsToken, er
 	user, err := s.repo.FindByEmail(ctx, googleUser.Email)
 	isNewUser := false
 
-	util.RunInTransaction(ctx, s.db, func(ctx context.Context, tx *sqlx.Tx) error {
+	if err = util.RunInTransaction(ctx, s.db, func(ctx context.Context, tx *sqlx.Tx) error {
 		if err != nil {
 			if !errors.Is(err, ErrNotFound) {
 				return err
@@ -187,6 +256,27 @@ func (s *service) GoogleCallback(ctx context.Context, code string) (*RsToken, er
 			}
 		}
 		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("google oauth transaction: %w", err)
+	}
+
+	// Audit log: OAuth login/registration — only reached after a successful commit
+	meta := auditctx.GetMetadata(ctx)
+	userIDStr := user.ID.String()
+	action := auditctx.ActionUserLoggedIn
+	if isNewUser {
+		action = auditctx.ActionUserRegistered
+	}
+	s.auditSvc.LogAsync(&audit.LogEntry{
+		PracticeID: meta.PracticeID,
+		UserID:     &userIDStr,
+		Action:     action,
+		Module:     auditctx.ModuleAuth,
+		EntityType: strPtr(auditctx.EntityUser),
+		EntityID:   &userIDStr,
+		AfterState: map[string]interface{}{"email": user.Email, "provider": "google"},
+		IPAddress:  meta.IPAddress,
+		UserAgent:  meta.UserAgent,
 	})
 
 	practitionerID, err := s.practitionerSvc.GetPractitionerByUserID(ctx, user.ID.String())
@@ -253,4 +343,19 @@ func (s *service) issueTokens(ctx context.Context, user *User, practitionerID st
 		RefreshToken: refreshToken,
 		IsSuperadmin: user.IsSuperadmin,
 	}, nil
+}
+
+// Helper functions for audit logging
+
+func strPtr(s string) *string {
+	return &s
+}
+
+func sanitizeUser(u *User) map[string]interface{} {
+	return map[string]interface{}{
+		"id":         u.ID.String(),
+		"email":      u.Email,
+		"first_name": u.FirstName,
+		"last_name":  u.LastName,
+	}
 }
