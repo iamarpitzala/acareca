@@ -37,7 +37,7 @@ type FormEntry struct {
 	SubmittedAt   *string    `db:"submitted_at" json:"submitted_at,omitempty"`
 	Status        string     `db:"status" json:"status"`
 	CreatedAt     string     `db:"created_at" json:"created_at"`
-	UpdatedAt     string     `db:"updated_at" json:"updated_at"`
+	UpdatedAt     *string    `db:"updated_at" json:"updated_at,omitempty"`
 }
 
 type FormEntryValue struct {
@@ -48,7 +48,7 @@ type FormEntryValue struct {
 	GstAmount   *float64  `db:"gst_amount"`
 	GrossAmount *float64  `db:"gross_amount"`
 	CreatedAt   string    `db:"created_at"`
-	UpdatedAt   string    `db:"updated_at"`
+	UpdatedAt   *string   `db:"updated_at"`
 }
 
 func (d *FormEntry) ToRs(values []*FormEntryValue) *RsFormEntry {
@@ -58,7 +58,9 @@ func (d *FormEntry) ToRs(values []*FormEntryValue) *RsFormEntry {
 		ClinicID:      d.ClinicID,
 		Status:        d.Status,
 		CreatedAt:     d.CreatedAt,
-		UpdatedAt:     d.UpdatedAt,
+	}
+	if d.UpdatedAt != nil {
+		rs.UpdatedAt = *d.UpdatedAt
 	}
 	rs.SubmittedBy = d.SubmittedBy
 	if d.SubmittedAt != nil {
@@ -122,7 +124,7 @@ type RsTransactionRow struct {
 	GstAmount     *float64  `json:"gst_amount"`
 	GrossAmount   *float64  `json:"gross_amount"`
 	CreatedAt     string    `json:"created_at"`
-	UpdatedAt     string    `json:"updated_at"`
+	UpdatedAt     *string   `json:"updated_at,omitempty"`
 }
 
 // RsTransactionDetail kept for backward compat (used by old RsTransaction).
@@ -248,5 +250,5 @@ type transactionFlatRow struct {
 	GstAmount     *float64  `db:"gst_amount"`
 	GrossAmount   *float64  `db:"gross_amount"`
 	CreatedAt     string    `db:"created_at"`
-	UpdatedAt     string    `db:"updated_at"`
+	UpdatedAt     *string   `db:"updated_at"`
 }
