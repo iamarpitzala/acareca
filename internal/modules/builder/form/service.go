@@ -134,7 +134,7 @@ func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFie
 			return err
 		}
 		updated = upd
-		syncResult = &RsFormWithFieldsSyncResult{ClinicID: updated.ClinicID}
+		syncResult := &RsFormWithFieldsSyncResult{ClinicID: updated.ClinicID}
 
 		// Get Active Version
 		versions, err := s.versionSvc.List(ctx, existing.ID, existing.ClinicID)
