@@ -170,7 +170,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/audit.RsAuditLog"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -220,7 +220,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/fy.RsFinancialYear"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -428,7 +428,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/subscription.RsSubscription"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -477,7 +477,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/subscription.RsSubscription"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -589,7 +589,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/subscription.RsSubscription"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -703,7 +703,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/subscription.RsSubscriptionPermission"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -766,7 +766,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/fy.RsFinancialYear"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -845,7 +845,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/auth.RsToken"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -876,11 +876,22 @@ const docTemplate = `{
                     "auth"
                 ],
                 "summary": "Login a user",
+                "parameters": [
+                    {
+                        "description": "Login Credentials",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.RqLogin"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/auth.RsToken"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -921,10 +932,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -1271,9 +1279,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Independent Contractor method response",
+                        "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/calculation.NetResult"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -1329,9 +1337,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Independent Contractor method response",
+                        "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/calculation.NetResult"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -1471,7 +1479,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/clinic.RsClinic"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -1580,7 +1588,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/util.RsList"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -1631,7 +1639,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/clinic.RsClinic"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -1692,7 +1700,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/clinic.RsClinic"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -1851,7 +1859,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/coa.AccountTax"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -1952,7 +1960,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/coa.AccountType"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -2092,7 +2100,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/coa.RsChartOfAccount"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -2103,6 +2111,56 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    }
+                }
+            }
+        },
+        "/coa/chart-of-account/check-code": {
+            "post": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "coa"
+                ],
+                "summary": "Check if a chart of account code is unique for the practitioner",
+                "parameters": [
+                    {
+                        "description": "Code to check",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/coa.RqCheckCodeUnique"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/coa.RsCodeUnique"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/response.RsError"
                         }
@@ -2143,7 +2201,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/coa.RsChartOfAccount"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -2204,7 +2262,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/coa.RsChartOfAccount"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -2514,11 +2572,63 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/entry.RsFormEntry"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    }
+                }
+            }
+        },
+        "/entry/{field_id}/summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
+                "description": "Returns the total net, gst, and gross amounts for all active entries of a field",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "entry"
+                ],
+                "summary": "Get summed values for a specific field",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Form Field ID",
+                        "name": "field_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/entry.RsFieldSummary"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/response.RsError"
                         }
@@ -2563,7 +2673,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/entry.RsFormEntry"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "404": {
@@ -2663,7 +2773,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/entry.RsFormEntry"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -2830,7 +2940,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/form.RsFormWithFields"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -2879,7 +2989,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/form.RsFormWithFields"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "404": {
@@ -2979,7 +3089,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/form.RsFormWithFields"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -3231,7 +3341,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/pl.RsReport"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -3483,7 +3593,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/subscription.RsPractitionerSubscription"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -3632,7 +3742,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/subscription.RsPractitionerSubscription"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -3738,7 +3848,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/subscription.RsPractitionerSubscription"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -3789,7 +3899,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/practitioner.RsPractitioner"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     }
                 }
@@ -3817,7 +3927,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/setting.RsPractitioner"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -3866,7 +3976,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/setting.RsPractitioner"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -3956,7 +4066,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/setting.RsPractitioner"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -4005,7 +4115,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/setting.RsPractitioner"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -4117,7 +4227,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/setting.RsPractitionerSetting"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -4166,7 +4276,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/setting.RsPractitionerSetting"
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     },
                     "400": {
@@ -4186,39 +4296,20 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "audit.RsAuditLog": {
+        "auth.RqLogin": {
             "type": "object",
+            "required": [
+                "email",
+                "password"
+            ],
             "properties": {
-                "action": {
+                "email": {
                     "type": "string"
                 },
-                "after_state": {},
-                "before_state": {},
-                "created_at": {
-                    "type": "string"
+                "is_superadmin": {
+                    "type": "boolean"
                 },
-                "entity_id": {
-                    "type": "string"
-                },
-                "entity_type": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "ip_address": {
-                    "type": "string"
-                },
-                "module": {
-                    "type": "string"
-                },
-                "practice_id": {
-                    "type": "string"
-                },
-                "user_agent": {
-                    "type": "string"
-                },
-                "user_id": {
+                "password": {
                     "type": "string"
                 }
             }
@@ -4257,20 +4348,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "url": {
-                    "type": "string"
-                }
-            }
-        },
-        "auth.RsToken": {
-            "type": "object",
-            "properties": {
-                "access_token": {
-                    "type": "string"
-                },
-                "is_superadmin": {
-                    "type": "boolean"
-                },
-                "refresh_token": {
                     "type": "string"
                 }
             }
@@ -4413,52 +4490,6 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "total_sales_net": {
-                    "type": "number"
-                }
-            }
-        },
-        "calculation.GrossResult": {
-            "type": "object",
-            "properties": {
-                "gst_service_fee": {
-                    "type": "number"
-                },
-                "net_amount": {
-                    "type": "number"
-                },
-                "remitted_amount": {
-                    "type": "number"
-                },
-                "service_fee": {
-                    "type": "number"
-                },
-                "total_service_fee": {
-                    "type": "number"
-                }
-            }
-        },
-        "calculation.NetResult": {
-            "type": "object",
-            "properties": {
-                "commission": {
-                    "type": "number"
-                },
-                "gst_commission": {
-                    "type": "number"
-                },
-                "net_amount": {
-                    "type": "number"
-                },
-                "super_component": {
-                    "type": "number"
-                },
-                "super_component_commission": {
-                    "type": "number"
-                },
-                "total_commission": {
-                    "type": "number"
-                },
-                "total_remuneration": {
                     "type": "number"
                 }
             }
@@ -4687,146 +4718,18 @@ const docTemplate = `{
                 }
             }
         },
-        "clinic.RsClinic": {
+        "coa.RqCheckCodeUnique": {
             "type": "object",
+            "required": [
+                "code"
+            ],
             "properties": {
-                "abn": {
-                    "type": "string"
+                "code": {
+                    "type": "integer",
+                    "maximum": 9999,
+                    "minimum": 100
                 },
-                "addresses": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/clinic.RsClinicAddress"
-                    }
-                },
-                "contacts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/clinic.RsClinicContact"
-                    }
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "financial_settings": {
-                    "$ref": "#/definitions/clinic.RsFinancialSettings"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "is_active": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "practitioner_id": {
-                    "type": "string"
-                },
-                "profile_picture": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "clinic.RsClinicAddress": {
-            "type": "object",
-            "properties": {
-                "address": {
-                    "type": "string"
-                },
-                "city": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "is_primary": {
-                    "type": "boolean"
-                },
-                "postcode": {
-                    "type": "string"
-                },
-                "state": {
-                    "type": "string"
-                }
-            }
-        },
-        "clinic.RsClinicContact": {
-            "type": "object",
-            "properties": {
-                "contact_type": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "is_primary": {
-                    "type": "boolean"
-                },
-                "label": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "clinic.RsFinancialSettings": {
-            "type": "object",
-            "properties": {
-                "financial_year_id": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "lock_date": {
-                    "type": "string"
-                }
-            }
-        },
-        "coa.AccountTax": {
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "isTaxable": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "rate": {
-                    "type": "number"
-                },
-                "updatedAt": {
-                    "type": "string"
-                }
-            }
-        },
-        "coa.AccountType": {
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "updatedAt": {
+                "exclude_id": {
                     "type": "string"
                 }
             }
@@ -4884,76 +4787,11 @@ const docTemplate = `{
                 }
             }
         },
-        "coa.RsChartOfAccount": {
+        "coa.RsCodeUnique": {
             "type": "object",
             "properties": {
-                "account_tax_id": {
-                    "type": "integer"
-                },
-                "account_type_id": {
-                    "type": "integer"
-                },
-                "code": {
-                    "type": "integer"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "is_system": {
+                "is_unique": {
                     "type": "boolean"
-                },
-                "is_taxable": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "practitioner_id": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "detail.RsFormDetail": {
-            "type": "object",
-            "properties": {
-                "active_version_id": {
-                    "type": "string"
-                },
-                "clinic_id": {
-                    "type": "string"
-                },
-                "clinic_share": {
-                    "type": "integer"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "method": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "owner_share": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
                 }
             }
         },
@@ -5035,38 +4873,32 @@ const docTemplate = `{
                 }
             }
         },
-        "entry.RsFormEntry": {
+        "entry.RsFieldSummary": {
             "type": "object",
             "properties": {
-                "clinic_id": {
+                "form_field_id": {
                     "type": "string"
                 },
-                "created_at": {
+                "label": {
                     "type": "string"
                 },
-                "form_version_id": {
+                "payment_responsibility": {
                     "type": "string"
                 },
-                "id": {
+                "section_type": {
                     "type": "string"
                 },
-                "status": {
+                "tax_type": {
                     "type": "string"
                 },
-                "submitted_at": {
-                    "type": "string"
+                "total_gross": {
+                    "type": "number"
                 },
-                "submitted_by": {
-                    "type": "string"
+                "total_gst": {
+                    "type": "number"
                 },
-                "updated_at": {
-                    "type": "string"
-                },
-                "values": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/entry.RsEntryValue"
-                    }
+                "total_net": {
+                    "type": "number"
                 }
             }
         },
@@ -5100,13 +4932,12 @@ const docTemplate = `{
                         "OTHER_COST"
                     ]
                 },
+                "sort_order": {
+                    "type": "integer",
+                    "minimum": 0
+                },
                 "tax_type": {
-                    "type": "string",
-                    "enum": [
-                        "INCLUSIVE",
-                        "EXCLUSIVE",
-                        "MANUAL"
-                    ]
+                    "type": "string"
                 }
             }
         },
@@ -5141,67 +4972,11 @@ const docTemplate = `{
                         "OTHER_COST"
                     ]
                 },
-                "tax_type": {
-                    "type": "string",
-                    "enum": [
-                        "INCLUSIVE",
-                        "EXCLUSIVE",
-                        "MANUAL"
-                    ]
-                }
-            }
-        },
-        "field.RsCoaDetail": {
-            "type": "object",
-            "properties": {
-                "account_tax_id": {
-                    "type": "integer"
-                },
-                "account_type_id": {
-                    "type": "integer"
-                },
-                "code": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "field.RsFormField": {
-            "type": "object",
-            "properties": {
-                "coa": {
-                    "$ref": "#/definitions/field.RsCoaDetail"
-                },
-                "coa_id": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "form_version_id": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "label": {
-                    "type": "string"
-                },
-                "payment_responsibility": {
-                    "type": "string"
-                },
-                "section_type": {
-                    "type": "string"
+                "sort_order": {
+                    "type": "integer",
+                    "minimum": 0
                 },
                 "tax_type": {
-                    "type": "string"
-                },
-                "updated_at": {
                     "type": "string"
                 }
             }
@@ -5255,6 +5030,11 @@ const docTemplate = `{
                         "PUBLISHED",
                         "ARCHIVED"
                     ]
+                },
+                "super_component": {
+                    "type": "number",
+                    "maximum": 100,
+                    "minimum": 0
                 }
             }
         },
@@ -5313,28 +5093,16 @@ const docTemplate = `{
                         "ARCHIVED"
                     ]
                 },
+                "super_component": {
+                    "type": "number",
+                    "maximum": 100,
+                    "minimum": 0
+                },
                 "update": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/field.RqUpdateFormField"
                     }
-                }
-            }
-        },
-        "form.RsFormWithFields": {
-            "type": "object",
-            "properties": {
-                "active_version_id": {
-                    "type": "string"
-                },
-                "fields": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/field.RsFormField"
-                    }
-                },
-                "form": {
-                    "$ref": "#/definitions/detail.RsFormDetail"
                 }
             }
         },
@@ -5363,23 +5131,6 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "label": {
-                    "type": "string"
-                }
-            }
-        },
-        "fy.RsFinancialYear": {
-            "type": "object",
-            "properties": {
-                "end_date": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "label": {
-                    "type": "string"
-                },
-                "start_date": {
                     "type": "string"
                 }
             }
@@ -5557,108 +5308,6 @@ const docTemplate = `{
                 }
             }
         },
-        "pl.RsReport": {
-            "type": "object",
-            "properties": {
-                "cost_of_sales": {
-                    "$ref": "#/definitions/pl.RsReportGroup"
-                },
-                "gross_profit": {
-                    "type": "number"
-                },
-                "income": {
-                    "$ref": "#/definitions/pl.RsReportGroup"
-                },
-                "net_profit": {
-                    "type": "number"
-                },
-                "other_costs": {
-                    "$ref": "#/definitions/pl.RsReportGroup"
-                },
-                "report_metadata": {
-                    "$ref": "#/definitions/pl.RsReportMetadata"
-                }
-            }
-        },
-        "pl.RsReportAccount": {
-            "type": "object",
-            "properties": {
-                "coa_id": {
-                    "type": "string"
-                },
-                "coa_name": {
-                    "type": "string"
-                },
-                "total_value": {
-                    "type": "number"
-                }
-            }
-        },
-        "pl.RsReportGroup": {
-            "type": "object",
-            "properties": {
-                "accounts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/pl.RsReportAccount"
-                    }
-                },
-                "group_total": {
-                    "type": "number"
-                }
-            }
-        },
-        "pl.RsReportMetadata": {
-            "type": "object",
-            "properties": {
-                "date_from": {
-                    "type": "string"
-                },
-                "date_until": {
-                    "type": "string"
-                },
-                "overall_net_profit": {
-                    "type": "number"
-                }
-            }
-        },
-        "practitioner.RsPractitioner": {
-            "type": "object",
-            "properties": {
-                "abn": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "user": {
-                    "$ref": "#/definitions/practitioner.RsUserInfo"
-                },
-                "verified": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "practitioner.RsUserInfo": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string"
-                },
-                "first_name": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "last_name": {
-                    "type": "string"
-                },
-                "phone": {
-                    "type": "string"
-                }
-            }
-        },
         "response.RsBase": {
             "type": "object",
             "properties": {
@@ -5731,55 +5380,6 @@ const docTemplate = `{
                 "timezone": {
                     "type": "string",
                     "maxLength": 255
-                }
-            }
-        },
-        "setting.RsPractitioner": {
-            "type": "object",
-            "properties": {
-                "abn": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "string"
-                },
-                "verified": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "setting.RsPractitionerSetting": {
-            "type": "object",
-            "properties": {
-                "color": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "logo": {
-                    "type": "string"
-                },
-                "practitioner_id": {
-                    "type": "string"
-                },
-                "timezone": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
                 }
             }
         },
@@ -5887,35 +5487,6 @@ const docTemplate = `{
                 },
                 "subscription_id": {
                     "type": "integer"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "subscription.RsSubscription": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "duration_days": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "is_active": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "price": {
-                    "type": "number"
                 },
                 "updated_at": {
                     "type": "string"
