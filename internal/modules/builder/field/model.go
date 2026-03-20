@@ -25,7 +25,7 @@ type RqFormField struct {
 	Label                 string  `json:"label" validate:"required,max=255"`
 	SectionType           string  `json:"section_type" validate:"required,oneof=COLLECTION COST OTHER_COST"`
 	PaymentResponsibility *string `json:"payment_responsibility" validate:"omitempty,oneof=OWNER CLINIC"`
-	TaxType               *string `json:"tax_type" validate:"omitempty,oneof=INCLUSIVE EXCLUSIVE MANUAL"`
+	TaxType               *string `json:"tax_type" validate:"omitempty"`
 	CoaID                 string  `json:"coa_id" validate:"required,uuid"`
 }
 
@@ -43,7 +43,7 @@ type RqUpdateFormField struct {
 	Label                 *string   `json:"label" validate:"omitempty,max=255"`
 	SectionType           *string   `json:"section_type" validate:"omitempty,oneof=COLLECTION COST OTHER_COST"`
 	PaymentResponsibility *string   `json:"payment_responsibility" validate:"omitempty,oneof=OWNER CLINIC"`
-	TaxType               *string   `json:"tax_type" validate:"omitempty,oneof=INCLUSIVE EXCLUSIVE MANUAL"`
+	TaxType               *string   `json:"tax_type" validate:"omitempty"`
 	CoaID                 *string   `json:"coa_id" validate:"omitempty,uuid"`
 }
 
