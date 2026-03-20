@@ -139,22 +139,27 @@ func (s *service) GrossMethod(ctx context.Context, formDetail *detail.RsFormDeta
 			input.GstAmount = v.GstAmount
 		}
 
+		taxType := ""
+		if field.TaxType != nil {
+			taxType = *field.TaxType
+		}
+		hasTax := taxType == string(method.TaxTreatmentManual) || taxType == string(method.TaxTreatmentInclusive) || taxType == string(method.TaxTreatmentExclusive)
+
 		switch field.SectionType {
 
 		case "COLLECTION":
 
-			if *field.TaxType == string(method.TaxTreatmentManual) || *field.TaxType == string(method.TaxTreatmentInclusive) || *field.TaxType == string(method.TaxTreatmentExclusive) {
-				result, _ := s.methodSvc.Calculate(ctx, method.TaxTreatment(*field.TaxType), input)
-				if *field.TaxType == string(method.TaxTreatmentManual) {
+			if hasTax {
+				result, _ := s.methodSvc.Calculate(ctx, method.TaxTreatment(taxType), input)
+				if taxType == string(method.TaxTreatmentManual) {
 					incomeSum += (result.Amount - result.GstAmount)
 					incomeGST += result.GstAmount
 				} else {
 					incomeSum += result.Amount
 					incomeGST += result.GstAmount
 				}
-
 			} else if v.NetAmount != nil {
-				incomeGST += *v.NetAmount
+				incomeSum += *v.NetAmount
 			}
 
 		case "COST":
@@ -167,25 +172,20 @@ func (s *service) GrossMethod(ctx context.Context, formDetail *detail.RsFormDeta
 
 			case "CLINIC":
 
-				if *field.TaxType == string(method.TaxTreatmentManual) || *field.TaxType == string(method.TaxTreatmentInclusive) || *field.TaxType == string(method.TaxTreatmentExclusive) {
-
-					result, _ := s.methodSvc.Calculate(ctx, method.TaxTreatment(*field.TaxType), input)
-
+				if hasTax {
+					result, _ := s.methodSvc.Calculate(ctx, method.TaxTreatment(taxType), input)
 					expenseSum += result.Amount
 					expenseGST += result.GstAmount
-
 				} else if v.NetAmount != nil {
 					expenseSum += *v.NetAmount
 				}
 
 			case "OWNER":
 
-				if *field.TaxType == string(method.TaxTreatmentManual) || *field.TaxType == string(method.TaxTreatmentInclusive) || *field.TaxType == string(method.TaxTreatmentExclusive) {
-
-					result, _ := s.methodSvc.Calculate(ctx, method.TaxTreatment(*field.TaxType), input)
+				if hasTax {
+					result, _ := s.methodSvc.Calculate(ctx, method.TaxTreatment(taxType), input)
 					expenseSum += result.TotalAmount
 					paidByOwnerSum += result.TotalAmount
-
 				} else if v.NetAmount != nil {
 					expenseSum += *v.NetAmount
 					paidByOwnerSum += *v.NetAmount
@@ -194,12 +194,9 @@ func (s *service) GrossMethod(ctx context.Context, formDetail *detail.RsFormDeta
 
 		case "OTHER_COST":
 
-			if *field.TaxType == string(method.TaxTreatmentManual) || *field.TaxType == string(method.TaxTreatmentInclusive) || *field.TaxType == string(method.TaxTreatmentExclusive) {
-
-				result, _ := s.methodSvc.Calculate(ctx, method.TaxTreatment(*field.TaxType), input)
-
+			if hasTax {
+				result, _ := s.methodSvc.Calculate(ctx, method.TaxTreatment(taxType), input)
 				otherCostSum += result.TotalAmount
-
 			} else if v.NetAmount != nil {
 				otherCostSum += *v.NetAmount
 			}
