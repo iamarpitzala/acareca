@@ -13,4 +13,6 @@ func RegisterRoutes(rg *gin.RouterGroup, h IHandler) {
 
 	auth.GET("/google", h.GoogleAuthURL)
 	auth.GET("/google/callback", h.GoogleCallback)
+
+	auth.GET("/verify", h.VerifyEmail)
 }

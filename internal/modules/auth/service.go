@@ -1,11 +1,15 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,6 +40,8 @@ type Service interface {
 	Logout(ctx context.Context, refreshToken string) error
 	GoogleAuthURL(state string) *RsGoogleAuthURL
 	GoogleCallback(ctx context.Context, code string) (*RsToken, error)
+
+	VerifyEmail(ctx context.Context, tokenStr string) error
 }
 
 type service struct {
@@ -82,21 +88,45 @@ func (s *service) Register(ctx context.Context, req *RqUser) (*RsUser, error) {
 	u.Password = &hashedPassword
 
 	var created *User
+	var createdPractitioner *practitioner.RsPractitioner
+	var tokenID uuid.UUID
+
 	err = util.RunInTransaction(ctx, s.db, func(ctx context.Context, tx *sqlx.Tx) error {
 		var err error
 		created, err = s.repo.CreateUser(ctx, u, tx)
 		if err != nil {
 			return err
 		}
-		_, err = s.practitionerSvc.CreatePractitioner(ctx, &practitioner.RqCreatePractitioner{UserID: created.ID.String()}, tx)
+		createdPractitioner, err = s.practitionerSvc.CreatePractitioner(ctx, &practitioner.RqCreatePractitioner{UserID: created.ID.String()}, tx)
 		if err != nil {
 			return fmt.Errorf("create practitioner: %w", err)
 		}
+
+		// Generate Verification Token
+		tokenID = uuid.New()
+		vToken := &VerificationToken{
+			ID:        tokenID,
+			EntityID:  createdPractitioner.ID,
+			Status:    TokenStatusPending,
+			ExpiresAt: time.Now().Add(10 * time.Minute),
+		}
+
+		if err := s.repo.CreateVerificationToken(ctx, tx, vToken); err != nil {
+			return fmt.Errorf("create verification token: %w", err)
+		}
+
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
+
+	// Send Email Asynchronously
+	go func() {
+		if err := s.sendVerificationEmail(created.Email, created.FirstName, tokenID); err != nil {
+			fmt.Printf("[AUTH ERROR] Failed to send verification email: %v\n", err)
+		}
+	}()
 
 	// Audit log: user registration
 	meta := auditctx.GetMetadata(ctx)
@@ -349,4 +379,86 @@ func sanitizeUser(u *User) map[string]interface{} {
 		"first_name": u.FirstName,
 		"last_name":  u.LastName,
 	}
+}
+
+// Helper function for sending verification email via Resend API
+func (s *service) sendVerificationEmail(to string, firstName string, tokenID uuid.UUID) error {
+	url := "https://api.resend.com/emails"
+	apikey := os.Getenv("RESEND_API_KEY")
+
+	verificationLink := fmt.Sprintf("https://acareca.com/verify-email?token=%s", tokenID)
+	expiryTime := "10 minutes"
+
+	payload := map[string]interface{}{
+		"from":    "Acareca <hardik@zenithive.digital>",
+		"to":      []string{to},
+		"subject": "Verify your Acareca account",
+		"html": fmt.Sprintf(`
+			<div style="font-family: sans-serif; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px;">
+				<h2 style="color: #1a73e8;">Verify your email</h2>
+				<p>Hi %s,</p>
+				<p>Thank you for signing up with Acareca! To complete your registration and activate your account, please verify your email address by clicking the button below:</p>
+				<div style="text-align: center; margin: 30px 0;">
+					<a href="%s" style="background-color: #1a73e8; color: white; padding: 14px 28px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
+						Verify My Account
+					</a>
+				</div>
+				<p style="font-size: 14px; color: #666;">If the button above doesn’t work, you can also copy and paste the following link into your browser:</p>
+				<p style="font-size: 12px; word-break: break-all; color: #1a73e8;">%s</p>
+				<p style="font-size: 14px; color: #666;">This verification link will expire in <strong>%s</strong>.</p>
+				<hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+				<p style="font-size: 12px; color: #888;">If you did not create this account, you can safely ignore this email.</p>
+				<p style="font-size: 12px; color: #888;">Best regards,<br>The Acareca Team</p>
+			</div>
+		`, firstName, verificationLink, verificationLink, expiryTime),
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+apikey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("resend error: %s", string(body))
+	}
+
+	return nil
+}
+
+func (s *service) VerifyEmail(ctx context.Context, tokenStr string) error {
+	tokenID, err := uuid.Parse(tokenStr)
+	if err != nil {
+		return errors.New("invalid token format")
+	}
+
+	token, err := s.repo.GetToken(ctx, tokenID)
+	if err != nil {
+		return errors.New("verification link not found")
+	}
+
+	if token.Status != TokenStatusPending {
+		return fmt.Errorf("this link has already been %s", strings.ToLower(token.Status))
+	}
+
+	if time.Now().After(token.ExpiresAt) {
+		return errors.New("verification link has expired")
+	}
+
+	return s.repo.MarkUserVerified(ctx, token.EntityID, token.ID)
 }
