@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/iamarpitzala/acareca/internal/shared/limits"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
@@ -55,8 +54,8 @@ func (h *handler) Create(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	var submittedBy *uuid.UUID
-	created, err := h.svc.Create(c.Request.Context(), versionID, &req, submittedBy, practitionerID)
+
+	created, err := h.svc.Create(c.Request.Context(), versionID, &req, &practitionerID, practitionerID)
 	if err != nil {
 		if errors.Is(err, limits.ErrLimitReached) {
 			response.Error(c, http.StatusForbidden, err)
@@ -115,13 +114,18 @@ func (h *handler) Update(c *gin.Context) {
 		return
 	}
 
+	practitionerID, ok := util.GetPractitionerID(c)
+	if !ok {
+		return
+	}
+
 	var req RqUpdateFormEntry
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	var submittedBy *uuid.UUID
-	updated, err := h.svc.Update(c.Request.Context(), id, &req, submittedBy)
+
+	updated, err := h.svc.Update(c.Request.Context(), id, &req, &practitionerID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
