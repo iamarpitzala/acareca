@@ -1,29 +1,16 @@
 basePath: /api/v1
 definitions:
-  audit.RsAuditLog:
+  auth.RqLogin:
     properties:
-      action:
+      email:
         type: string
-      after_state: {}
-      before_state: {}
-      created_at:
+      is_superadmin:
+        type: boolean
+      password:
         type: string
-      entity_id:
-        type: string
-      entity_type:
-        type: string
-      id:
-        type: string
-      ip_address:
-        type: string
-      module:
-        type: string
-      practice_id:
-        type: string
-      user_agent:
-        type: string
-      user_id:
-        type: string
+    required:
+    - email
+    - password
     type: object
   auth.RqUser:
     properties:
@@ -51,14 +38,15 @@ definitions:
       url:
         type: string
     type: object
-  auth.RsToken:
+  bas.RsBASByAccount:
     properties:
-      access_token:
+      account_code:
+        type: integer
+      account_name:
         type: string
-      is_superadmin:
-        type: boolean
-      refresh_token:
+      bas_category:
         type: string
+<<<<<<< HEAD
     type: object
   bas.RsBASByAccount:
     properties:
@@ -68,6 +56,8 @@ definitions:
         type: string
       bas_category:
         type: string
+=======
+>>>>>>> 3f23afd5f8198347216528b9aca92e944f26bb2a
       entry_count:
         type: integer
       period_quarter:
@@ -79,6 +69,7 @@ definitions:
       tax_name:
         type: string
       tax_rate:
+<<<<<<< HEAD
         type: number
       total_gross:
         type: number
@@ -158,31 +149,82 @@ definitions:
   calculation.GrossResult:
     properties:
       gst_service_fee:
+=======
+>>>>>>> 3f23afd5f8198347216528b9aca92e944f26bb2a
         type: number
-      net_amount:
+      total_gross:
         type: number
-      remitted_amount:
+      total_gst:
         type: number
-      service_fee:
-        type: number
-      total_service_fee:
+      total_net:
         type: number
     type: object
-  calculation.NetResult:
+  bas.RsBASMonthly:
     properties:
-      commission:
+      g1_total_sales_gross:
         type: number
-      gst_commission:
+      g3_gst_free_sales:
         type: number
-      net_amount:
+      g11_total_purchases_gross:
         type: number
-      super_component:
+      g14_gst_free_purchases:
         type: number
-      super_component_commission:
+      label_1a_gst_on_sales:
         type: number
-      total_commission:
+      label_1b_gst_on_purchases:
         type: number
-      total_remuneration:
+      net_gst_payable:
+        type: number
+      period_month:
+        type: string
+      total_purchases_net:
+        type: number
+      total_sales_net:
+        type: number
+    type: object
+  bas.RsBASReport:
+    properties:
+      1A:
+        type: number
+      1B:
+        type: number
+      G1:
+        type: number
+      G11:
+        type: number
+    type: object
+  bas.RsBASSummary:
+    properties:
+      g1_total_sales_gross:
+        description: Sales (ATO labels)
+        type: number
+      g3_gst_free_sales:
+        type: number
+      g8_taxable_sales:
+        type: number
+      g11_total_purchases_gross:
+        description: Purchases (ATO labels)
+        type: number
+      g14_gst_free_purchases:
+        type: number
+      g15_taxable_purchases:
+        type: number
+      label_1a_gst_on_sales:
+        type: number
+      label_1b_gst_on_purchases:
+        type: number
+      net_gst_payable:
+        description: Net GST
+        type: number
+      period_quarter:
+        description: Period
+        type: string
+      period_year:
+        description: e.g. "2026-01-01"
+        type: string
+      total_purchases_net:
+        type: number
+      total_sales_net:
         type: number
     type: object
   calculation.RqCalculateFromEntries:
@@ -335,6 +377,7 @@ definitions:
       value:
         type: string
     type: object
+<<<<<<< HEAD
   clinic.RsClinic:
     properties:
       abn:
@@ -440,6 +483,8 @@ definitions:
     required:
     - code
     type: object
+=======
+>>>>>>> 3f23afd5f8198347216528b9aca92e944f26bb2a
   coa.RqCreateChartOfAccountOfAccount:
     properties:
       account_tax_id:
@@ -479,6 +524,7 @@ definitions:
         maxLength: 255
         type: string
     type: object
+<<<<<<< HEAD
   coa.RsChartOfAccount:
     properties:
       account_tax_id:
@@ -532,6 +578,8 @@ definitions:
       updated_at:
         type: string
     type: object
+=======
+>>>>>>> 3f23afd5f8198347216528b9aca92e944f26bb2a
   entry.RqEntryValue:
     properties:
       amount:
@@ -583,29 +631,6 @@ definitions:
         type: number
       net_amount:
         type: number
-    type: object
-  entry.RsFormEntry:
-    properties:
-      clinic_id:
-        type: string
-      created_at:
-        type: string
-      form_version_id:
-        type: string
-      id:
-        type: string
-      status:
-        type: string
-      submitted_at:
-        type: string
-      submitted_by:
-        type: string
-      updated_at:
-        type: string
-      values:
-        items:
-          $ref: '#/definitions/entry.RsEntryValue'
-        type: array
     type: object
   field.RqFormField:
     properties:
@@ -664,42 +689,6 @@ definitions:
         type: string
     required:
     - id
-    type: object
-  field.RsCoaDetail:
-    properties:
-      account_tax_id:
-        type: integer
-      account_type_id:
-        type: integer
-      code:
-        type: integer
-      id:
-        type: string
-      name:
-        type: string
-    type: object
-  field.RsFormField:
-    properties:
-      coa:
-        $ref: '#/definitions/field.RsCoaDetail'
-      coa_id:
-        type: string
-      created_at:
-        type: string
-      form_version_id:
-        type: string
-      id:
-        type: string
-      label:
-        type: string
-      payment_responsibility:
-        type: string
-      section_type:
-        type: string
-      tax_type:
-        type: string
-      updated_at:
-        type: string
     type: object
   form.RqCreateFormWithFields:
     properties:
@@ -783,17 +772,6 @@ definitions:
     required:
     - clinic_id
     type: object
-  form.RsFormWithFields:
-    properties:
-      active_version_id:
-        type: string
-      fields:
-        items:
-          $ref: '#/definitions/field.RsFormField'
-        type: array
-      form:
-        $ref: '#/definitions/detail.RsFormDetail'
-    type: object
   fy.RqCreateFY:
     properties:
       fy_year:
@@ -813,17 +791,69 @@ definitions:
       label:
         type: string
     type: object
-  fy.RsFinancialYear:
+  pl.RsPLAccount:
     properties:
-      end_date:
+      account_code:
+        type: integer
+      account_name:
         type: string
-      id:
+      account_type:
         type: string
-      label:
+      entry_count:
+        type: integer
+      period_month:
         type: string
-      start_date:
+      pl_section:
+        type: string
+      section_type:
+        type: string
+      signed_gross:
+        type: number
+      signed_net:
+        type: number
+      tax_name:
+        type: string
+      tax_rate:
+        type: number
+      total_gross:
+        type: number
+      total_gst:
+        type: number
+      total_net:
+        type: number
+    type: object
+  pl.RsPLFYSummary:
+    properties:
+      cogs_gross:
+        type: number
+      cogs_gst:
+        type: number
+      cogs_net:
+        type: number
+      financial_quarter_id:
+        type: string
+      financial_year:
+        type: string
+      financial_year_id:
+        type: string
+      gross_profit_net:
+        type: number
+      income_gross:
+        type: number
+      income_gst:
+        type: number
+      income_net:
+        type: number
+      net_profit_gross:
+        type: number
+      net_profit_net:
+        type: number
+      other_expenses_net:
+        type: number
+      quarter:
         type: string
     type: object
+<<<<<<< HEAD
   pl.RsPLAccount:
     properties:
       account_code:
@@ -981,27 +1011,58 @@ definitions:
         type: number
     type: object
   practitioner.RsPractitioner:
+=======
+  pl.RsPLResponsibility:
+>>>>>>> 3f23afd5f8198347216528b9aca92e944f26bb2a
     properties:
-      abn:
+      account_code:
+        type: integer
+      account_name:
         type: string
-      id:
+      entry_count:
+        type: integer
+      payment_responsibility:
         type: string
-      user:
-        $ref: '#/definitions/practitioner.RsUserInfo'
-      verified:
-        type: boolean
+      period_month:
+        type: string
+      pl_section:
+        type: string
+      section_type:
+        type: string
+      total_gross:
+        type: number
+      total_gst:
+        type: number
+      total_net:
+        type: number
     type: object
-  practitioner.RsUserInfo:
+  pl.RsPLSummary:
     properties:
-      email:
-        type: string
-      first_name:
-        type: string
-      id:
-        type: string
-      last_name:
-        type: string
-      phone:
+      cogs_gross:
+        type: number
+      cogs_gst:
+        type: number
+      cogs_net:
+        type: number
+      gross_profit_net:
+        type: number
+      income_gross:
+        type: number
+      income_gst:
+        type: number
+      income_net:
+        type: number
+      net_profit_gross:
+        type: number
+      net_profit_net:
+        type: number
+      other_expenses_gross:
+        type: number
+      other_expenses_gst:
+        type: number
+      other_expenses_net:
+        type: number
+      period_month:
         type: string
     type: object
   response.RsBase:
@@ -1052,38 +1113,6 @@ definitions:
         type: string
       timezone:
         maxLength: 255
-        type: string
-    type: object
-  setting.RsPractitioner:
-    properties:
-      abn:
-        type: string
-      created_at:
-        type: string
-      id:
-        type: string
-      updated_at:
-        type: string
-      user_id:
-        type: string
-      verified:
-        type: boolean
-    type: object
-  setting.RsPractitionerSetting:
-    properties:
-      color:
-        type: string
-      created_at:
-        type: string
-      id:
-        type: integer
-      logo:
-        type: string
-      practitioner_id:
-        type: string
-      timezone:
-        type: string
-      updated_at:
         type: string
     type: object
   subscription.RqCreateSubscription:
@@ -1140,44 +1169,6 @@ definitions:
       price:
         minimum: 0
         type: number
-    type: object
-  subscription.RsPractitionerSubscription:
-    properties:
-      created_at:
-        type: string
-      end_date:
-        type: string
-      id:
-        type: integer
-      practitioner_id:
-        type: string
-      start_date:
-        type: string
-      status:
-        $ref: '#/definitions/subscription.Status'
-      subscription_id:
-        type: integer
-      updated_at:
-        type: string
-    type: object
-  subscription.RsSubscription:
-    properties:
-      created_at:
-        type: string
-      description:
-        type: string
-      duration_days:
-        type: integer
-      id:
-        type: integer
-      is_active:
-        type: boolean
-      name:
-        type: string
-      price:
-        type: number
-      updated_at:
-        type: string
     type: object
   subscription.RsSubscriptionPermission:
     properties:
@@ -1316,7 +1307,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/audit.RsAuditLog'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -1347,7 +1338,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/fy.RsFinancialYear'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -1478,7 +1469,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/subscription.RsSubscription'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -1541,7 +1532,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/subscription.RsSubscription'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -1581,7 +1572,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/subscription.RsSubscription'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -1655,7 +1646,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/subscription.RsSubscriptionPermission'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -1695,7 +1686,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/fy.RsFinancialYear'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -1749,7 +1740,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/auth.RsToken'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -1766,13 +1757,20 @@ paths:
       consumes:
       - application/json
       description: login a user
+      parameters:
+      - description: Login Credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RqLogin'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/auth.RsToken'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -1799,9 +1797,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -1980,9 +1976,20 @@ paths:
       - engine/bas
   /bas/report:
     get:
+<<<<<<< HEAD
       description: Returns G1, 1A, G11, 1B totals scoped to the authenticated practitioner,
         filtered by quarter_id or month name.
       parameters:
+=======
+      description: Returns G1, 1A, G11, 1B totals for a clinic filtered by quarter_id
+        or month name.
+      parameters:
+      - description: Clinic UUID
+        in: query
+        name: clinic_id
+        required: true
+        type: string
+>>>>>>> 3f23afd5f8198347216528b9aca92e944f26bb2a
       - description: Financial quarter UUID
         in: query
         name: quarter_id
@@ -2030,9 +2037,9 @@ paths:
       - application/json
       responses:
         "200":
-          description: Independent Contractor method response
+          description: OK
           schema:
-            $ref: '#/definitions/calculation.NetResult'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -2067,9 +2074,9 @@ paths:
       - application/json
       responses:
         "200":
-          description: Independent Contractor method response
+          description: OK
           schema:
-            $ref: '#/definitions/calculation.NetResult'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -2158,7 +2165,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/clinic.RsClinic'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -2219,7 +2226,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/clinic.RsClinic'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -2258,7 +2265,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/clinic.RsClinic'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -2330,7 +2337,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/util.RsList'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -2397,7 +2404,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/coa.AccountTax'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -2460,7 +2467,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/coa.AccountType'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -2549,7 +2556,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/coa.RsChartOfAccount'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -2618,7 +2625,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/coa.RsChartOfAccount'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -2657,7 +2664,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/coa.RsChartOfAccount'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -2683,6 +2690,7 @@ paths:
       summary: Update an existing chart of account
       tags:
       - coa
+<<<<<<< HEAD
   /coa/chart-of-account/check-code:
     post:
       consumes:
@@ -2694,26 +2702,55 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/coa.RqCheckCodeUnique'
+=======
+  /entry/{field_id}/summary:
+    get:
+      description: Returns the total net, gst, and gross amounts for all active entries
+        of a field
+      parameters:
+      - description: Form Field ID
+        in: path
+        name: field_id
+        required: true
+        type: string
+>>>>>>> 3f23afd5f8198347216528b9aca92e944f26bb2a
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
+<<<<<<< HEAD
             $ref: '#/definitions/coa.RsCodeUnique'
+=======
+            $ref: '#/definitions/entry.RsFieldSummary'
+>>>>>>> 3f23afd5f8198347216528b9aca92e944f26bb2a
         "400":
           description: Bad Request
           schema:
             $ref: '#/definitions/response.RsError'
+<<<<<<< HEAD
+=======
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.RsError'
+>>>>>>> 3f23afd5f8198347216528b9aca92e944f26bb2a
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.RsError'
       security:
       - BearerToken: []
+<<<<<<< HEAD
       summary: Check if a chart of account code is unique for the practitioner
       tags:
       - coa
+=======
+      summary: Get summed values for a specific field
+      tags:
+      - entry
+>>>>>>> 3f23afd5f8198347216528b9aca92e944f26bb2a
   /entry/{id}:
     delete:
       consumes:
@@ -2759,7 +2796,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/entry.RsFormEntry'
+            $ref: '#/definitions/response.RsBase'
         "404":
           description: Not Found
           schema:
@@ -2795,7 +2832,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/entry.RsFormEntry'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -2951,7 +2988,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/entry.RsFormEntry'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -3059,7 +3096,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/form.RsFormWithFields'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -3118,7 +3155,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/form.RsFormWithFields'
+            $ref: '#/definitions/response.RsBase'
         "404":
           description: Not Found
           schema:
@@ -3154,7 +3191,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/form.RsFormWithFields'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -3318,7 +3355,11 @@ paths:
         "200":
           description: OK
           schema:
+<<<<<<< HEAD
             $ref: '#/definitions/pl.RsReport'
+=======
+            $ref: '#/definitions/response.RsBase'
+>>>>>>> 3f23afd5f8198347216528b9aca92e944f26bb2a
         "400":
           description: Bad Request
           schema:
@@ -3438,7 +3479,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/practitioner.RsPractitioner'
+            $ref: '#/definitions/response.RsBase'
       security:
       - BearerToken: []
       summary: Get practitioner by ID
@@ -3500,7 +3541,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/subscription.RsPractitionerSubscription'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -3563,7 +3604,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/subscription.RsPractitionerSubscription'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -3599,7 +3640,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/subscription.RsPractitionerSubscription'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -3654,7 +3695,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/setting.RsPractitioner'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -3685,7 +3726,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/setting.RsPractitioner'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -3716,7 +3757,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/setting.RsPractitioner'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -3747,7 +3788,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/setting.RsPractitioner'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -3818,7 +3859,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/setting.RsPractitionerSetting'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
@@ -3849,7 +3890,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/setting.RsPractitionerSetting'
+            $ref: '#/definitions/response.RsBase'
         "400":
           description: Bad Request
           schema:
