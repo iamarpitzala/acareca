@@ -37,7 +37,7 @@ type FormEntry struct {
 	SubmittedAt   *string    `db:"submitted_at" json:"submitted_at,omitempty"`
 	Status        string     `db:"status" json:"status"`
 	CreatedAt     string     `db:"created_at" json:"created_at"`
-	UpdatedAt     *string    `db:"updated_at" json:"updated_at"`
+	UpdatedAt     *string    `db:"updated_at" json:"updated_at,omitempty"`
 }
 
 type FormEntryValue struct {
@@ -122,7 +122,7 @@ type RsTransactionRow struct {
 	GstAmount     *float64  `json:"gst_amount"`
 	GrossAmount   *float64  `json:"gross_amount"`
 	CreatedAt     string    `json:"created_at"`
-	UpdatedAt     *string   `json:"updated_at"`
+	UpdatedAt     *string   `json:"updated_at,omitempty"`
 }
 
 // RsTransactionDetail kept for backward compat (used by old RsTransaction).
