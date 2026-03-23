@@ -14,8 +14,8 @@ import (
 )
 
 type Service interface {
-	GrossMethod(ctx context.Context, formDetail *detail.RsFormDetail, formValue []entry.RsEntryValue) (*GrossResult, error)
-	NetMethod(ctx context.Context, formDetail *detail.RsFormDetail, formValue []entry.RsEntryValue, filter *NetFilter) (*NetResult, error)
+	GrossMethod(ctx context.Context, formDetail *detail.RsFormDetail, formValue []entry.RsEntryValue, fieldMap map[uuid.UUID]*field.RsFormField) (*GrossResult, error)
+	NetMethod(ctx context.Context, formDetail *detail.RsFormDetail, formValue []entry.RsEntryValue, fieldMap map[uuid.UUID]*field.RsFormField, filter *NetFilter) (*NetResult, error)
 	Calculate(ctx context.Context, formId uuid.UUID, filter *NetFilter) (interface{}, error)
 
 	CalculateFromEntries(ctx context.Context, req *RqCalculateFromEntries) (interface{}, error)
@@ -32,24 +32,24 @@ func NewService(formSvc form.IService, versionSvc version.IService, fieldSvc fie
 	return &service{formSvc: formSvc, versionSvc: versionSvc, fieldSvc: fieldSvc, entries: entries}
 }
 
-func (s *service) GrossMethod(ctx context.Context, formDetail *detail.RsFormDetail, formValue []entry.RsEntryValue) (*GrossResult, error) {
+func (s *service) GrossMethod(ctx context.Context, formDetail *detail.RsFormDetail, formValue []entry.RsEntryValue, fieldMap map[uuid.UUID]*field.RsFormField) (*GrossResult, error) {
 	var (
-		incomeSum    float64 // sum of ex-GST collection amounts
-		incomeGST    float64 // GST on collections (returned to practitioner for ATO remittance)
-		expenseSum   float64 // sum of ex-GST clinic-paid costs
-		expenseGST   float64 // GST on clinic-paid costs (claimable as input tax credit)
-		otherCostSum float64 // OTHER_COST deductions
+		incomeSum    float64
+		incomeGST    float64
+		expenseSum   float64
+		expenseGST   float64
+		otherCostSum float64
 
-		paidByOwnerSum float64 // OWNER-paid costs passed through to practitioner
+		paidByOwnerSum float64
 	)
 
 	for _, v := range formValue {
-		field, err := s.fieldSvc.GetByID(ctx, v.FormFieldID)
-		if err != nil {
-			return nil, err
+		f, ok := fieldMap[v.FormFieldID]
+		if !ok {
+			return nil, fmt.Errorf("field %s not found", v.FormFieldID)
 		}
 
-		switch field.SectionType {
+		switch f.SectionType {
 
 		case "COLLECTION":
 			if v.NetAmount != nil {
@@ -60,11 +60,11 @@ func (s *service) GrossMethod(ctx context.Context, formDetail *detail.RsFormDeta
 			}
 
 		case "COST":
-			if field.PaymentResponsibility == nil {
+			if f.PaymentResponsibility == nil {
 				continue
 			}
 
-			switch *field.PaymentResponsibility {
+			switch *f.PaymentResponsibility {
 
 			case "CLINIC":
 				if v.NetAmount != nil {
@@ -109,7 +109,7 @@ func (s *service) GrossMethod(ctx context.Context, formDetail *detail.RsFormDeta
 	}, nil
 }
 
-func (s *service) NetMethod(ctx context.Context, formDetail *detail.RsFormDetail, formValue []entry.RsEntryValue, filter *NetFilter) (*NetResult, error) {
+func (s *service) NetMethod(ctx context.Context, formDetail *detail.RsFormDetail, formValue []entry.RsEntryValue, fieldMap map[uuid.UUID]*field.RsFormField, filter *NetFilter) (*NetResult, error) {
 	var (
 		incomeSum    float64
 		expenseSum   float64
@@ -117,12 +117,12 @@ func (s *service) NetMethod(ctx context.Context, formDetail *detail.RsFormDetail
 	)
 
 	for _, v := range formValue {
-		field, err := s.fieldSvc.GetByID(ctx, v.FormFieldID)
-		if err != nil {
-			return nil, err
+		f, ok := fieldMap[v.FormFieldID]
+		if !ok {
+			return nil, fmt.Errorf("field %s not found", v.FormFieldID)
 		}
 
-		switch field.SectionType {
+		switch f.SectionType {
 
 		case "COLLECTION":
 			if v.NetAmount != nil {
@@ -196,11 +196,15 @@ func (s *service) Calculate(ctx context.Context, formID uuid.UUID, filter *NetFi
 	if err != nil {
 		return nil, err
 	}
+	fieldMap, err := s.fieldSvc.GetFieldMap(ctx, version.Id)
+	if err != nil {
+		return nil, err
+	}
 	switch Method(form.Method) {
 	case IndependentContractor:
-		return s.NetMethod(ctx, form, entries.Values, filter)
+		return s.NetMethod(ctx, form, entries.Values, fieldMap, filter)
 	case ServiceFee:
-		return s.GrossMethod(ctx, form, entries.Values)
+		return s.GrossMethod(ctx, form, entries.Values, fieldMap)
 	default:
 		return nil, fmt.Errorf("unsupported method: %s", form.Method)
 	}
@@ -218,13 +222,23 @@ func (s *service) CalculateFromEntries(ctx context.Context, req *RqCalculateFrom
 		return nil, err
 	}
 
+	version, err := s.versionSvc.GetVersionByFormID(ctx, form.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	fieldMap, err := s.fieldSvc.GetFieldMap(ctx, version.Id)
+	if err != nil {
+		return nil, err
+	}
+
 	filter := &NetFilter{SuperComponent: req.SuperComponent}
 
 	switch Method(form.Method) {
 	case IndependentContractor:
-		return s.NetMethod(ctx, form, req.Entries, filter)
+		return s.NetMethod(ctx, form, req.Entries, fieldMap, filter)
 	case ServiceFee:
-		return s.GrossMethod(ctx, form, req.Entries)
+		return s.GrossMethod(ctx, form, req.Entries, fieldMap)
 	default:
 		return nil, fmt.Errorf("unsupported method: %s", form.Method)
 	}

@@ -65,9 +65,9 @@ func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, req *RqFo
 	if err := s.repo.Create(ctx, e, values); err != nil {
 		return nil, err
 	}
-	created, vals, _ := s.repo.GetByID(ctx, e.ID)
-	if created == nil {
-		return e.ToRs(values), nil
+	created, vals, err := s.repo.GetByID(ctx, e.ID)
+	if err != nil {
+		return nil, fmt.Errorf("fetch entry after create: %w", err)
 	}
 	return created.ToRs(vals), nil
 }
@@ -105,9 +105,9 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, req *RqUpdateFormEnt
 	if err := s.repo.Update(ctx, existing, newValues); err != nil {
 		return nil, err
 	}
-	updated, vals, _ := s.repo.GetByID(ctx, id)
-	if updated == nil {
-		return existing.ToRs(values), nil
+	updated, vals, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("fetch entry after update: %w", err)
 	}
 	return updated.ToRs(vals), nil
 }
