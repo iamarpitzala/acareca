@@ -225,6 +225,23 @@ func (s *service) Logout(ctx context.Context, userID uuid.UUID, refreshToken str
 		UserAgent:  meta.UserAgent,
 	})
 
+	// Audit log:  Session revoked
+	s.auditSvc.LogAsync(&audit.LogEntry{
+		PracticeID: meta.PracticeID,
+		UserID:     &userIDStr,
+		Action:     auditctx.ActionSessionRevoked,
+		Module:     auditctx.ModuleAuth,
+		EntityType: strPtr(auditctx.EntitySession),
+		EntityID:   &sessIDStr,
+		BeforeState: map[string]interface{}{
+			"session_id": sessIDStr,
+			"user_id":    userIDStr,
+			"revoked_at": time.Now(),
+		},
+		IPAddress: meta.IPAddress,
+		UserAgent: meta.UserAgent,
+	})
+
 	return nil
 }
 
@@ -371,6 +388,26 @@ func (s *service) issueTokens(ctx context.Context, user *User, practitionerID st
 		return nil, err
 	}
 
+	// Audit log : Session Created
+	meta := auditctx.GetMetadata(ctx)
+	sessIDStr := sess.ID.String()
+	userIDStr := user.ID.String()
+
+	s.auditSvc.LogAsync(&audit.LogEntry{
+		PracticeID: &practitionerID,
+		UserID:     &userIDStr,
+		Action:     auditctx.ActionSessionCreated,
+		Module:     auditctx.ModuleAuth,
+		EntityType: strPtr(auditctx.EntitySession),
+		EntityID:   &sessIDStr,
+		AfterState: map[string]interface{}{
+			"session_id": sessIDStr,
+			"expires_at": sess.ExpiresAt,
+		},
+		IPAddress: meta.IPAddress,
+		UserAgent: meta.UserAgent,
+	})
+
 	return &RsToken{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
@@ -472,7 +509,32 @@ func (s *service) VerifyEmail(ctx context.Context, tokenStr string) error {
 		return errors.New("verification link has expired")
 	}
 
-	return s.repo.MarkUserVerified(ctx, token.EntityID, token.ID)
+	if err := s.repo.MarkUserVerified(ctx, token.EntityID, token.ID); err != nil {
+		return err
+	}
+
+	// Audit log: Email Verified
+	meta := auditctx.GetMetadata(ctx)
+	userIDStr := token.EntityID.String()
+	tokenIDStr := token.ID.String()
+
+	s.auditSvc.LogAsync(&audit.LogEntry{
+		PracticeID: meta.PracticeID,
+		UserID:     &userIDStr,
+		Action:     auditctx.ActionEmailVerified,
+		Module:     auditctx.ModuleAuth,
+		EntityType: strPtr(auditctx.EntityVerificationToken),
+		EntityID:   &tokenIDStr,
+		BeforeState: map[string]interface{}{
+			"status": token.Status,
+		},
+		AfterState: map[string]interface{}{
+			"status": "USED",
+		},
+		IPAddress: meta.IPAddress,
+		UserAgent: meta.UserAgent,
+	})
+	return nil
 }
 
 func (s *service) ChangePassword(ctx context.Context, userID uuid.UUID, req *RqChangePassword) error {
