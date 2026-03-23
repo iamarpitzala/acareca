@@ -793,6 +793,25 @@ definitions:
         minimum: 0
         type: number
     type: object
+  subscription.RsPractitionerSubscription:
+    properties:
+      created_at:
+        type: string
+      end_date:
+        type: string
+      id:
+        type: integer
+      practitioner_id:
+        type: string
+      start_date:
+        type: string
+      status:
+        $ref: '#/definitions/subscription.Status'
+      subscription_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
   subscription.RsSubscriptionPermission:
     properties:
       is_enabled:
@@ -3268,6 +3287,70 @@ paths:
       security:
       - BearerToken: []
       summary: Update a subscription
+      tags:
+      - subscription
+  /practitioner/subscription/active:
+    get:
+      consumes:
+      - application/json
+      description: Get the active subscription of the practitioner from token
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/subscription.RsPractitionerSubscription'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: Get active subscription
+      tags:
+      - subscription
+  /practitioner/subscription/history:
+    get:
+      consumes:
+      - application/json
+      description: Get all subscriptions (active and inactive) of the practitioner
+        from token
+      parameters:
+      - description: Pagination limit
+        in: query
+        name: limit
+        type: integer
+      - description: Pagination offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/util.RsList'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: Get subscription history
       tags:
       - subscription
   /setting:
