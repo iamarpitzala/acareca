@@ -86,6 +86,11 @@ type RsFormEntry struct {
 	Values        []RsEntryValue `json:"values,omitempty"`
 	CreatedAt     string         `json:"created_at"`
 	UpdatedAt     *string        `json:"updated_at"`
+
+	// Populated for INDEPENDENT_CONTRACTOR forms only.
+	Commission       *float64 `json:"commission,omitempty"`
+	GstOnCommission  *float64 `json:"gst_on_commission,omitempty"`
+	PaymentReceived  *float64 `json:"payment_received,omitempty"`
 }
 
 type RsEntryValue struct {

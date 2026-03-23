@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/modules/builder/detail"
 	"github.com/iamarpitzala/acareca/internal/modules/builder/field"
+	"github.com/iamarpitzala/acareca/internal/modules/builder/version"
 	"github.com/iamarpitzala/acareca/internal/modules/engine/method"
 	"github.com/iamarpitzala/acareca/internal/shared/limits"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
@@ -25,14 +27,16 @@ type IService interface {
 }
 
 type Service struct {
-	repo      IRepository
-	fieldRepo field.IRepository
-	methodSvc method.IService
-	limitsSvc limits.Service
+	repo       IRepository
+	fieldRepo  field.IRepository
+	methodSvc  method.IService
+	limitsSvc  limits.Service
+	detailSvc  detail.IService
+	versionSvc version.IService
 }
 
-func NewService(db *sqlx.DB, repo IRepository, fieldRepo field.IRepository, methodSvc method.IService) IService {
-	return &Service{repo: repo, fieldRepo: fieldRepo, methodSvc: methodSvc, limitsSvc: limits.NewService(db)}
+func NewService(db *sqlx.DB, repo IRepository, fieldRepo field.IRepository, methodSvc method.IService, detailSvc detail.IService, versionSvc version.IService) IService {
+	return &Service{repo: repo, fieldRepo: fieldRepo, methodSvc: methodSvc, limitsSvc: limits.NewService(db), detailSvc: detailSvc, versionSvc: versionSvc}
 }
 
 // Create implements [IService].
@@ -69,7 +73,9 @@ func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, req *RqFo
 	if err != nil {
 		return nil, fmt.Errorf("fetch entry after create: %w", err)
 	}
-	return created.ToRs(vals), nil
+	rs := created.ToRs(vals)
+	s.attachICCalculation(ctx, rs)
+	return rs, nil
 }
 
 // GetByID implements [IService].
@@ -78,7 +84,9 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*RsFormEntry, erro
 	if err != nil {
 		return nil, err
 	}
-	return e.ToRs(values), nil
+	rs := e.ToRs(values)
+	s.attachICCalculation(ctx, rs)
+	return rs, nil
 }
 
 // Update implements [IService].
@@ -109,7 +117,9 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, req *RqUpdateFormEnt
 	if err != nil {
 		return nil, fmt.Errorf("fetch entry after update: %w", err)
 	}
-	return updated.ToRs(vals), nil
+	rs := updated.ToRs(vals)
+	s.attachICCalculation(ctx, rs)
+	return rs, nil
 }
 
 // Delete implements [IService].
@@ -248,4 +258,87 @@ func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []R
 	}
 
 	return out, nil
+}
+
+// attachICCalculation fetches the form detail for the given version and, if the
+// form method is INDEPENDENT_CONTRACTOR, computes commission, GST on commission,
+// and payment received, then attaches them to the response.
+func (s *Service) attachICCalculation(ctx context.Context, rs *RsFormEntry) {
+	if s.detailSvc == nil || s.versionSvc == nil {
+		return
+	}
+
+	ver, err := s.versionSvc.GetByID(ctx, rs.FormVersionID)
+	if err != nil {
+		return
+	}
+
+	form, err := s.detailSvc.GetByID(ctx, ver.FormId)
+	if err != nil || form.Method != "INDEPENDENT_CONTRACTOR" {
+		return
+	}
+
+	// Build fieldMap from the entry values.
+	fieldMap := make(map[uuid.UUID]*field.FormField, len(rs.Values))
+	for _, v := range rs.Values {
+		f, err := s.fieldRepo.GetByID(ctx, v.FormFieldID)
+		if err != nil {
+			return
+		}
+		fieldMap[v.FormFieldID] = f
+	}
+
+	// Compute net totals per section.
+	var incomeSum, expenseSum, otherCostSum float64
+	for _, v := range rs.Values {
+		f, ok := fieldMap[v.FormFieldID]
+		if !ok {
+			continue
+		}
+		switch f.SectionType {
+		case field.SectionTypeCollection:
+			if v.NetAmount != nil {
+				incomeSum += *v.NetAmount
+			}
+		case field.SectionTypeCost:
+			if v.NetAmount != nil {
+				expenseSum += *v.NetAmount
+			}
+		case field.SectionTypeOtherCost:
+			if v.NetAmount != nil {
+				otherCostSum += *v.NetAmount
+			}
+		}
+	}
+
+	netAmount := incomeSum - expenseSum - otherCostSum
+	ownerShare := float64(form.OwnerShare)
+	commission := netAmount * (ownerShare / 100)
+	gstOnCommission := commission * 0.10
+	paymentReceived := commission + gstOnCommission
+
+	// Apply super component if set on the form.
+	if form.SuperComponent != nil && *form.SuperComponent > 0 {
+		superAmount := commission * (*form.SuperComponent / 100)
+		paymentReceived += superAmount
+	}
+
+	commission = roundEntry(commission)
+	gstOnCommission = roundEntry(gstOnCommission)
+	paymentReceived = roundEntry(paymentReceived)
+
+	rs.Commission = &commission
+	rs.GstOnCommission = &gstOnCommission
+	rs.PaymentReceived = &paymentReceived
+}
+
+func roundEntry(v float64) float64 {
+	// Round to 2 decimal places.
+	shifted := v * 100
+	if shifted < 0 {
+		shifted -= 0.5
+	} else {
+		shifted += 0.5
+	}
+	return float64(int(shifted)) / 100
 }
