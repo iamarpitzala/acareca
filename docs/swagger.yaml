@@ -1,5 +1,16 @@
 basePath: /api/v1
 definitions:
+  auth.RqChangePassword:
+    properties:
+      new_password:
+        minLength: 8
+        type: string
+      old_password:
+        type: string
+    required:
+    - new_password
+    - old_password
+    type: object
   auth.RqLogin:
     properties:
       email:
@@ -11,6 +22,24 @@ definitions:
     required:
     - email
     - password
+    type: object
+  auth.RqLogout:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  auth.RqUpdateUser:
+    properties:
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      phone:
+        type: string
     type: object
   auth.RqUser:
     properties:
@@ -36,6 +65,25 @@ definitions:
   auth.RsGoogleAuthURL:
     properties:
       url:
+        type: string
+    type: object
+  auth.RsUser:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: string
+      is_superadmin:
+        type: boolean
+      last_name:
+        type: string
+      phone:
+        type: string
+      updated_at:
         type: string
     type: object
   bas.RsBASByAccount:
@@ -1428,29 +1476,6 @@ paths:
       summary: Login a user
       tags:
       - auth
-  /auth/logout:
-    post:
-      consumes:
-      - application/json
-      description: revoke the current session using the refresh token
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/response.RsBase'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.RsError'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.RsError'
-      summary: Logout a user
-      tags:
-      - auth
   /auth/register:
     post:
       consumes:
@@ -1483,6 +1508,137 @@ paths:
           schema:
             $ref: '#/definitions/response.RsError'
       summary: Register a new user
+      tags:
+      - auth
+  /auth/user:
+    delete:
+      description: Soft delete the currently authenticated user's account
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.RsBase'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: Delete user account
+      tags:
+      - auth
+  /auth/user/change-password:
+    put:
+      consumes:
+      - application/json
+      description: updates the password for the authenticated user
+      parameters:
+      - description: Password Change Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RqChangePassword'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.RsBase'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: Change user password
+      tags:
+      - auth
+  /auth/user/logout:
+    post:
+      consumes:
+      - application/json
+      description: revoke the current session using the refresh token
+      parameters:
+      - description: Logout Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RqLogout'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.RsBase'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: Logout a user
+      tags:
+      - auth
+  /auth/user/profile:
+    put:
+      consumes:
+      - application/json
+      description: Update the profile details of the user (email, names, phone)
+      parameters:
+      - description: Update Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RqUpdateUser'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.RsUser'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: Update user profile
       tags:
       - auth
   /bas/clinic/{clinic_id}/by-account:

@@ -33,9 +33,13 @@ type OnUserCreated func(ctx context.Context, userID string) error
 type Service interface {
 	Register(ctx context.Context, req *RqUser) (*RsUser, error)
 	Login(ctx context.Context, req *RqLogin) (*RsToken, error)
-	Logout(ctx context.Context, refreshToken string) error
+	Logout(ctx context.Context, userID uuid.UUID, refreshToken string) error
 	GoogleAuthURL(state string) *RsGoogleAuthURL
 	GoogleCallback(ctx context.Context, code string) (*RsToken, error)
+	ChangePassword(ctx context.Context, userID uuid.UUID, req *RqChangePassword) error
+
+	UpdateProfile(ctx context.Context, userID uuid.UUID, req *RqUpdateUser) (*RsUser, error)
+	DeleteUser(ctx context.Context, userID uuid.UUID) error
 }
 
 type service struct {
@@ -161,10 +165,15 @@ func (s *service) Login(ctx context.Context, req *RqLogin) (*RsToken, error) {
 	return s.issueTokens(ctx, user, practitionerID.ID.String())
 }
 
-func (s *service) Logout(ctx context.Context, refreshToken string) error {
+func (s *service) Logout(ctx context.Context, userID uuid.UUID, refreshToken string) error {
 	sess, err := s.repo.FindSessionByRefreshToken(ctx, refreshToken)
 	if err != nil {
 		return err
+	}
+
+	// Security check: Don't let User A log out User B's session
+	if sess.UserID != userID {
+		return errors.New("unauthorized session access")
 	}
 
 	if err := s.repo.DeleteSession(ctx, sess.ID); err != nil {
@@ -352,4 +361,134 @@ func sanitizeUser(u *User) map[string]interface{} {
 		"first_name": u.FirstName,
 		"last_name":  u.LastName,
 	}
+}
+
+func (s *service) ChangePassword(ctx context.Context, userID uuid.UUID, req *RqChangePassword) error {
+	// Get user to check current password
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// Prevent password change for OAuth-only accounts
+	if user.Password == nil || *user.Password == "" {
+		return ErrOAuthOnly
+	}
+
+	// Verify old password
+	if err := util.CompareHash(req.OldPassword, *user.Password); err != nil {
+		return ErrInvalidPassword
+	}
+
+	// Hash new password
+	newHashedPassword, err := util.GenerateHash(req.NewPassword)
+	if err != nil {
+		return fmt.Errorf("hash new password: %w", err)
+	}
+
+	// Update new password in DB
+	if err := s.repo.UpdatePassword(ctx, userID, newHashedPassword); err != nil {
+		return err
+	}
+
+	// Audit log : Password Change
+	meta := auditctx.GetMetadata(ctx)
+	userIDStr := userID.String()
+	s.auditSvc.LogAsync(&audit.LogEntry{
+		UserID:     &userIDStr,
+		Action:     auditctx.ActionPasswordChanged,
+		Module:     auditctx.ModuleAuth,
+		EntityType: strPtr(auditctx.EntityUser),
+		EntityID:   &userIDStr,
+		IPAddress:  meta.IPAddress,
+		UserAgent:  meta.UserAgent,
+	})
+
+	return nil
+}
+
+func (s *service) UpdateProfile(ctx context.Context, userID uuid.UUID, req *RqUpdateUser) (*RsUser, error) {
+	// 1. Fetch existing user
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	beforeState := sanitizeUser(user)
+
+	// 2. Map new data ONLY if provided (Partial Update)
+	if req.Email != nil {
+		// check if email is different and if it's already taken
+		if *req.Email != user.Email {
+			if _, err := s.repo.FindByEmail(ctx, *req.Email); err == nil {
+				return nil, ErrEmailTaken
+			}
+		}
+		user.Email = *req.Email
+	}
+	if req.FirstName != nil {
+		user.FirstName = *req.FirstName
+	}
+	if req.LastName != nil {
+		user.LastName = *req.LastName
+	}
+	if req.Phone != nil {
+		user.Phone = req.Phone // Phone is *string in User model, so no dereference needed
+	}
+
+	updated, err := s.repo.UpdateUser(ctx, user, nil)
+	if err != nil {
+		return nil, fmt.Errorf("update profile: %w", err)
+	}
+
+	// 4. Audit log: Profile Update
+	meta := auditctx.GetMetadata(ctx)
+	userIDStr := updated.ID.String()
+	s.auditSvc.LogAsync(&audit.LogEntry{
+		PracticeID:  meta.PracticeID,
+		UserID:      &userIDStr,
+		Action:      auditctx.ActionUserUpdated,
+		Module:      auditctx.ModuleAuth,
+		EntityType:  strPtr(auditctx.EntityUser),
+		EntityID:    &userIDStr,
+		BeforeState: beforeState,
+		AfterState:  sanitizeUser(updated),
+		IPAddress:   meta.IPAddress,
+		UserAgent:   meta.UserAgent,
+	})
+
+	return updated.ToRsUser(), nil
+}
+
+func (s *service) DeleteUser(ctx context.Context, userID uuid.UUID) error {
+	// 1. Fetch user to confirm existence and for audit logging
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	beforeState := sanitizeUser(user)
+
+	// 2. Perform the soft delete in repository
+	if err := s.repo.DeleteUser(ctx, userID, nil); err != nil {
+		return fmt.Errorf("delete user service: %w", err)
+	}
+
+	// 3. Audit Log
+	meta := auditctx.GetMetadata(ctx)
+	userIDStr := userID.String()
+	s.auditSvc.LogAsync(&audit.LogEntry{
+		PracticeID:  meta.PracticeID,
+		UserID:      &userIDStr,
+		Action:      auditctx.ActionUserDeleted,
+		Module:      auditctx.ModuleAuth,
+		EntityType:  strPtr(auditctx.EntityUser),
+		EntityID:    &userIDStr,
+		BeforeState: beforeState,
+		AfterState:  nil,
+		IPAddress:   meta.IPAddress,
+		UserAgent:   meta.UserAgent,
+	})
+
+	return nil
 }

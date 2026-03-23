@@ -5,6 +5,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	auditctx "github.com/iamarpitzala/acareca/internal/shared/audit"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
@@ -15,6 +17,9 @@ type IHandler interface {
 	Logout(c *gin.Context)
 	GoogleAuthURL(c *gin.Context)
 	GoogleCallback(c *gin.Context)
+	ChangePassword(c *gin.Context)
+	UpdateProfile(c *gin.Context)
+	DeleteUser(c *gin.Context)
 }
 
 type handler struct {
@@ -89,25 +94,83 @@ func (h *handler) Login(c *gin.Context) {
 	response.JSON(c, http.StatusOK, token, "User logged in successfully")
 }
 
+// UpdateProfile godoc
+// @Summary Update user profile
+// @Description Update the profile details of the user (email, names, phone)
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerToken
+// @Param request body RqUpdateUser true "Update Data"
+// @Success 200 {object} RsUser
+// @Failure 400 {object} response.RsError
+// @Failure 401 {object} response.RsError
+// @Failure 409 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Router /auth/user/profile [put]
+func (h *handler) UpdateProfile(c *gin.Context) {
+
+	userIDPtr := auditctx.GetUserID(c.Request.Context())
+
+	// 2. Check if the pointer is nil (Unauthorized)
+	if userIDPtr == nil {
+		response.Error(c, http.StatusUnauthorized, errors.New("unauthorized: user not found in context"))
+		return
+	}
+
+	// 3. Parse the string value into a uuid.UUID for the service layer
+	userID, err := uuid.Parse(*userIDPtr)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, errors.New("invalid user id format"))
+		return
+	}
+
+	// 4. Bind and validate the update request body
+	var req RqUpdateUser
+	if err := util.BindAndValidate(c, &req); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	// 5. Call service layer with the parsed UUID
+	user, err := h.svc.UpdateProfile(c.Request.Context(), userID, &req)
+	if err != nil {
+		if errors.Is(err, ErrEmailTaken) {
+			response.Error(c, http.StatusConflict, err)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, user, "Profile updated successfully")
+}
+
 // Logout godoc
 // @Summary Logout a user
 // @Description revoke the current session using the refresh token
 // @Tags auth
 // @Accept json
 // @Produce json
+// @Param request body RqLogout true "Logout Data"
 // @Success 200 {object} response.RsBase
 // @Failure 400 {object} response.RsError
 // @Failure 401 {object} response.RsError
-// @Router /auth/logout [post]
+// @Security BearerToken
+// @Router /auth/user/logout [post]
 func (h *handler) Logout(c *gin.Context) {
-	var req struct {
-		RefreshToken string `json:"refresh_token" validate:"required"`
+	// Get UserID from context (set by middleware)
+	userID, ok := util.GetUserID(c)
+	if !ok {
+		return // GetUserID handles the error response
 	}
+
+	var req RqLogout
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	if err := h.svc.Logout(c.Request.Context(), req.RefreshToken); err != nil {
+	if err := h.svc.Logout(c.Request.Context(), userID, req.RefreshToken); err != nil {
 		response.Error(c, http.StatusUnauthorized, err)
 		return
 	}
@@ -181,4 +244,80 @@ func (h *handler) GoogleCallback(c *gin.Context) {
 	}
 
 	response.JSON(c, http.StatusOK, token, "Google OAuth callback handled successfully")
+}
+
+// ChangePassword godoc
+// @Summary Change user password
+// @Description updates the password for the authenticated user
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body RqChangePassword true "Password Change Data"
+// @Success 200 {object} response.RsBase
+// @Failure 400 {object} response.RsError
+// @Failure 403 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /auth/user/change-password [put]
+func (h *handler) ChangePassword(c *gin.Context) {
+	userID, ok := util.GetUserID(c)
+	if !ok {
+		return // GetUserID already sends the error response via Gin
+	}
+
+	var req RqChangePassword
+	if err := util.BindAndValidate(c, &req); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.svc.ChangePassword(c.Request.Context(), userID, &req); err != nil {
+		if errors.Is(err, ErrInvalidPassword) {
+			response.Error(c, http.StatusBadRequest, errors.New("incorrect old password"))
+			return
+		}
+		if errors.Is(err, ErrOAuthOnly) {
+			response.Error(c, http.StatusForbidden, err)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, nil, "Password changed successfully")
+}
+
+// DeleteUser godoc
+// @Summary Delete user account
+// @Description Soft delete the currently authenticated user's account
+// @Tags auth
+// @Produce json
+// @Security BearerToken
+// @Success 200 {object} response.RsBase
+// @Failure 401 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Router /auth/user [delete]
+func (h *handler) DeleteUser(c *gin.Context) {
+
+	userIDPtr := auditctx.GetUserID(c.Request.Context())
+
+	// 2. Check if the pointer is nil (Unauthorized)
+	if userIDPtr == nil {
+		response.Error(c, http.StatusUnauthorized, errors.New("unauthorized: user not found in context"))
+		return
+	}
+
+	userID, err := uuid.Parse(*userIDPtr)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, errors.New("invalid user id format"))
+		return
+	}
+
+	// 4. Call service layer to perform the soft delete
+	if err := h.svc.DeleteUser(c.Request.Context(), userID); err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, nil, "User account deleted successfully")
 }
