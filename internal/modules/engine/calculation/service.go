@@ -274,7 +274,7 @@ func (s *service) NetMethod(ctx context.Context, formDetail *detail.RsFormDetail
 
 	netResult := NetResult{
 		NetAmount:       util.Round(netAmount, 2),
-		Commission:      util.Round(totalRemuneration, 2),
+		Commission:      util.Round(commissionBase, 2),
 		GstCommission:   util.Round(gstCommission, 2),
 		TotalCommission: util.Round(totalCommission, 2),
 	}
