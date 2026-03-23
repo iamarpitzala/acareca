@@ -53,10 +53,10 @@ type RqUser struct {
 }
 
 type RqUpdateUser struct {
-	Email     string `json:"email" validate:"required,email"`
-	FirstName string `json:"first_name" validate:"required"`
-	LastName  string `json:"last_name" validate:"required"`
-	Phone     string `json:"phone" validate:"required"`
+	Email     *string `json:"email"      validate:"omitempty,email"`
+	FirstName *string `json:"first_name" validate:"omitempty"`
+	LastName  *string `json:"last_name"  validate:"omitempty"`
+	Phone     *string `json:"phone"      validate:"omitempty,e164"`
 }
 
 func (r *RqUser) ToDBModel() *User {
@@ -73,6 +73,15 @@ type RqLogin struct {
 	Email        string `json:"email"         validate:"required,email"`
 	Password     string `json:"password"      validate:"required"`
 	IsSuperadmin *bool  `json:"is_superadmin" validate:"omitempty"`
+}
+
+type RqLogout struct {
+	RefreshToken string `json:"refresh_token" validate:"required"`
+}
+
+type RqChangePassword struct {
+	OldPassword string `json:"old_password" validate:"required"`
+	NewPassword string `json:"new_password" validate:"required,min=8"`
 }
 
 // ── Response models ───────────────────────────────────────────────────────────

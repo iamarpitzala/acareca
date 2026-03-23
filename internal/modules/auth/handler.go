@@ -17,6 +17,7 @@ type IHandler interface {
 	Logout(c *gin.Context)
 	GoogleAuthURL(c *gin.Context)
 	GoogleCallback(c *gin.Context)
+	ChangePassword(c *gin.Context)
 	UpdateProfile(c *gin.Context)
 	DeleteUser(c *gin.Context)
 }
@@ -104,6 +105,7 @@ func (h *handler) Login(c *gin.Context) {
 // @Success 200 {object} RsUser
 // @Failure 400 {object} response.RsError
 // @Failure 401 {object} response.RsError
+// @Failure 409 {object} response.RsError
 // @Failure 500 {object} response.RsError
 // @Router /auth/user/profile [put]
 func (h *handler) UpdateProfile(c *gin.Context) {
@@ -133,6 +135,10 @@ func (h *handler) UpdateProfile(c *gin.Context) {
 	// 5. Call service layer with the parsed UUID
 	user, err := h.svc.UpdateProfile(c.Request.Context(), userID, &req)
 	if err != nil {
+		if errors.Is(err, ErrEmailTaken) {
+			response.Error(c, http.StatusConflict, err)
+			return
+		}
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
@@ -187,19 +193,25 @@ func (h *handler) GoogleCallback(c *gin.Context) {
 // @Tags auth
 // @Accept json
 // @Produce json
+// @Param request body RqLogout true "Logout Data"
 // @Success 200 {object} response.RsBase
 // @Failure 400 {object} response.RsError
 // @Failure 401 {object} response.RsError
-// @Router /auth/logout [post]
+// @Security BearerToken
+// @Router /auth/user/logout [post]
 func (h *handler) Logout(c *gin.Context) {
-	var req struct {
-		RefreshToken string `json:"refresh_token" validate:"required"`
+	// Get UserID from context (set by middleware)
+	userID, ok := util.GetUserID(c)
+	if !ok {
+		return // GetUserID handles the error response
 	}
+
+	var req RqLogout
 	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	if err := h.svc.Logout(c.Request.Context(), req.RefreshToken); err != nil {
+	if err := h.svc.Logout(c.Request.Context(), userID, req.RefreshToken); err != nil {
 		response.Error(c, http.StatusUnauthorized, err)
 		return
 	}
@@ -219,6 +231,47 @@ func (h *handler) GoogleAuthURL(c *gin.Context) {
 	state := util.NewUUID()
 	result := h.svc.GoogleAuthURL(state)
 	response.JSON(c, http.StatusOK, result, "Google OAuth consent-screen URL fetched successfully")
+}
+
+// ChangePassword godoc
+// @Summary Change user password
+// @Description updates the password for the authenticated user
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body RqChangePassword true "Password Change Data"
+// @Success 200 {object} response.RsBase
+// @Failure 400 {object} response.RsError
+// @Failure 403 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /auth/user/change-password [put]
+func (h *handler) ChangePassword(c *gin.Context) {
+	userID, ok := util.GetUserID(c)
+	if !ok {
+		return // GetUserID already sends the error response via Gin
+	}
+
+	var req RqChangePassword
+	if err := util.BindAndValidate(c, &req); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.svc.ChangePassword(c.Request.Context(), userID, &req); err != nil {
+		if errors.Is(err, ErrInvalidPassword) {
+			response.Error(c, http.StatusBadRequest, errors.New("incorrect old password"))
+			return
+		}
+		if errors.Is(err, ErrOAuthOnly) {
+			response.Error(c, http.StatusForbidden, err)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, nil, "Password changed successfully")
 }
 
 // DeleteUser godoc

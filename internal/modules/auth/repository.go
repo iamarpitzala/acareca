@@ -20,6 +20,7 @@ type Repository interface {
 	DeleteUser(ctx context.Context, id uuid.UUID, tx *sqlx.Tx) error
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	FindByID(ctx context.Context, id uuid.UUID) (*User, error)
+	UpdatePassword(ctx context.Context, userID uuid.UUID, hashedPassword string) error
 
 	// Auth provider
 	UpsertAuthProvider(ctx context.Context, p *AuthProvider, tx *sqlx.Tx) (*AuthProvider, error)
@@ -253,6 +254,20 @@ func (r *repository) DeleteSession(ctx context.Context, id uuid.UUID) error {
 	query := `UPDATE tbl_session SET deleted_at = now() WHERE id = $1`
 	if _, err := r.db.ExecContext(ctx, query, id); err != nil {
 		return fmt.Errorf("delete session: %w", err)
+	}
+	return nil
+}
+
+func (r *repository) UpdatePassword(ctx context.Context, userID uuid.UUID, hashedPassword string) error {
+	query := `UPDATE tbl_user SET password = $1, updated_at = now() WHERE id = $2 AND deleted_at IS NULL`
+	result, err := r.db.ExecContext(ctx, query, hashedPassword, userID)
+	if err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return ErrNotFound
 	}
 	return nil
 }

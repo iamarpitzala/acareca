@@ -11,7 +11,7 @@ func RegisterRoutes(rg *gin.RouterGroup, h IHandler, authMiddleware gin.HandlerF
 	auth.POST("/register", h.Register)
 
 	auth.POST("/login", h.Login)
-	auth.POST("/logout", h.Logout)
+	// auth.POST("/logout", h.Logout)
 
 	auth.GET("/google", h.GoogleAuthURL)
 	auth.GET("/google/callback", h.GoogleCallback)
@@ -19,7 +19,9 @@ func RegisterRoutes(rg *gin.RouterGroup, h IHandler, authMiddleware gin.HandlerF
 	// Protected Routes
 	protected := auth.Group("/user", authMiddleware, middleware.AuditContext())
 	{
+		protected.PUT("/change-password", h.ChangePassword)
 		protected.PUT("/profile", h.UpdateProfile)
+		protected.POST("/logout", h.Logout)
 		protected.DELETE("", h.DeleteUser)
 
 	}
