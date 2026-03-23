@@ -34,7 +34,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
+func RegisterRoutes(r *gin.Engine, cfg *config.Config) audit.Service {
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
@@ -167,4 +167,5 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 
 	userSubscription.RegisterRoutes(userSubscriptionGroup, userSubscriptionHandler)
 
+	return auditSvc
 }
