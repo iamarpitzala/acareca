@@ -26,6 +26,8 @@ type IService interface {
 	CreateTx(ctx context.Context, tx *sqlx.Tx, formVersionID uuid.UUID, req *RqFormEntry, submittedBy *uuid.UUID, practitionerID uuid.UUID) (*RsFormEntry, error)
 	UpdateTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID, req *RqUpdateFormEntry, submittedBy *uuid.UUID) (*RsFormEntry, error)
 	DeleteTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID) error
+
+	GetFieldSummary(ctx context.Context, fieldID uuid.UUID) (*RsFieldSummary, error)
 }
 
 type Service struct {
@@ -173,6 +175,65 @@ func (s *Service) ListTransactions(ctx context.Context, practitionerID uuid.UUID
 	return &rs, nil
 }
 
+// func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []RqEntryValue) ([]*FormEntryValue, error) {
+// 	out := make([]*FormEntryValue, 0, len(rq))
+
+// 	for _, v := range rq {
+// 		fieldID, err := uuid.Parse(v.FormFieldID)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+
+// 		field, err := s.fieldRepo.GetByID(ctx, fieldID)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+
+// 		var gstAmount *float64
+
+// 		var taxType method.TaxTreatment
+// 		if field.TaxType != nil && *field.TaxType != "" {
+// 			taxType = method.TaxTreatment(*field.TaxType)
+// 		}
+
+// 		switch taxType {
+// 		case method.TaxTreatmentInclusive, method.TaxTreatmentExclusive:
+// 			result, err := s.methodSvc.Calculate(ctx, taxType, &method.Input{
+// 				Amount: v.Amount,
+// 			})
+// 			if err != nil {
+// 				return nil, err
+// 			}
+// 			gstAmount = &result.GstAmount
+
+// 		case method.TaxTreatmentManual:
+// 			gstAmount = v.GstAmount
+
+// 		default:
+// 			// TaxTreatmentZero or no tax type set — no GST
+// 			gstAmount = nil
+// 		}
+
+// 		totalAmount := v.Amount
+// 		if gstAmount != nil {
+// 			totalAmount += *gstAmount
+// 		}
+
+// 		formValue := &FormEntryValue{
+// 			ID:          uuid.New(),
+// 			EntryID:     entryID,
+// 			FormFieldID: fieldID,
+// 			NetAmount:   &v.Amount,
+// 			GstAmount:   gstAmount,
+// 			GrossAmount: &totalAmount,
+// 		}
+
+// 		out = append(out, formValue)
+// 	}
+
+// 	return out, nil
+// }
+
 func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []RqEntryValue) ([]*FormEntryValue, error) {
 	out := make([]*FormEntryValue, 0, len(rq))
 
@@ -187,9 +248,15 @@ func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []R
 			return nil, err
 		}
 
+		var netAmount float64
 		var gstAmount *float64
+		var grossAmount float64
 
-		taxType := method.TaxTreatment(*field.TaxType)
+		var taxType method.TaxTreatment
+		if field.TaxType != nil && *field.TaxType != "" {
+			taxType = method.TaxTreatment(*field.TaxType)
+		}
+
 		switch taxType {
 		case method.TaxTreatmentInclusive, method.TaxTreatmentExclusive:
 			result, err := s.methodSvc.Calculate(ctx, taxType, &method.Input{
@@ -198,30 +265,32 @@ func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []R
 			if err != nil {
 				return nil, err
 			}
+			netAmount = result.Amount
 			gstAmount = &result.GstAmount
+			grossAmount = result.TotalAmount
 
 		case method.TaxTreatmentManual:
+			netAmount = v.Amount
 			gstAmount = v.GstAmount
-
-		case method.TaxTreatmentZero:
-			gstAmount = nil
+			grossAmount = v.Amount
+			if gstAmount != nil {
+				grossAmount += *gstAmount
+			}
 
 		default:
-			return nil, fmt.Errorf("unsupported tax treatment: %s", taxType)
-		}
-
-		totalAmount := v.Amount
-		if gstAmount != nil {
-			totalAmount += *gstAmount
+			// TaxTreatmentZero or no tax type set — no GST
+			netAmount = v.Amount
+			gstAmount = nil
+			grossAmount = v.Amount
 		}
 
 		formValue := &FormEntryValue{
 			ID:          uuid.New(),
 			EntryID:     entryID,
 			FormFieldID: fieldID,
-			NetAmount:   &v.Amount,
+			NetAmount:   &netAmount,
 			GstAmount:   gstAmount,
-			GrossAmount: &totalAmount,
+			GrossAmount: &grossAmount,
 		}
 
 		out = append(out, formValue)
@@ -293,4 +362,12 @@ func (s *Service) UpdateTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID, req *
 // DeleteTx deletes a form entry within a transaction.
 func (s *Service) DeleteTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID) error {
 	return s.repo.DeleteTx(ctx, tx, id)
+}
+
+func (s *Service) GetFieldSummary(ctx context.Context, fieldID uuid.UUID) (*RsFieldSummary, error) {
+	summary, err := s.repo.GetSummedValuesByFieldID(ctx, fieldID)
+	if err != nil {
+		return nil, fmt.Errorf("service get field summary: %w", err)
+	}
+	return summary, nil
 }
