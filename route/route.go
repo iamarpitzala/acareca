@@ -128,7 +128,7 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) audit.Service {
 	entryGroup := v1.Group("/entry")
 	entryGroup.Use(middleware.Auth(cfg))
 	entriesRepo := entry.NewRepository(dbConn)
-	entriesSvc := entry.NewService(dbConn, entriesRepo, fieldRepo, method.NewService())
+	entriesSvc := entry.NewService(dbConn, entriesRepo, fieldRepo, method.NewService(), detailSvc, versionSvc)
 	entriesHandler := entry.NewHandler(entriesSvc)
 
 	entry.RegisterRoutes(entryGroup, entriesHandler)
