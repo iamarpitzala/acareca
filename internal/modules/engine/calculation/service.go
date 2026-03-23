@@ -75,9 +75,9 @@ func (s *service) GrossMethod(ctx context.Context, formDetail *detail.RsFormDeta
 				}
 
 			case "OWNER":
-				if v.GrossAmount != nil {
-					expenseSum += *v.GrossAmount
-					paidByOwnerSum += *v.GrossAmount
+				if v.NetAmount != nil {
+					expenseSum += *v.NetAmount
+					paidByOwnerSum += *v.NetAmount
 				}
 			}
 
@@ -97,7 +97,7 @@ func (s *service) GrossMethod(ctx context.Context, formDetail *detail.RsFormDeta
 	gstServiceFee := serviceFee * 0.1
 	totalServiceFee := serviceFee + gstServiceFee
 
-	remittedAmount := netAmount - totalServiceFee - otherCostSum + incomeGST + paidByOwnerSum
+	remittedAmount := netAmount - totalServiceFee - otherCostSum
 
 	return &GrossResult{
 		NetAmount:        util.Round(netAmount, 2),
@@ -155,12 +155,11 @@ func (s *service) NetMethod(ctx context.Context, formDetail *detail.RsFormDetail
 	commissionBase := totalRemuneration
 	var superAmount float64
 	if superDecimal > 0 {
-		commissionBase = totalRemuneration / (1 + superDecimal)
 		superAmount = commissionBase * superDecimal
 	}
 
 	gstOnRemuneration := commissionBase * 0.10
-	invoiceTotal := commissionBase + gstOnRemuneration
+	invoiceTotal := commissionBase + gstOnRemuneration + superAmount
 
 	netResult := NetResult{
 		NetAmount:          util.Round(netAmount, 2),
