@@ -70,9 +70,8 @@ func (r *RqUser) ToDBModel() *User {
 }
 
 type RqLogin struct {
-	Email    string  `json:"email"         validate:"required,email"`
-	Password string  `json:"password"      validate:"required"`
-	Role     *string `json:"role" validate:"omitempty"`
+	Email    string `json:"email"         validate:"required,email"`
+	Password string `json:"password"      validate:"required"`
 }
 
 type RqLogout struct {
