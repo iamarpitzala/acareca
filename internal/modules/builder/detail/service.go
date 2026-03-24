@@ -18,6 +18,7 @@ type IService interface {
 	UpdateMetadata(ctx context.Context, d *RqUpdateFormDetail) (*RsFormDetail, error)
 	Delete(ctx context.Context, formID uuid.UUID) error
 	List(ctx context.Context, filter Filter, practitionerID uuid.UUID) (*util.RsList, error)
+	UpdateStatus(ctx context.Context, formID uuid.UUID, status string) (*RsFormDetail, error)
 }
 
 type Service struct {
@@ -182,4 +183,21 @@ func (s *Service) GetByID(ctx context.Context, formID uuid.UUID) (*RsFormDetail,
 		return nil, err
 	}
 	return formDetail.ToRs(), nil
+}
+
+// Handles toggle between form status DRAFT And PUBLISHED.
+func (s *Service) UpdateStatus(ctx context.Context, formID uuid.UUID, status string) (*RsFormDetail, error) {
+	existing, err := s.repo.GetByID(ctx, formID)
+	if err != nil {
+		return nil, err
+	}
+
+	existing.Status = status
+
+	updated, err := s.repo.Update(ctx, existing)
+	if err != nil {
+		return nil, err
+	}
+
+	return updated.ToRs(), nil
 }

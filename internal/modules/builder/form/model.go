@@ -89,3 +89,7 @@ func (f Filter) Validate() error {
 	}
 	return nil
 }
+
+type RqUpdateStatus struct {
+	Status string `json:"status" binding:"required,oneof=DRAFT PUBLISHED"`
+}

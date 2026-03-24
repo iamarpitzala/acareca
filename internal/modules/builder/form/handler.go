@@ -18,6 +18,7 @@ type IHandler interface {
 	GetFormWithFields(c *gin.Context)
 	List(c *gin.Context)
 	Delete(c *gin.Context)
+	UpdateFormStatus(c *gin.Context)
 }
 
 type handler struct {
@@ -250,4 +251,35 @@ func (h *handler) Delete(c *gin.Context) {
 		return
 	}
 	response.JSON(c, http.StatusNoContent, nil, "Form deleted successfully")
+}
+
+// @Summary Update form status
+// @Description Toggle form status between DRAFT, PUBLISHED, or ARCHIVED
+// @Tags form
+// @Accept json
+// @Produce json
+// @Param id path string true "Form ID"
+// @Param request body RqUpdateStatus true "Status update request"
+// @Success 200 {object} response.RsBase
+// @Security BearerToken
+// @Router /form/{id}/status [patch]
+func (h *handler) UpdateFormStatus(c *gin.Context) {
+	formID, ok := util.ParseUuidID(c, "id")
+	if !ok {
+		return
+	}
+
+	var req RqUpdateStatus
+	if err := util.BindAndValidate(c, &req); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	updated, err := h.svc.UpdateStatus(c.Request.Context(), formID, req.Status)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, gin.H{"form": updated}, "Form status updated successfully")
 }

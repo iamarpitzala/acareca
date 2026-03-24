@@ -3284,6 +3284,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/form/{id}/status": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
+                "description": "Toggle form status between DRAFT, PUBLISHED, or ARCHIVED",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "form"
+                ],
+                "summary": "Update form status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Form ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Status update request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/form.RqUpdateStatus"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsBase"
+                        }
+                    }
+                }
+            }
+        },
         "/pl/by-account": {
             "get": {
                 "security": [
@@ -5321,6 +5367,21 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/field.RqUpdateFormField"
                     }
+                }
+            }
+        },
+        "form.RqUpdateStatus": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "DRAFT",
+                        "PUBLISHED"
+                    ]
                 }
             }
         },

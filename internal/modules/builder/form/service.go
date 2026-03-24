@@ -24,6 +24,7 @@ type IService interface {
 	GetFormWithFields(ctx context.Context, formID uuid.UUID) (*RsFormWithFields, error)
 	List(ctx context.Context, filter Filter, practitionerID uuid.UUID) (*util.RsList, error)
 	Delete(ctx context.Context, formID uuid.UUID) error
+	UpdateStatus(ctx context.Context, formID uuid.UUID, status string) (*detail.RsFormDetail, error)
 }
 
 type service struct {
@@ -411,6 +412,37 @@ func (s *service) GetFormByID(ctx context.Context, formId uuid.UUID) (*detail.Rs
 	}
 
 	return detail, err
+}
+
+func (s *service) UpdateStatus(ctx context.Context, formID uuid.UUID, status string) (*detail.RsFormDetail, error) {
+	existing, err := s.detailSvc.GetByID(ctx, formID)
+	if err != nil {
+		return nil, err
+	}
+	beforeState := *existing
+
+	updated, err := s.detailSvc.UpdateStatus(ctx, formID, status)
+	if err != nil {
+		return nil, err
+	}
+
+	// Audit log: form status updated
+	meta := auditctx.GetMetadata(ctx)
+	idStr := updated.ID.String()
+	s.auditSvc.LogAsync(&audit.LogEntry{
+		PracticeID:  meta.PracticeID,
+		UserID:      meta.UserID,
+		Action:      auditctx.ActionFormUpdated,
+		Module:      auditctx.ModuleForms,
+		EntityType:  strPtr(auditctx.EntityForm),
+		EntityID:    &idStr,
+		BeforeState: beforeState,
+		AfterState:  updated,
+		IPAddress:   meta.IPAddress,
+		UserAgent:   meta.UserAgent,
+	})
+
+	return updated, nil
 }
 
 func strPtr(s string) *string { return &s }
