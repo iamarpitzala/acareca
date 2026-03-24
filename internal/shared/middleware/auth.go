@@ -3,7 +3,6 @@ package middleware
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -48,9 +47,6 @@ func RequireSuperadmin(check SuperadminChecker) gin.HandlerFunc {
 
 func Auth(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-
-		fmt.Println("error")
-
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 			response.Error(c, http.StatusUnauthorized, errUnauthorized)
@@ -70,9 +66,6 @@ func Auth(cfg *config.Config) gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			//fmt.Println(err.Error())
-			fmt.Println(token.Valid)
-			fmt.Println(err.Error())
 			response.Error(c, http.StatusUnauthorized, errUnauthorized)
 			c.Abort()
 			return
@@ -85,10 +78,8 @@ func Auth(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		practitionerUUID, err := util.ParseUUID(claims.ID)
-		fmt.Println(practitionerUUID)
 
 		if err != nil {
-			fmt.Println(err.Error())
 			response.Error(c, http.StatusUnauthorized, errUnauthorized)
 			c.Abort()
 			return

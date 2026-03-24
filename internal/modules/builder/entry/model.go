@@ -38,6 +38,7 @@ type FormEntry struct {
 	Status        string     `db:"status" json:"status"`
 	CreatedAt     string     `db:"created_at" json:"created_at"`
 	UpdatedAt     *string    `db:"updated_at" json:"updated_at,omitempty"`
+	EntryDate     string     `db:"entry_date" json:"entry_date"`
 }
 
 type FormEntryValue struct {
@@ -49,6 +50,7 @@ type FormEntryValue struct {
 	GrossAmount *float64  `db:"gross_amount"`
 	CreatedAt   string    `db:"created_at"`
 	UpdatedAt   *string   `db:"updated_at"`
+	EntryDate   string    `db:"entry_date" json:"entry_date"`
 }
 
 func (d *FormEntry) ToRs(values []*FormEntryValue) *RsFormEntry {
@@ -59,6 +61,7 @@ func (d *FormEntry) ToRs(values []*FormEntryValue) *RsFormEntry {
 		Status:        d.Status,
 		CreatedAt:     d.CreatedAt,
 		UpdatedAt:     d.UpdatedAt,
+		EntryDate:     d.EntryDate,
 	}
 	rs.SubmittedBy = d.SubmittedBy
 	if d.SubmittedAt != nil {
@@ -86,11 +89,12 @@ type RsFormEntry struct {
 	Values        []RsEntryValue `json:"values,omitempty"`
 	CreatedAt     string         `json:"created_at"`
 	UpdatedAt     *string        `json:"updated_at"`
+	EntryDate     string         `db:"entry_date" json:"entry_date"`
 
 	// Populated for INDEPENDENT_CONTRACTOR forms only.
-	Commission       *float64 `json:"commission,omitempty"`
-	GstOnCommission  *float64 `json:"gst_on_commission,omitempty"`
-	PaymentReceived  *float64 `json:"payment_received,omitempty"`
+	Commission      *float64 `json:"commission,omitempty"`
+	GstOnCommission *float64 `json:"gst_on_commission,omitempty"`
+	PaymentReceived *float64 `json:"payment_received,omitempty"`
 }
 
 type RsEntryValue struct {

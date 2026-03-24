@@ -57,6 +57,7 @@ func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, req *RqFo
 		now := time.Now().UTC().Format(time.RFC3339)
 		submittedAt = &now
 	}
+	now := time.Now().UTC().Format(time.RFC3339)
 	e := &FormEntry{
 		ID:            uuid.New(),
 		FormVersionID: formVersionID,
@@ -64,8 +65,10 @@ func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, req *RqFo
 		SubmittedBy:   submittedBy,
 		SubmittedAt:   submittedAt,
 		Status:        status,
+		CreatedAt:     now,
+		EntryDate:     now,
 	}
-	values, err := s.CalculateValues(ctx, e.ID, req.Values)
+	values, err := s.CalculateValues(ctx, e.ID, req.Values, now)
 	if err != nil {
 		return nil, err
 	}
@@ -124,9 +127,12 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, req *RqUpdateFormEnt
 		}
 		existing.SubmittedBy = submittedBy
 	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	existing.UpdatedAt = &now
+	existing.EntryDate = now
 	newValues := values
 	if len(req.Values) > 0 {
-		newValues, err = s.CalculateValues(ctx, existing.ID, req.Values)
+		newValues, err = s.CalculateValues(ctx, existing.ID, req.Values, now)
 		if err != nil {
 			return nil, err
 		}
@@ -242,7 +248,7 @@ func (s *Service) ListTransactions(ctx context.Context, filter TransactionFilter
 	return &rs, nil
 }
 
-func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []RqEntryValue) ([]*FormEntryValue, error) {
+func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []RqEntryValue, ts string) ([]*FormEntryValue, error) {
 	out := make([]*FormEntryValue, 0, len(rq))
 
 	for _, v := range rq {
@@ -269,6 +275,8 @@ func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []R
 				NetAmount:   &netBase,
 				GstAmount:   nil,
 				GrossAmount: &grossTotal,
+				CreatedAt:   ts,
+				EntryDate:   ts,
 			})
 			continue
 		}
@@ -317,6 +325,8 @@ func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []R
 			NetAmount:   &netBase,
 			GstAmount:   gstAmount,
 			GrossAmount: &grossTotal,
+			CreatedAt:   ts,
+			EntryDate:   ts,
 		}
 
 		out = append(out, formValue)

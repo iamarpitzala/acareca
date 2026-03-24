@@ -52,25 +52,26 @@ func (r *Repository) Create(ctx context.Context, e *FormEntry, values []*FormEnt
 	defer func() { _ = tx.Rollback() }()
 
 	query := `
-		INSERT INTO tbl_form_entry (id, form_version_id, clinic_id, submitted_by, submitted_at, status)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING created_at, updated_at
+		INSERT INTO tbl_form_entry (id, form_version_id, clinic_id, submitted_by, submitted_at, status, entry_date, created_at)
+    	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
-	if err := tx.QueryRowContext(ctx, query,
-		e.ID, e.FormVersionID, e.ClinicID, e.SubmittedBy, e.SubmittedAt, e.Status,
-	).Scan(&e.CreatedAt, &e.UpdatedAt); err != nil {
+
+	if _, err := tx.ExecContext(ctx, query,
+		e.ID, e.FormVersionID, e.ClinicID, e.SubmittedBy, e.SubmittedAt, e.Status, e.EntryDate, e.CreatedAt,
+	); err != nil {
 		return fmt.Errorf("create form entry: %w", err)
 	}
 
 	for _, v := range values {
 		v.EntryID = e.ID
 		valQuery := `
-			INSERT INTO tbl_form_entry_value (id, entry_id, form_field_id, net_amount, gst_amount, gross_amount)
-			VALUES ($1, $2, $3, $4, $5, $6)
-			RETURNING created_at, updated_at
+			INSERT INTO tbl_form_entry_value (id, entry_id, form_field_id, net_amount, gst_amount, gross_amount, entry_date, created_at)
+   			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		`
-		if err := tx.QueryRowContext(ctx, valQuery, v.ID, v.EntryID, v.FormFieldID, v.NetAmount, v.GstAmount, v.GrossAmount).
-			Scan(&v.CreatedAt, &v.UpdatedAt); err != nil {
+
+		if _, err := tx.ExecContext(ctx, valQuery,
+			v.ID, v.EntryID, v.FormFieldID, v.NetAmount, v.GstAmount, v.GrossAmount, v.EntryDate, v.CreatedAt,
+		); err != nil {
 			return fmt.Errorf("create entry value: %w", err)
 		}
 	}
@@ -113,43 +114,48 @@ func (r *Repository) Update(ctx context.Context, e *FormEntry, values []*FormEnt
 
 	// Update the parent entry
 	query := `
-        UPDATE tbl_form_entry
-        SET submitted_by = $1, submitted_at = $2, status = $3, updated_at = now()
-        WHERE id = $4 AND deleted_at IS NULL
-        RETURNING created_at, updated_at
+		UPDATE tbl_form_entry
+    SET submitted_by = $1, submitted_at = $2, status = $3, entry_date = $4, updated_at = $5
+    WHERE id = $6 AND deleted_at IS NULL
     `
-	if err := tx.QueryRowContext(ctx, query, e.SubmittedBy, e.SubmittedAt, e.Status, e.ID).
-		Scan(&e.CreatedAt, &e.UpdatedAt); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrNotFound
-		}
+
+	res, err := tx.ExecContext(ctx, query, e.SubmittedBy, e.SubmittedAt, e.Status, e.EntryDate, e.UpdatedAt, e.ID)
+	if err != nil {
 		return fmt.Errorf("update form entry: %w", err)
+	}
+
+	count, _ := res.RowsAffected()
+	if count == 0 {
+		return ErrNotFound
 	}
 
 	// Mark previous values as "updated"
 	markOldQuery := `
-        UPDATE tbl_form_entry_value 
-        SET updated_at = now() 
-        WHERE entry_id = $1 AND updated_at IS NULL
+		UPDATE tbl_form_entry_value 
+		SET updated_at = $1, entry_date = $1
+		WHERE entry_id = $2 AND updated_at IS NULL
     `
-	if _, err := tx.ExecContext(ctx, markOldQuery, e.ID); err != nil {
+
+	if _, err := tx.ExecContext(ctx, markOldQuery, e.UpdatedAt, e.ID); err != nil {
 		return fmt.Errorf("old entry values: %w", err)
 	}
 
 	for _, v := range values {
 		v.EntryID = e.ID
 		valQuery := `
-			INSERT INTO tbl_form_entry_value (id, entry_id, form_field_id, net_amount, gst_amount, gross_amount, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, NULL)
-			RETURNING created_at
+			INSERT INTO tbl_form_entry_value (
+                id, entry_id, form_field_id, net_amount, gst_amount, gross_amount, 
+                entry_date, created_at, updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL)
 		`
-		if err := tx.QueryRowContext(ctx, valQuery, v.ID, v.EntryID, v.FormFieldID, v.NetAmount, v.GstAmount, v.GrossAmount).
-			Scan(&v.CreatedAt); err != nil {
+		if _, err := tx.ExecContext(ctx, valQuery,
+			v.ID, v.EntryID, v.FormFieldID, v.NetAmount, v.GstAmount, v.GrossAmount,
+			v.EntryDate, v.CreatedAt,
+		); err != nil {
 			return fmt.Errorf("insert entry value: %w", err)
 		}
-		v.UpdatedAt = nil // Set to nil so the API response shows it as null for the new record
 	}
-
 	return tx.Commit()
 }
 
@@ -343,25 +349,22 @@ func (r *Repository) CountTransactions(ctx context.Context, f common.Filter) (in
 // CreateTx - Transaction variant of Create
 func (r *Repository) CreateTx(ctx context.Context, tx *sqlx.Tx, e *FormEntry, values []*FormEntryValue) error {
 	query := `
-		INSERT INTO tbl_form_entry (id, form_version_id, clinic_id, submitted_by, submitted_at, status)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING created_at, updated_at
+		INSERT INTO tbl_form_entry (id, form_version_id, clinic_id, submitted_by, submitted_at, status, entry_date, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
-	if err := tx.QueryRowContext(ctx, query,
-		e.ID, e.FormVersionID, e.ClinicID, e.SubmittedBy, e.SubmittedAt, e.Status,
-	).Scan(&e.CreatedAt, &e.UpdatedAt); err != nil {
+	if _, err := tx.ExecContext(ctx, query,
+		e.ID, e.FormVersionID, e.ClinicID, e.SubmittedBy, e.SubmittedAt, e.Status, e.EntryDate, e.CreatedAt,
+	); err != nil {
 		return fmt.Errorf("create form entry tx: %w", err)
 	}
 
 	for _, v := range values {
 		v.EntryID = e.ID
 		valQuery := `
-			INSERT INTO tbl_form_entry_value (id, entry_id, form_field_id, net_amount, gst_amount, gross_amount)
-			VALUES ($1, $2, $3, $4, $5, $6)
-			RETURNING created_at, updated_at
+			INSERT INTO tbl_form_entry_value (id, entry_id, form_field_id, net_amount, gst_amount, gross_amount, entry_date, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		`
-		if err := tx.QueryRowContext(ctx, valQuery, v.ID, v.EntryID, v.FormFieldID, v.NetAmount, v.GstAmount, v.GrossAmount).
-			Scan(&v.CreatedAt, &v.UpdatedAt); err != nil {
+		if _, err := tx.ExecContext(ctx, valQuery, v.ID, v.EntryID, v.FormFieldID, v.NetAmount, v.GstAmount, v.GrossAmount, v.EntryDate, v.CreatedAt); err != nil {
 			return fmt.Errorf("create entry value tx: %w", err)
 		}
 	}
@@ -373,26 +376,21 @@ func (r *Repository) CreateTx(ctx context.Context, tx *sqlx.Tx, e *FormEntry, va
 func (r *Repository) UpdateTx(ctx context.Context, tx *sqlx.Tx, e *FormEntry, values []*FormEntryValue) error {
 	// Update the parent entry
 	query := `
-        UPDATE tbl_form_entry
-        SET submitted_by = $1, submitted_at = $2, status = $3, updated_at = now()
-        WHERE id = $4 AND deleted_at IS NULL
-        RETURNING created_at, updated_at
+	UPDATE tbl_form_entry
+	SET submitted_by = $1, submitted_at = $2, status = $3, entry_date = $4, updated_at = $5
+	WHERE id = $6 AND deleted_at IS NULL
     `
-	if err := tx.QueryRowContext(ctx, query, e.SubmittedBy, e.SubmittedAt, e.Status, e.ID).
-		Scan(&e.CreatedAt, &e.UpdatedAt); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrNotFound
-		}
+	res, err := tx.ExecContext(ctx, query, e.SubmittedBy, e.SubmittedAt, e.Status, e.EntryDate, e.UpdatedAt, e.ID)
+	if err != nil {
 		return fmt.Errorf("update form entry tx: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
 	}
 
 	// Mark previous active values as "updated"
-	markOldQuery := `
-        UPDATE tbl_form_entry_value 
-        SET updated_at = now() 
-        WHERE entry_id = $1 AND updated_at IS NULL
-    `
-	if _, err := tx.ExecContext(ctx, markOldQuery, e.ID); err != nil {
+	markOldQuery := `UPDATE tbl_form_entry_value SET updated_at = $1 WHERE entry_id = $2 AND updated_at IS NULL`
+	if _, err := tx.ExecContext(ctx, markOldQuery, e.UpdatedAt, e.ID); err != nil {
 		return fmt.Errorf("mark old entry values tx: %w", err)
 	}
 
@@ -400,15 +398,18 @@ func (r *Repository) UpdateTx(ctx context.Context, tx *sqlx.Tx, e *FormEntry, va
 	for _, v := range values {
 		v.EntryID = e.ID
 		valQuery := `
-            INSERT INTO tbl_form_entry_value (id, entry_id, form_field_id, net_amount, gst_amount, gross_amount, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, NULL)
-            RETURNING created_at
-        `
-		if err := tx.QueryRowContext(ctx, valQuery, v.ID, v.EntryID, v.FormFieldID, v.NetAmount, v.GstAmount, v.GrossAmount).
-			Scan(&v.CreatedAt); err != nil {
+		INSERT INTO tbl_form_entry_value (
+			id, entry_id, form_field_id, net_amount, gst_amount, gross_amount, 
+			entry_date, created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			`
+		if _, err := tx.ExecContext(ctx, valQuery,
+			v.ID, v.EntryID, v.FormFieldID, v.NetAmount, v.GstAmount, v.GrossAmount,
+			v.EntryDate, v.CreatedAt,
+		); err != nil {
 			return fmt.Errorf("insert entry value tx: %w", err)
 		}
-		v.UpdatedAt = nil
 	}
 
 	return nil
