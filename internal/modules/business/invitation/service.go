@@ -59,9 +59,10 @@ func (s *service) SendInvite(ctx context.Context, practitionerID uuid.UUID, req 
 		baseURL = os.Getenv("LOCAL_API_URL")
 	}
 
-	// Fallback in case envs are missing
 	if baseURL == "" {
-		baseURL = "http://localhost:5173"
+
+		fmt.Printf("[CRITICAL] Configuration Error: Frontend URL is missing for ENV=%s\n", env)
+		return nil, fmt.Errorf("system configuration error: frontend application URL is not defined")
 	}
 
 	invite := &Invitation{
@@ -72,17 +73,15 @@ func (s *service) SendInvite(ctx context.Context, practitionerID uuid.UUID, req 
 		ExpiresAt:      time.Now().AddDate(0, 0, 7),
 	}
 
-	// Save to Database
 	if err := s.repo.Create(ctx, invite); err != nil {
 		return nil, fmt.Errorf("[DEBUG] failed to save invite: %w", err)
 	}
 
-	// Format the URL
 	inviteLink := fmt.Sprintf("%s/accept-invite?token=%s", baseURL, invite.ID)
 
 	// Trigger Email via Resend
 	go func() {
-		// We run this in a goroutine so the API response isn't delayed by the email sending
+
 		err := s.sendEmailViaResend(invite.Email, inviteLink, senderName)
 		if err != nil {
 			fmt.Printf("[DEBUG] Resend Error: %v\n", err)

@@ -738,14 +738,15 @@ func (s *service) SendForgotPasswordEmail(to string, firstName string, token str
 
 	// 2. Fallback Safety Net: In case envs are missing
 	if baseURL == "" {
-		baseURL = "http://localhost:5173"
+
+		return fmt.Errorf("system configuration error: frontend application URL is not defined")
 	}
 
 	resetLink := fmt.Sprintf("%s/reset-password?token=%s", baseURL, token)
 	expiryTime := "15 minutes"
 
 	payload := map[string]interface{}{
-		"from":    "Acareca <hardik@zenithive.digital>", // Professional auth sender
+		"from":    "Acareca <hardik@zenithive.digital>",
 		"to":      []string{to},
 		"subject": "Reset your Acareca password",
 		"html": fmt.Sprintf(`
@@ -793,12 +794,12 @@ func (s *service) ForgotPassword(ctx context.Context, req *RqForgotPassword) err
 	// 1. Find user and their role
 	user, err := s.repo.FindByEmail(ctx, req.Email)
 	if err != nil {
-		return nil // Return nil to prevent email fishing/enumeration
+		return nil
 	}
 
 	// 2. Generate Raw Token and Hash it
 	rawToken := uuid.New().String()
-	fmt.Printf("\n[DEBUG] Password Reset Token: %s\n\n", rawToken)
+
 	hash := sha256.Sum256([]byte(rawToken))
 	tokenHash := hex.EncodeToString(hash[:])
 
@@ -814,11 +815,10 @@ func (s *service) ForgotPassword(ctx context.Context, req *RqForgotPassword) err
 }
 
 func (s *service) ResetPassword(ctx context.Context, req *RqResetPassword) error {
-	// 1. Hash the incoming raw token from the user's email link
+
 	// This must match the SHA-256 hash we saved in ForgotPassword
 	hash := sha256.Sum256([]byte(req.Token))
 	tokenHash := hex.EncodeToString(hash[:])
-	fmt.Println("SEARCHING FOR HASH:", tokenHash)
 
 	// 2. Hash the NEW password using Argon2id
 	newPasswordHash, err := util.GenerateHash(req.NewPassword)
