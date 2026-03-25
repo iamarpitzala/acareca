@@ -50,26 +50,50 @@ func (h *Handler) SendInvitation(c *gin.Context) {
 	response.JSON(c, http.StatusCreated, res, "Invitation sent successfully")
 }
 
-// @Summary      Process invitation
-// @Description  Processes the invitation link.
+// @Summary      Get invitation details
+// @Description  Check if an invitation exists and if the user is already registered.
 // @Tags         invitation
 // @Produce      json
 // @Param        id     path   string  true  "Invitation UUID"
-// @Param        action query  string  false "Set to 'reject' to decline the invitation"
 // @Success      200 {object} RsInviteProcess
 // @Failure      400 {object} response.RsError
 // @Failure      500 {object} response.RsError
 // @Router       /invite/{id} [get]
-func (h *Handler) ProcessInvitation(c *gin.Context) {
+func (h *Handler) GetInvitation(c *gin.Context) {
 	idParam := c.Param("id")
-	action := c.Query("action")
 	inviteID, err := uuid.Parse(idParam)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
 
-	res, err := h.svc.ProcessInvitation(c.Request.Context(), inviteID, action)
+	res, err := h.svc.GetInvitationDetails(c.Request.Context(), inviteID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, res, "Invitation details fetched successfully")
+}
+
+// @Summary      Process invitation action
+// @Description  Accept or Reject an invitation via POST.
+// @Tags         invitation
+// @Accept       json
+// @Produce      json
+// @Param        request body RqProcessAction true "Token ID and Action (accept/reject)"
+// @Success      200 {object} RsInviteProcess
+// @Failure      400 {object} response.RsError
+// @Failure      500 {object} response.RsError
+// @Router       /invite/process [post]
+func (h *Handler) ProcessInvitation(c *gin.Context) {
+	var req RqProcessAction
+	if err := util.BindAndValidate(c, &req); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	res, err := h.svc.ProcessInvitation(c.Request.Context(), &req)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
