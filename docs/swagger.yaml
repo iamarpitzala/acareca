@@ -639,6 +639,19 @@ definitions:
     - StatusAccepted
     - StatusCompleted
     - StatusRejected
+  invitation.RqProcessAction:
+    properties:
+      action:
+        enum:
+        - ACCEPT
+        - REJECT
+        type: string
+      token_id:
+        type: string
+    required:
+    - action
+    - token_id
+    type: object
   invitation.RqSendInvitation:
     properties:
       email:
@@ -3108,16 +3121,12 @@ paths:
       - invitation
   /invite/{id}:
     get:
-      description: Processes the invitation link.
+      description: Check if an invitation exists and if the user is already registered.
       parameters:
       - description: Invitation UUID
         in: path
         name: id
         required: true
-        type: string
-      - description: Set to 'reject' to decline the invitation
-        in: query
-        name: action
         type: string
       produces:
       - application/json
@@ -3134,7 +3143,37 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.RsError'
-      summary: Process invitation
+      summary: Get invitation details
+      tags:
+      - invitation
+  /invite/process:
+    post:
+      consumes:
+      - application/json
+      description: Accept or Reject an invitation via POST.
+      parameters:
+      - description: Token ID and Action (accept/reject)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/invitation.RqProcessAction'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/invitation.RsInviteProcess'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      summary: Process invitation action
       tags:
       - invitation
   /pl/by-account:

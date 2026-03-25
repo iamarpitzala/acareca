@@ -3378,16 +3378,62 @@ const docTemplate = `{
                 }
             }
         },
-        "/invite/{id}": {
-            "get": {
-                "description": "Processes the invitation link.",
+        "/invite/process": {
+            "post": {
+                "description": "Accept or Reject an invitation via POST.",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "invitation"
                 ],
-                "summary": "Process invitation",
+                "summary": "Process invitation action",
+                "parameters": [
+                    {
+                        "description": "Token ID and Action (accept/reject)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/invitation.RqProcessAction"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/invitation.RsInviteProcess"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    }
+                }
+            }
+        },
+        "/invite/{id}": {
+            "get": {
+                "description": "Check if an invitation exists and if the user is already registered.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "invitation"
+                ],
+                "summary": "Get invitation details",
                 "parameters": [
                     {
                         "type": "string",
@@ -3395,12 +3441,6 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Set to 'reject' to decline the invitation",
-                        "name": "action",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -5546,6 +5586,25 @@ const docTemplate = `{
                 "StatusCompleted",
                 "StatusRejected"
             ]
+        },
+        "invitation.RqProcessAction": {
+            "type": "object",
+            "required": [
+                "action",
+                "token_id"
+            ],
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "ACCEPT",
+                        "REJECT"
+                    ]
+                },
+                "token_id": {
+                    "type": "string"
+                }
+            }
         },
         "invitation.RqSendInvitation": {
             "type": "object",

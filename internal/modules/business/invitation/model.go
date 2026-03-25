@@ -47,3 +47,9 @@ type RsInviteProcess struct {
 	Status       InvitationStatus `json:"status"`
 	IsFound      bool             `json:"is_found"`
 }
+
+// RqProcessAction is the input for accepting or rejecting
+type RqProcessAction struct {
+	TokenID uuid.UUID `json:"token_id" validate:"required"`
+	Action  string    `json:"action" validate:"required,oneof=ACCEPT REJECT"`
+}
