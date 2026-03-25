@@ -14,49 +14,38 @@ const (
 )
 
 type Filter struct {
-	ClinicID  *string `form:"clinic_id"`
-	FormName  *string `form:"form_name"`
-	Method    *string `form:"method"`
-	Status    *string `form:"status"`
-	Search    *string `form:"search"`
-	SortBy    *string `form:"sort_by"`
-	SortOrder *string `form:"sort_order"`
-	Limit     *int    `form:"limit"`
-	Offset    *int    `form:"offset"`
+	common.QueryFilter
+	ClinicID *string `form:"clinic_id"`
+	FormName *string `form:"form_name"`
+	Method   *string `form:"method"`
+	Status   *string `form:"status"`
 }
 
 func (f Filter) Validate() error {
-	if (f.SortBy != nil) != (f.SortOrder != nil) {
-		return errors.New("both sort_by and sort_order must be provided together")
+	if (f.SortBy != nil) != (f.OrderBy != nil) {
+		return errors.New("both sort_by and order_by must be provided together")
 	}
 	return nil
 }
 
 func (filter *Filter) MapToFilter() common.Filter {
-	filters := map[string]interface{}{}
+	fields := map[string]interface{}{}
 	if filter.ClinicID != nil {
 		id, err := uuid.Parse(*filter.ClinicID)
 		if err == nil {
-			filters["clinic_id"] = id // Pass as uuid.UUID type to common.Filter
+			fields["clinic_id"] = id
 		}
 	}
 	if filter.Status != nil {
-		filters["status"] = *filter.Status
+		fields["status"] = *filter.Status
 	}
 	if filter.Method != nil {
-		filters["method"] = *filter.Method
+		fields["method"] = *filter.Method
 	}
 	if filter.FormName != nil {
-		filters["form_name"] = *filter.FormName
+		fields["form_name"] = *filter.FormName
 	}
-	f := common.NewFilter(filter.Search, filters, nil, filter.Limit, filter.Offset)
-	if filter.SortBy != nil {
-		f.SortBy = *filter.SortBy
-	}
-	if filter.SortOrder != nil {
-		f.OrderBy = *filter.SortOrder
-	}
-	return f
+	return common.ParseQueryFilter(filter.QueryFilter, fields, nil, "created_at")
 }
 
 type RqFormDetail struct {

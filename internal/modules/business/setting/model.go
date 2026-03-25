@@ -107,40 +107,24 @@ func (s *PractitionerSetting) ToRs() *RsPractitionerSetting {
 }
 
 type Filter struct {
+	common.QueryFilter
 	ID       *string `form:"id"`
 	ABN      *string `form:"abn"`
 	Verified *bool   `form:"verified"`
-	Search   *string `form:"search"`
-	Limit    *int    `form:"limit"`
-	Offset   *int    `form:"offset"`
-	SortBy   *string `form:"sort_by"`
-	OrderBy  *string `form:"order_by"`
 }
 
 func (filter *Filter) MapToFilter() common.Filter {
-	filters := map[string]interface{}{}
+	fields := map[string]interface{}{}
 
 	if filter.ID != nil {
-		filters["id"] = *filter.ID
+		fields["id"] = *filter.ID
 	}
 	if filter.ABN != nil {
-		filters["abn"] = *filter.ABN
+		fields["abn"] = *filter.ABN
 	}
 	if filter.Verified != nil {
-		filters["verified"] = *filter.Verified
+		fields["verified"] = *filter.Verified
 	}
 
-	f := common.NewFilter(filter.Search, filters, nil, filter.Limit, filter.Offset)
-	if filter.SortBy != nil {
-		f.SortBy = *filter.SortBy
-	} else {
-		f.SortBy = "created_at"
-	}
-
-	if filter.OrderBy != nil {
-		f.OrderBy = *filter.OrderBy
-	} else {
-		f.OrderBy = "DESC"
-	}
-	return f
+	return common.ParseQueryFilter(filter.QueryFilter, fields, nil, "created_at")
 }

@@ -118,51 +118,33 @@ type RsChartOfAccountList struct {
 }
 
 type Filter struct {
+	common.QueryFilter
 	Name          *string `form:"name"`
 	Id            *string `form:"id"`
 	Code          *int    `form:"code"`
-	Search        *string `form:"search"`
 	AccountType   *string `form:"account_type"`
 	AccountTypeID *int16  `form:"-"`
-	SortBy        *string `form:"sort_by"`
-	OrderBy       *string `form:"order_by"`
-	Limit         *int    `form:"limit"`
-	Offset        *int    `form:"offset"`
 }
 
 func (filter *Filter) MapToFilter() common.Filter {
-	filters := map[string]interface{}{}
+	fields := map[string]interface{}{}
 	if filter.Id != nil {
 		id, err := uuid.Parse(*filter.Id)
 		if err != nil {
-			fmt.Println("invalid clinic_id: %w", err)
+			fmt.Println("invalid coa id: %w", err)
+		} else {
+			fields["id"] = id
 		}
-		filters["id"] = uuid.UUID(id)
 	}
 	if filter.Name != nil {
-		filters["name"] = *filter.Name
+		fields["name"] = *filter.Name
 	}
 	if filter.Code != nil {
-		filters["code"] = *filter.Code
+		fields["code"] = *filter.Code
 	}
-
 	if filter.AccountTypeID != nil {
-		filters["account_type_id"] = *filter.AccountTypeID
+		fields["account_type_id"] = *filter.AccountTypeID
 	}
 
-	f := common.NewFilter(filter.Search, filters, nil, filter.Limit, filter.Offset)
-
-	if filter.SortBy != nil {
-		f.SortBy = *filter.SortBy
-	} else {
-		f.SortBy = "created_at"
-	}
-
-	if filter.OrderBy != nil {
-		f.OrderBy = *filter.OrderBy
-	} else {
-		f.OrderBy = "DESC"
-	}
-
-	return f
+	return common.ParseQueryFilter(filter.QueryFilter, fields, nil, "created_at")
 }

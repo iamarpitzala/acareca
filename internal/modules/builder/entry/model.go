@@ -88,9 +88,9 @@ type RsFormEntry struct {
 	UpdatedAt     *string        `json:"updated_at"`
 
 	// Populated for INDEPENDENT_CONTRACTOR forms only.
-	Commission       *float64 `json:"commission,omitempty"`
-	GstOnCommission  *float64 `json:"gst_on_commission,omitempty"`
-	PaymentReceived  *float64 `json:"payment_received,omitempty"`
+	Commission      *float64 `json:"commission,omitempty"`
+	GstOnCommission *float64 `json:"gst_on_commission,omitempty"`
+	PaymentReceived *float64 `json:"payment_received,omitempty"`
 }
 
 type RsEntryValue struct {
@@ -100,57 +100,26 @@ type RsEntryValue struct {
 	GrossAmount *float64  `json:"gross_amount,omitempty"`
 }
 
+// Filter for listing form entries.
 type Filter struct {
+	common.QueryFilter
 	ClinicID *string `form:"clinic_id"`
-	Search   *string `form:"search"`
-	SortBy   *string `form:"sort_by"`
-	OrderBy  *string `form:"order_by"`
-	Limit    *int    `form:"limit"`
-	Offset   *int    `form:"offset"`
 }
 
-// RsTransactionRow is a flat, one-row-per-entry-value transaction response.
-type RsTransactionRow struct {
-	ID            uuid.UUID `json:"id"`
-	EntryID       uuid.UUID `json:"entry_id"`
-	FormFieldID   uuid.UUID `json:"form_field_id"`
-	FormFieldName string    `json:"form_field_name"`
-	CoaID         uuid.UUID `json:"coa_id"`
-	CoaName       string    `json:"coa_name"`
-	TaxTypeID     *int16    `json:"tax_type_id"`
-	TaxTypeName   *string   `json:"tax_type_name"`
-	FormID        uuid.UUID `json:"form_id"`
-	FormName      string    `json:"form_name"`
-	ClinicID      uuid.UUID `json:"clinic_id"`
-	ClinicName    string    `json:"clinic_name"`
-	NetAmount     *float64  `json:"net_amount"`
-	GstAmount     *float64  `json:"gst_amount"`
-	GrossAmount   *float64  `json:"gross_amount"`
-	CreatedAt     string    `json:"created_at"`
-	UpdatedAt     *string   `json:"updated_at,omitempty"`
+func (f *Filter) MapToFilter() common.Filter {
+	fields := map[string]interface{}{}
+	if f.ClinicID != nil {
+		id, err := uuid.Parse(*f.ClinicID)
+		if err != nil {
+			log.Printf("failed to parse clinic id: %v", err)
+		} else {
+			fields["clinic_id"] = id
+		}
+	}
+	return common.ParseQueryFilter(f.QueryFilter, fields, nil, "created_at")
 }
 
-// RsTransactionDetail kept for backward compat (used by old RsTransaction).
-type RsTransactionDetail struct {
-	FieldName string   `json:"field_name"`
-	GstType   *string  `json:"gst_type"`
-	Amount    *float64 `json:"amount"`
-	GstAmount *float64 `json:"gst_amount"`
-	NetAmount *float64 `json:"net_amount"`
-}
-
-type RsTransaction struct {
-	ID            uuid.UUID             `json:"id"`
-	FormVersionID uuid.UUID             `json:"form_version_id"`
-	ClinicID      uuid.UUID             `json:"clinic_id"`
-	ClinicName    string                `json:"clinic_name"`
-	FormID        uuid.UUID             `json:"form_id"`
-	FormName      string                `json:"form_name"`
-	Method        string                `json:"method"`
-	FormStatus    string                `json:"form_status"`
-	EntryDetail   []RsTransactionDetail `json:"entry_detail"`
-}
-
+// TransactionFilter for listing transactions with date range and entity filters.
 type TransactionFilter struct {
 	PractitionerID *string `form:"-"`
 	ClinicID       *string `form:"clinic_id"`
@@ -162,7 +131,7 @@ type TransactionFilter struct {
 	VersionID      *string `form:"version_id"`
 	Status         *string `form:"status" validate:"omitempty,oneof=DRAFT SUBMITTED"`
 	Limit          *int    `form:"limit"`
-	Offset         *int    `form:"offset"`
+	Page           *int    `form:"page"`
 }
 
 func (f *TransactionFilter) ToCommonFilter() common.Filter {
@@ -208,32 +177,61 @@ func (f *TransactionFilter) ToCommonFilter() common.Filter {
 		filters["date_to"] = *f.DateTo
 		operators["date_to"] = common.OpLt
 	}
-	return common.NewFilter(nil, filters, operators, f.Limit, f.Offset)
+
+	// Convert page to offset
+	var offsetPtr *int
+	if f.Page != nil && *f.Page > 1 {
+		l := 10
+		if f.Limit != nil && *f.Limit > 0 {
+			l = *f.Limit
+		}
+		offset := (*f.Page - 1) * l
+		offsetPtr = &offset
+	}
+
+	return common.NewFilter(nil, filters, operators, f.Limit, offsetPtr)
 }
 
-func (f *Filter) MapToFilter() common.Filter {
-	filters := map[string]interface{}{}
-	if f.ClinicID != nil {
-		id, err := uuid.Parse(*f.ClinicID)
-		if err != nil {
-			log.Printf("failed to parse clinic id: %v", err)
-		}
-		filters["clinic_id"] = id
-	}
+// RsTransactionRow is a flat, one-row-per-entry-value transaction response.
+type RsTransactionRow struct {
+	ID            uuid.UUID `json:"id"`
+	EntryID       uuid.UUID `json:"entry_id"`
+	FormFieldID   uuid.UUID `json:"form_field_id"`
+	FormFieldName string    `json:"form_field_name"`
+	CoaID         uuid.UUID `json:"coa_id"`
+	CoaName       string    `json:"coa_name"`
+	TaxTypeID     *int16    `json:"tax_type_id"`
+	TaxTypeName   *string   `json:"tax_type_name"`
+	FormID        uuid.UUID `json:"form_id"`
+	FormName      string    `json:"form_name"`
+	ClinicID      uuid.UUID `json:"clinic_id"`
+	ClinicName    string    `json:"clinic_name"`
+	NetAmount     *float64  `json:"net_amount"`
+	GstAmount     *float64  `json:"gst_amount"`
+	GrossAmount   *float64  `json:"gross_amount"`
+	CreatedAt     string    `json:"created_at"`
+	UpdatedAt     *string   `json:"updated_at,omitempty"`
+}
 
-	cf := common.NewFilter(f.Search, filters, nil, f.Limit, f.Offset)
+// RsTransactionDetail kept for backward compat (used by old RsTransaction).
+type RsTransactionDetail struct {
+	FieldName string   `json:"field_name"`
+	GstType   *string  `json:"gst_type"`
+	Amount    *float64 `json:"amount"`
+	GstAmount *float64 `json:"gst_amount"`
+	NetAmount *float64 `json:"net_amount"`
+}
 
-	if f.SortBy != nil {
-		cf.SortBy = *f.SortBy
-	} else {
-		cf.SortBy = "created_at"
-	}
-	if f.OrderBy != nil {
-		cf.OrderBy = *f.OrderBy
-	} else {
-		cf.OrderBy = "DESC"
-	}
-	return cf
+type RsTransaction struct {
+	ID            uuid.UUID             `json:"id"`
+	FormVersionID uuid.UUID             `json:"form_version_id"`
+	ClinicID      uuid.UUID             `json:"clinic_id"`
+	ClinicName    string                `json:"clinic_name"`
+	FormID        uuid.UUID             `json:"form_id"`
+	FormName      string                `json:"form_name"`
+	Method        string                `json:"method"`
+	FormStatus    string                `json:"form_status"`
+	EntryDetail   []RsTransactionDetail `json:"entry_detail"`
 }
 
 type transactionFlatRow struct {

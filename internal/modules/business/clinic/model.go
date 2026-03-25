@@ -163,45 +163,28 @@ type RsFinancialSettings struct {
 }
 
 type Filter struct {
+	common.QueryFilter
 	ClinicName *string `form:"name"`
 	ClinicId   *string `form:"id"`
 	IsActive   *bool   `form:"is_active"`
-	Search     *string `form:"search"`
-	SortBy     *string `form:"sort_by"`
-	OrderBy    *string `form:"order_by"`
-	Limit      *int    `form:"limit"`
-	Offset     *int    `form:"offset"`
 }
 
 func (filter *Filter) MapToFilter() common.Filter {
-	filters := map[string]interface{}{}
+	fields := map[string]interface{}{}
 	if filter.ClinicId != nil {
 		id, err := uuid.Parse(*filter.ClinicId)
 		if err != nil {
 			fmt.Println("invalid clinic_id: %w", err)
+		} else {
+			fields["id"] = id
 		}
-		filters["id"] = uuid.UUID(id)
 	}
 	if filter.ClinicName != nil {
-		filters["name"] = *filter.ClinicName
+		fields["name"] = *filter.ClinicName
 	}
 	if filter.IsActive != nil {
-		filters["is_active"] = *filter.IsActive
+		fields["is_active"] = *filter.IsActive
 	}
 
-	f := common.NewFilter(filter.Search, filters, nil, filter.Limit, filter.Offset)
-
-	if filter.SortBy != nil {
-		f.SortBy = *filter.SortBy
-	} else {
-		f.SortBy = "created_at"
-	}
-
-	if filter.OrderBy != nil {
-		f.OrderBy = *filter.OrderBy
-	} else {
-		f.OrderBy = "DESC"
-	}
-
-	return f
+	return common.ParseQueryFilter(filter.QueryFilter, fields, nil, "created_at")
 }

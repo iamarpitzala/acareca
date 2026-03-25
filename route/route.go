@@ -28,6 +28,7 @@ import (
 	"github.com/iamarpitzala/acareca/internal/modules/engine/calculation"
 	"github.com/iamarpitzala/acareca/internal/modules/engine/method"
 	"github.com/iamarpitzala/acareca/internal/modules/engine/pl"
+	"github.com/iamarpitzala/acareca/internal/modules/notification"
 	"github.com/iamarpitzala/acareca/internal/shared/db"
 	"github.com/iamarpitzala/acareca/internal/shared/middleware"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
@@ -65,9 +66,13 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) audit.Service {
 	accountantRepo := accountant.NewRepository(dbConn)
 	accountantSvc := accountant.NewService(accountantRepo)
 
+	// notification (in-app)
+	notificationRepo := notification.NewRepository(dbConn)
+	notificationSvc := notification.NewService(notificationRepo)
+
 	// invitation
 	invitationRepo := invitation.NewRepository(dbConn)
-	invitationSvc := invitation.NewService(invitationRepo, cfg.ResendAPIKey)
+	invitationSvc := invitation.NewService(invitationRepo, cfg.ResendAPIKey, notificationSvc)
 	invitationHandler := invitation.NewHandler(invitationSvc)
 	invitation.RegisterRoutes(v1, invitationHandler, cfg)
 
@@ -108,7 +113,7 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) audit.Service {
 
 	// clinic
 	clinicRepo := clinic.NewRepository(dbConn)
-	clinicSvc := clinic.NewService(dbConn, clinicRepo, auditSvc)
+	clinicSvc := clinic.NewService(dbConn, clinicRepo, auditSvc, notificationSvc)
 	clinicHandler := clinic.NewHandler(clinicSvc)
 	clinic.RegisterRoutes(v1, clinicHandler, cfg)
 
@@ -134,14 +139,14 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) audit.Service {
 	fieldSvc := field.NewService(fieldRepo, coaSvc, clinicSvc, practitionerSvc, version.NewService(dbConn, versionRepo, clinicSvc))
 
 	versionSvc := version.NewService(dbConn, versionRepo, clinicSvc)
-	formSvc := form.NewService(dbConn, detailSvc, versionSvc, fieldSvc, entryRepo, coaSvc, auditSvc)
+	formSvc := form.NewService(dbConn, detailSvc, versionSvc, fieldSvc, entryRepo, coaSvc, auditSvc, notificationSvc)
 	formHandler := form.NewHandler(formSvc)
 	form.RegisterRoutes(formGroup, formHandler)
 
 	entryGroup := v1.Group("/entry")
 	entryGroup.Use(middleware.Auth(cfg), middleware.AuditContext())
 	entriesRepo := entry.NewRepository(dbConn)
-	entriesSvc := entry.NewService(dbConn, entriesRepo, fieldRepo, method.NewService(), detailSvc, versionSvc, auditSvc)
+	entriesSvc := entry.NewService(dbConn, entriesRepo, fieldRepo, method.NewService(), detailSvc, versionSvc, auditSvc, notificationSvc)
 	entriesHandler := entry.NewHandler(entriesSvc)
 
 	entry.RegisterRoutes(entryGroup, entriesHandler)
@@ -179,6 +184,12 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) audit.Service {
 	userSubscriptionGroup.Use(middleware.Auth(cfg))
 
 	userSubscription.RegisterRoutes(userSubscriptionGroup, userSubscriptionHandler)
+
+	// notification (in-app list)
+	notificationGroup := v1.Group("/notification")
+	notificationGroup.Use(middleware.Auth(cfg), middleware.AuditContext())
+	notificationHandler := notification.NewHandler(notificationSvc)
+	notification.RegisterRoutes(notificationGroup, notificationHandler)
 
 	return auditSvc
 

@@ -71,6 +71,7 @@ type LogEntry struct {
 }
 
 type Filter struct {
+	common.QueryFilter
 	PracticeID *string    `form:"practice_id"`
 	UserID     *string    `form:"user_id"`
 	Module     *string    `form:"module"`
@@ -79,55 +80,36 @@ type Filter struct {
 	EntityID   *string    `form:"entity_id"`
 	StartDate  *time.Time `form:"start_date" time_format:"2006-01-02T15:04:05Z07:00"`
 	EndDate    *time.Time `form:"end_date" time_format:"2006-01-02T15:04:05Z07:00"`
-	Search     *string    `form:"search"`
-	SortBy     *string    `form:"sort_by"`
-	OrderBy    *string    `form:"order_by"`
-	Limit      *int       `form:"limit"`
-	Offset     *int       `form:"offset"`
 }
 
 func (filter *Filter) MapToFilter() common.Filter {
-	filters := map[string]interface{}{}
+	fields := map[string]interface{}{}
 	if filter.PracticeID != nil {
-		filters["practice_id"] = *filter.PracticeID
+		fields["practice_id"] = *filter.PracticeID
 	}
 	if filter.UserID != nil {
-		filters["user_id"] = *filter.UserID
+		fields["user_id"] = *filter.UserID
 	}
 	if filter.Module != nil {
-		filters["module"] = *filter.Module
+		fields["module"] = *filter.Module
 	}
 	if filter.Action != nil {
-		filters["action"] = *filter.Action
+		fields["action"] = *filter.Action
 	}
 	if filter.EntityType != nil {
-		filters["entity_type"] = *filter.EntityType
+		fields["entity_type"] = *filter.EntityType
 	}
 	if filter.EntityID != nil {
-		filters["entity_id"] = *filter.EntityID
+		fields["entity_id"] = *filter.EntityID
 	}
 	if filter.StartDate != nil {
-		filters["created_at_gte"] = *filter.StartDate
+		fields["created_at_gte"] = *filter.StartDate
 	}
 	if filter.EndDate != nil {
-		filters["created_at_lte"] = *filter.EndDate
+		fields["created_at_lte"] = *filter.EndDate
 	}
 
-	f := common.NewFilter(filter.Search, filters, nil, filter.Limit, filter.Offset)
-
-	if filter.SortBy != nil {
-		f.SortBy = *filter.SortBy
-	} else {
-		f.SortBy = "created_at"
-	}
-
-	if filter.OrderBy != nil {
-		f.OrderBy = *filter.OrderBy
-	} else {
-		f.OrderBy = "DESC"
-	}
-
-	return f
+	return common.ParseQueryFilter(filter.QueryFilter, fields, nil, "created_at")
 }
 
 func (a *AuditLog) ToRs() *RsAuditLog {

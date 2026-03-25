@@ -14,7 +14,7 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler, cfg *config.Config) {
 
 	// Protected Route (Only practitioners can send invitations)
 	protected := invite.Group("/")
-	protected.Use(middleware.Auth(cfg))
+	protected.Use(middleware.Auth(cfg), middleware.AuditContext())
 	{
 		protected.POST("/", h.SendInvitation)
 	}
