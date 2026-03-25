@@ -22,6 +22,8 @@ import (
 const UserIDKey = "userID"
 const PractitionerIDKey = "practitionerID"
 
+var validate = validator.New()
+
 func NewUUID() string {
 	return uuid.New().String()
 }
@@ -49,19 +51,22 @@ func BindAndValidate(c *gin.Context, v any) error {
 		return err
 	}
 
-	return validator.New().Struct(v)
+	return validate.Struct(v)
 }
 
 type CustomClaims struct {
-	PractitionerID string `json:"prac"`
+	ID   string `json:"id"`
+	Role string `json:"role"`
 	jwt.RegisteredClaims
 }
 
-func SignToken(userID string, practitionerID string, ttl time.Duration, jwtSecret string) (string, error) {
+func SignToken(userID string, id string, role string, ttl time.Duration, jwtSecret string) (string, error) {
 	now := time.Now()
 
 	claims := CustomClaims{
-		PractitionerID: practitionerID,
+		ID:   id,
+		Role: role,
+
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -174,4 +179,27 @@ func GetMonthRange(monthName string) (time.Time, time.Time, error) {
 	end := start.AddDate(0, 1, 0).Add(-time.Nanosecond)
 
 	return start, end, nil
+}
+
+func GetUserID(c *gin.Context) (uuid.UUID, bool) {
+	idVal, exists := c.Get(UserIDKey)
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, errors.New("user id not in context"))
+		return uuid.Nil, false
+	}
+
+	idStr, ok := idVal.(string)
+	if !ok {
+		response.Error(c, http.StatusInternalServerError, errors.New("invalid user id type"))
+		return uuid.Nil, false
+	}
+
+	// Parse the string into a UUID
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, errors.New("failed to parse user uuid"))
+		return uuid.Nil, false
+	}
+
+	return id, true
 }

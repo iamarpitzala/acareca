@@ -1,16 +1,59 @@
 basePath: /api/v1
 definitions:
+  accountant.RsAccountantUser:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: string
+      is_superadmin:
+        type: boolean
+      last_name:
+        type: string
+      phone:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  auth.RqChangePassword:
+    properties:
+      new_password:
+        minLength: 8
+        type: string
+    required:
+    - new_password
+    type: object
   auth.RqLogin:
     properties:
       email:
         type: string
-      is_superadmin:
-        type: boolean
       password:
         type: string
     required:
     - email
     - password
+    type: object
+  auth.RqLogout:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  auth.RqUpdateUser:
+    properties:
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      phone:
+        type: string
     type: object
   auth.RqUser:
     properties:
@@ -18,8 +61,6 @@ definitions:
         type: string
       first_name:
         type: string
-      is_superadmin:
-        type: boolean
       last_name:
         type: string
       password:
@@ -27,15 +68,41 @@ definitions:
         type: string
       phone:
         type: string
+      role:
+        enum:
+        - ADMIN
+        - PRACTITIONER
+        - ACCOUNTANT
+        type: string
     required:
     - email
     - first_name
     - last_name
     - password
+    - role
     type: object
   auth.RsGoogleAuthURL:
     properties:
       url:
+        type: string
+    type: object
+  auth.RsUser:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: string
+      last_name:
+        type: string
+      phone:
+        type: string
+      role:
+        type: string
+      updated_at:
         type: string
     type: object
   bas.RsBASByAccount:
@@ -143,6 +210,7 @@ definitions:
       form_id:
         type: string
       super_component:
+        maximum: 100
         minimum: 0
         type: number
     required:
@@ -390,25 +458,6 @@ definitions:
       net_amount:
         type: number
     type: object
-  entry.RsFieldSummary:
-    properties:
-      form_field_id:
-        type: string
-      label:
-        type: string
-      payment_responsibility:
-        type: string
-      section_type:
-        type: string
-      tax_type:
-        type: string
-      total_gross:
-        type: number
-      total_gst:
-        type: number
-      total_net:
-        type: number
-    type: object
   field.RqFormField:
     properties:
       coa_id:
@@ -573,6 +622,47 @@ definitions:
         type: boolean
       label:
         type: string
+    type: object
+  invitation.InvitationStatus:
+    enum:
+    - SENT
+    - ACCEPTED
+    - COMPLETED
+    - REJECTED
+    type: string
+    x-enum-varnames:
+    - StatusSent
+    - StatusAccepted
+    - StatusCompleted
+    - StatusRejected
+  invitation.RqSendInvitation:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  invitation.RsInvitation:
+    properties:
+      email:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      invite_link:
+        type: string
+      status:
+        $ref: '#/definitions/invitation.InvitationStatus'
+    type: object
+  invitation.RsInviteProcess:
+    properties:
+      invitation_id:
+        type: string
+      is_found:
+        type: boolean
+      status:
+        $ref: '#/definitions/invitation.InvitationStatus'
     type: object
   pl.RsPLAccount:
     properties:
@@ -852,6 +942,25 @@ info:
   title: Backend API
   version: 1.0.0
 paths:
+  /accountant/:
+    get:
+      description: Retrieves a list of all registered users for the accountant view.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/accountant.RsAccountantUser'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      summary: Fetch all users
+      tags:
+      - accountant
   /admin/audit:
     get:
       consumes:
@@ -1376,6 +1485,11 @@ paths:
         name: code
         required: true
         type: string
+      - description: OAuth state (CSRF token)
+        in: query
+        name: state
+        required: true
+        type: string
       produces:
       - application/json
       responses:
@@ -1428,29 +1542,6 @@ paths:
       summary: Login a user
       tags:
       - auth
-  /auth/logout:
-    post:
-      consumes:
-      - application/json
-      description: revoke the current session using the refresh token
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/response.RsBase'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.RsError'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.RsError'
-      summary: Logout a user
-      tags:
-      - auth
   /auth/register:
     post:
       consumes:
@@ -1483,6 +1574,169 @@ paths:
           schema:
             $ref: '#/definitions/response.RsError'
       summary: Register a new user
+      tags:
+      - auth
+  /auth/user:
+    delete:
+      description: Soft delete the currently authenticated user's account
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.RsBase'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: Delete user account
+      tags:
+      - auth
+  /auth/user/change-password:
+    put:
+      consumes:
+      - application/json
+      description: updates the password for the authenticated user
+      parameters:
+      - description: Password Change Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RqChangePassword'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.RsBase'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: Change user password
+      tags:
+      - auth
+  /auth/user/logout:
+    post:
+      consumes:
+      - application/json
+      description: revoke the current session using the refresh token
+      parameters:
+      - description: Logout Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RqLogout'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.RsBase'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: Logout a user
+      tags:
+      - auth
+  /auth/user/profile:
+    put:
+      consumes:
+      - application/json
+      description: Update the profile details of the user (email, names, phone)
+      parameters:
+      - description: Update Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RqUpdateUser'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.RsUser'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: Update user profile
+      tags:
+      - auth
+  /auth/verify-email:
+    get:
+      description: Validates the UUID token sent via email. If valid, marks the user
+        as verified and the token as used.
+      parameters:
+      - description: Verification Token (UUID)
+        in: query
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Email verified successfully
+          schema:
+            $ref: '#/definitions/response.RsBase'
+        "400":
+          description: Invalid token format or token already used
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "410":
+          description: Token has expired
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      summary: Verify user email address
       tags:
       - auth
   /bas/clinic/{clinic_id}/by-account:
@@ -1670,7 +1924,8 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/response.RsBase'
+            additionalProperties: true
+            type: object
         "400":
           description: Bad Request
           schema:
@@ -1707,7 +1962,8 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/response.RsBase'
+            additionalProperties: true
+            type: object
         "400":
           description: Bad Request
           schema:
@@ -2352,40 +2608,6 @@ paths:
       summary: Check if a chart of account code is unique for the practitioner
       tags:
       - coa
-  /entry/{field_id}/summary:
-    get:
-      description: Returns the total net, gst, and gross amounts for all active entries
-        of a field
-      parameters:
-      - description: Form Field ID
-        in: path
-        name: field_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/entry.RsFieldSummary'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.RsError'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/response.RsError'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.RsError'
-      security:
-      - BearerToken: []
-      summary: Get summed values for a specific field
-      tags:
-      - entry
   /entry/{id}:
     delete:
       consumes:
@@ -2840,6 +3062,69 @@ paths:
       summary: Update form with fields
       tags:
       - form
+  /invite/:
+    post:
+      consumes:
+      - application/json
+      description: Practitioner sends an invitation to a person's email.
+      parameters:
+      - description: Email of the Accountant/Bookkeeper
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/invitation.RqSendInvitation'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/invitation.RsInvitation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: Send an invitation
+      tags:
+      - invitation
+  /invite/{id}:
+    get:
+      description: Processes the invitation link.
+      parameters:
+      - description: Invitation UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Set to 'reject' to decline the invitation
+        in: query
+        name: action
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/invitation.RsInviteProcess'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      summary: Process invitation
+      tags:
+      - invitation
   /pl/by-account:
     get:
       description: Returns monthly totals broken down per Chart of Accounts entry,
