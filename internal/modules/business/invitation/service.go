@@ -21,7 +21,7 @@ type Service interface {
 	SendInvite(ctx context.Context, practitionerID uuid.UUID, req *RqSendInvitation) (*RsInvitation, error)
 	GetInvitationDetails(ctx context.Context, inviteID uuid.UUID) (*RsInviteProcess, error)
 	ProcessInvitation(ctx context.Context, req *RqProcessAction) (*RsInviteProcess, error)
-	FinalizeRegistrationInternal(ctx context.Context, email string, userID uuid.UUID) error
+	FinalizeRegistrationInternal(ctx context.Context, email string, entityID uuid.UUID) error
 }
 
 const (
@@ -244,7 +244,7 @@ func (s *service) ProcessInvitation(ctx context.Context, req *RqProcessAction) (
 }
 
 // FinalizeRegistrationInternal is called by the Auth Service after a user registers
-func (s *service) FinalizeRegistrationInternal(ctx context.Context, email string, userID uuid.UUID) error {
+func (s *service) FinalizeRegistrationInternal(ctx context.Context, email string, entityID uuid.UUID) error {
 	// Look for an invitation with this email where status is currently 'ACCEPTED'
 	inv, err := s.repo.GetByEmail(ctx, email)
 	if err != nil {
@@ -261,6 +261,6 @@ func (s *service) FinalizeRegistrationInternal(ctx context.Context, email string
 		return nil
 	}
 
-	// If they signed up after clicking the link, update status to COMPLETED and link the new User ID
-	return s.repo.UpdateStatus(ctx, inv.ID, StatusCompleted, &userID)
+	// If they signed up after clicking the link, update status to COMPLETED and link the new accountant ID
+	return s.repo.UpdateStatus(ctx, inv.ID, StatusCompleted, &entityID)
 }
