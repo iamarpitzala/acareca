@@ -833,6 +833,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/forgot-password": {
+            "post": {
+                "description": "Sends a reset link to the user's email if they exist.",
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Initiate password reset",
+                "parameters": [
+                    {
+                        "description": "Email",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.RqForgotPassword"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsBase"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/google": {
             "get": {
                 "description": "get Google OAuth consent-screen URL",
@@ -1012,6 +1040,34 @@ const docTemplate = `{
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/response.RsError"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/reset-password": {
+            "post": {
+                "description": "Updates the user's password using the token received via email.",
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Reset password using token",
+                "parameters": [
+                    {
+                        "description": "Token and New Password",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.RqResetPassword"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     }
                 }
@@ -4794,6 +4850,17 @@ const docTemplate = `{
                 }
             }
         },
+        "auth.RqForgotPassword": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
         "auth.RqLogin": {
             "type": "object",
             "required": [
@@ -4816,6 +4883,22 @@ const docTemplate = `{
             ],
             "properties": {
                 "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.RqResetPassword": {
+            "type": "object",
+            "required": [
+                "new_password",
+                "token"
+            ],
+            "properties": {
+                "new_password": {
+                    "type": "string",
+                    "minLength": 8
+                },
+                "token": {
                     "type": "string"
                 }
             }
