@@ -1,7 +1,7 @@
 -- +goose Up
 CREATE TYPE invitation_status AS ENUM ('SENT', 'ACCEPTED', 'COMPLETED', 'REJECTED');
 
-CREATE TABLE tbl_invitation (
+CREATE TABLE IF NOT EXISTS tbl_invitation (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     practitioner_id UUID NOT NULL,
     entity_id UUID NULL,
@@ -12,5 +12,5 @@ CREATE TABLE tbl_invitation (
 );
 
 -- +goose Down
-DROP TABLE tbl_invitation;
+DROP TABLE IF EXISTS tbl_invitation;
 DROP TYPE invitation_status;
