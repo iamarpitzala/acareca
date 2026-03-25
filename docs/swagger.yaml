@@ -31,6 +31,13 @@ definitions:
     required:
     - new_password
     type: object
+  auth.RqForgotPassword:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
   auth.RqLogin:
     properties:
       email:
@@ -47,6 +54,17 @@ definitions:
         type: string
     required:
     - refresh_token
+    type: object
+  auth.RqResetPassword:
+    properties:
+      new_password:
+        minLength: 8
+        type: string
+      token:
+        type: string
+    required:
+    - new_password
+    - token
     type: object
   auth.RqUpdateUser:
     properties:
@@ -1446,6 +1464,24 @@ paths:
       summary: Update the label of a financial year
       tags:
       - fy
+  /auth/forgot-password:
+    post:
+      description: Sends a reset link to the user's email if they exist.
+      parameters:
+      - description: Email
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RqForgotPassword'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.RsBase'
+      summary: Initiate password reset
+      tags:
+      - auth
   /auth/google:
     get:
       description: get Google OAuth consent-screen URL
@@ -1565,6 +1601,24 @@ paths:
           schema:
             $ref: '#/definitions/response.RsError'
       summary: Register a new user
+      tags:
+      - auth
+  /auth/reset-password:
+    post:
+      description: Updates the user's password using the token received via email.
+      parameters:
+      - description: Token and New Password
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RqResetPassword'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.RsBase'
+      summary: Reset password using token
       tags:
       - auth
   /auth/user:
