@@ -191,6 +191,10 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) audit.Service {
 	notificationHandler := notification.NewHandler(notificationSvc)
 	notification.RegisterRoutes(notificationGroup, notificationHandler)
 
+	accountantHandler := accountant.NewHandler(accountantSvc)
+
+	accountant.RegisterRoutes(v1, accountantHandler, middleware.Auth(cfg))
+
 	return auditSvc
 
 }

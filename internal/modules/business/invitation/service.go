@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -19,9 +20,15 @@ import (
 
 type Service interface {
 	SendInvite(ctx context.Context, practitionerID uuid.UUID, req *RqSendInvitation) (*RsInvitation, error)
-	ProcessInvitation(ctx context.Context, inviteID uuid.UUID, action string) (*RsInviteProcess, error)
+	GetInvitationDetails(ctx context.Context, inviteID uuid.UUID) (*RsInviteProcess, error)
+	ProcessInvitation(ctx context.Context, req *RqProcessAction) (*RsInviteProcess, error)
 	FinalizeRegistrationInternal(ctx context.Context, email string, userID uuid.UUID) error
 }
+
+const (
+	ActionAccept = "ACCEPT"
+	ActionReject = "REJECT"
+)
 
 type service struct {
 	repo   Repository
@@ -46,6 +53,20 @@ func (s *service) SendInvite(ctx context.Context, practitionerID uuid.UUID, req 
 		return nil, err // If we can't identify the sender, we shouldn't send the invite
 	}
 
+	// Determine Base URL based on ENV
+	var baseURL string
+	env := os.Getenv("ENV")
+	if env == "dev" {
+		baseURL = os.Getenv("DEV_API_URL")
+	} else {
+		baseURL = os.Getenv("LOCAL_API_URL")
+	}
+
+	// Fallback in case envs are missing
+	if baseURL == "" {
+		baseURL = "http://localhost:5173"
+	}
+
 	invite := &Invitation{
 		ID:             uuid.New(),
 		PractitionerID: practitionerID,
@@ -66,7 +87,7 @@ func (s *service) SendInvite(ctx context.Context, practitionerID uuid.UUID, req 
 	}
 
 	// Format the URL
-	inviteLink := fmt.Sprintf("https://acareca.com/invite/%s", invite.ID)
+	inviteLink := fmt.Sprintf("%s/accept-invite?token=%s", baseURL, invite.ID)
 
 	// Trigger Email via Resend
 	go func() {
@@ -154,75 +175,105 @@ func (s *service) sendEmailViaResend(to string, link string, senderName string) 
 	return nil
 }
 
-func (s *service) ProcessInvitation(ctx context.Context, inviteID uuid.UUID, action string) (*RsInviteProcess, error) {
+func (s *service) GetInvitationDetails(ctx context.Context, inviteID uuid.UUID) (*RsInviteProcess, error) {
 	inv, err := s.repo.GetByID(ctx, inviteID)
 	if err != nil || inv == nil {
-		return nil, errors.New("Invitation not found")
+		return &RsInviteProcess{InvitationID: inviteID, IsFound: false}, nil
 	}
 
 	if time.Now().After(inv.ExpiresAt) {
 		return nil, errors.New("Invitation expired")
 	}
 
+	// Check if user already exists in system
+	userID, _ := s.repo.GetUserIDByEmail(ctx, inv.Email)
+
+	return &RsInviteProcess{
+		InvitationID: inv.ID,
+		Status:       inv.Status,
+		IsFound:      userID != nil,
+	}, nil
+}
+
+func (s *service) ProcessInvitation(ctx context.Context, req *RqProcessAction) (*RsInviteProcess, error) {
+	// Fetch the invitation
+	inv, err := s.repo.GetByID(ctx, req.TokenID)
+	if err != nil || inv == nil {
+		return nil, errors.New("invitation not found")
+	}
+
+	// Expiration Check
+	if time.Now().After(inv.ExpiresAt) {
+		return nil, errors.New("invitation expired")
+	}
+
 	res := &RsInviteProcess{InvitationID: inv.ID}
 
-	// Safety Check
+	// Safety Check: If already Rejected or Completed, don't allow further changes
 	if inv.Status == StatusRejected || inv.Status == StatusCompleted {
-		res.Status = inv.Status
-		res.IsFound = (inv.Status == StatusCompleted)
-		return res, nil
+		return nil, fmt.Errorf("action not allowed: invitation is already %s", inv.Status)
 	}
 
 	// Handle STATUS REJECTED
-	if action == "reject" {
+	if req.Action == ActionReject {
 		var actorUserID *uuid.UUID
 		if s.n != nil {
 			// Best-effort: resolve invitee user id from email for notification sender.
 			actorUserID, _ = s.repo.GetUserIDByEmail(ctx, inv.Email)
 		}
 
-		if err := s.repo.UpdateStatus(ctx, inviteID, StatusRejected, nil); err != nil {
+		if err := s.repo.UpdateStatus(ctx, inv.ID, StatusRejected, nil); err != nil {
 			return nil, err
 		}
 
 		if s.n != nil {
-			_ = s.n.NotifyInviteProcessed(ctx, actorUserID, inviteID, inv.PractitionerID, "reject")
+			_ = s.n.NotifyInviteProcessed(ctx, actorUserID, inv.ID, inv.PractitionerID, "reject")
 		}
 
 		res.Status = StatusRejected
+		res.IsFound = false
 		return res, nil
 	}
 
-	existingUserID, err := s.repo.GetUserIDByEmail(ctx, inv.Email)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check user existence: %w", err)
-	}
+	// Handle ACCEPT Action
+	if req.Action == ActionAccept {
+		accountantID, err := s.repo.GetAccountantIDByEmail(ctx, inv.Email)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check accountant existence: %w", err)
+		}
 
-	if existingUserID != nil {
-		// User exists in tbl_user
-		if err := s.repo.UpdateStatus(ctx, inviteID, StatusCompleted, existingUserID); err != nil {
+		var targetStatus InvitationStatus
+		if accountantID != nil {
+			// User exists: mark as COMPLETED immediately
+			targetStatus = StatusCompleted
+			res.IsFound = true
+
+			if s.n != nil {
+				_ = s.n.NotifyInviteProcessed(ctx, inv.EntityID, inv.ID, inv.PractitionerID, "ACCEPTED")
+			}
+		} else {
+			// User doesn't exist: mark as ACCEPTED (pending registration)
+			targetStatus = StatusAccepted
+			res.IsFound = false
+		}
+
+		if err := s.repo.UpdateStatus(ctx, inv.ID, targetStatus, accountantID); err != nil {
 			return nil, err
 		}
-		res.Status = StatusCompleted
-		res.IsFound = true // Redirect to login
 
-		if s.n != nil {
-			_ = s.n.NotifyInviteProcessed(ctx, existingUserID, inviteID, inv.PractitionerID, "accept")
-		}
-	} else {
-		// User does not exist
-		if err := s.repo.UpdateStatus(ctx, inviteID, StatusAccepted, nil); err != nil {
-			return nil, err
-		}
-		res.Status = StatusAccepted
+		res.Status = targetStatus
 		res.IsFound = false // Redirect to register
 
 		if s.n != nil {
-			_ = s.n.NotifyInviteProcessed(ctx, nil, inviteID, inv.PractitionerID, "accept")
+			_ = s.n.NotifyInviteProcessed(ctx, nil, inv.ID, inv.PractitionerID, "ACCEPTED")
 		}
+
+		return res, nil
+
 	}
 
-	return res, nil
+	// Fallback for unexpected actions
+	return nil, errors.New("invalid action: must be ACCEPT or REJECT")
 }
 
 // FinalizeRegistrationInternal is called by the Auth Service after a user registers
