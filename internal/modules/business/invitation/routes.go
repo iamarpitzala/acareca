@@ -6,7 +6,7 @@ import (
 	"github.com/iamarpitzala/acareca/pkg/config"
 )
 
-func RegisterRoutes(rg *gin.RouterGroup, h *Handler, cfg *config.Config) {
+func RegisterRoutes(rg *gin.RouterGroup, h IHandler, cfg *config.Config) {
 	invite := rg.Group("/invite")
 
 	// Public Route (These endpoints are for the person receiving the invite)
@@ -14,10 +14,9 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler, cfg *config.Config) {
 	invite.GET("/:id", h.GetInvitation)
 
 	// Protected Route
-	protected := invite.Group("/")
-	protected.Use(middleware.Auth(cfg))
-	{
-		protected.POST("", h.SendInvitation)
-		protected.GET("", h.ListInvitations)
-	}
+	invite.Use(middleware.Auth(cfg))
+
+	invite.POST("", h.SendInvitation)
+	invite.POST("/:id/resend", h.ResendInvitation)
+	invite.GET("", h.ListInvitations)
 }

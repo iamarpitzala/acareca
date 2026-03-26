@@ -24,6 +24,7 @@ type Repository interface {
 	Count(ctx context.Context, f common.Filter) (int, error)
 	GetInvitationByID(ctx context.Context, id uuid.UUID) (*InvitationExtended, error)
 	GetUserDetailsByEmail(ctx context.Context, email string) (*UserDetails, error)
+	CountDailyInvitesByEmail(ctx context.Context, practitionerID uuid.UUID, email string) (int, error)
 }
 
 type repository struct {
@@ -186,4 +187,20 @@ func (r *repository) GetUserDetailsByEmail(ctx context.Context, email string) (*
 		return nil, err
 	}
 	return &details, nil
+}
+
+func (r *repository) CountDailyInvitesByEmail(ctx context.Context, practitionerID uuid.UUID, email string) (int, error) {
+	var count int
+	query := `
+		SELECT COUNT(*) 
+		FROM tbl_invitation 
+		WHERE practitioner_id = $1 
+		  AND email = $2 
+		  AND created_at > NOW() - INTERVAL '24 hours'`
+
+	err := r.db.GetContext(ctx, &count, query, practitionerID, email)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }
