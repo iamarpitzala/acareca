@@ -18,7 +18,7 @@ var (
 const maxRetries = 5
 
 type Repository interface {
-	CreateNotification(ctx context.Context, notification Notification) error
+	CreateNotification(ctx context.Context, notification Notification) (uuid.UUID, error)
 	CreateDeliveries(ctx context.Context, notificationID uuid.UUID, channels []Channel) error
 	ListByRecipient(ctx context.Context, recipientID uuid.UUID, filter FilterNotification) ([]Notification, int, error)
 	MarkRead(ctx context.Context, id uuid.UUID, recipientID uuid.UUID) error
@@ -37,14 +37,16 @@ func NewRepository(db *sqlx.DB) Repository {
 	return &repository{db: db}
 }
 
-func (r *repository) CreateNotification(ctx context.Context, notification Notification) error {
+func (r *repository) CreateNotification(ctx context.Context, notification Notification) (uuid.UUID, error) {
 	const q = `
 		INSERT INTO tbl_notification (
 			recipient_id, recipient_type, sender_id, sender_type,
 			event_type, entity_type, entity_id, status, payload
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, 'UNREAD', $8)
+		RETURNING id
 	`
-	_, err := r.db.ExecContext(ctx, q,
+	var id uuid.UUID
+	err := r.db.QueryRowContext(ctx, q,
 		notification.RecipientID,
 		notification.RecipientType,
 		notification.SenderID,
@@ -53,11 +55,11 @@ func (r *repository) CreateNotification(ctx context.Context, notification Notifi
 		notification.EntityType,
 		notification.EntityID,
 		notification.Payload,
-	)
+	).Scan(&id)
 	if err != nil {
-		return fmt.Errorf("insert notification: %w", err)
+		return uuid.Nil, fmt.Errorf("insert notification: %w", err)
 	}
-	return nil
+	return id, nil
 }
 
 func (r *repository) CreateDeliveries(ctx context.Context, notificationID uuid.UUID, channels []Channel) error {
@@ -100,7 +102,7 @@ func (r *repository) ListByRecipient(ctx context.Context, recipientID uuid.UUID,
 	args = append(args, limit, offset)
 	q := fmt.Sprintf(`
 		SELECT id, recipient_id, sender_id, event_type, entity_type, entity_id,
-		       status, payload, retry_count, created_at, read_at AS readed_at
+		       status, payload, created_at, read_at AS readed_at
 		FROM tbl_notification
 		%s
 		ORDER BY created_at DESC

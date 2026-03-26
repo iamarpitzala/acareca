@@ -25,13 +25,22 @@ func NewService(repo Repository, notifier *sharednotification.Hub) Service {
 }
 
 func (s *service) Publish(ctx context.Context, rq RqNotification) error {
-	if err := s.repo.CreateNotification(ctx, rq.MapToDB()); err != nil {
+	notificationID, err := s.repo.CreateNotification(ctx, rq.MapToDB())
+	if err != nil {
 		return err
 	}
+
+	channels := rq.Channels
+	if len(channels) == 0 {
+		channels = []Channel{ChannelInApp}
+	}
+	if err := s.repo.CreateDeliveries(ctx, notificationID, channels); err != nil {
+		return err
+	}
+
 	if s.notifier != nil {
-		// Build a push-friendly struct so payload renders as JSON object, not base64
 		push := map[string]any{
-			"id":           rq.ID,
+			"id":           notificationID,
 			"recipient_id": rq.RecipientID,
 			"sender_id":    rq.SenderID,
 			"event_type":   rq.EventType,
