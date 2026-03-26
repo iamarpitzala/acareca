@@ -69,9 +69,10 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) audit.Service {
 
 	// notification (in-app list)
 	notificationRepo := notification.NewRepository(dbConn)
-	notificationSvc := notification.NewService(notificationRepo)
 
 	notifier := sharednotification.NewNotifier(dbConn)
+
+	notificationSvc := notification.NewService(notificationRepo, notifier)
 
 	// invitation
 	invitationRepo := invitation.NewRepository(dbConn)

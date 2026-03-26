@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	sharednotification "github.com/iamarpitzala/acareca/internal/shared/notification"
 )
 
 type Service interface {
@@ -17,15 +18,22 @@ type Service interface {
 }
 
 type service struct {
-	repo Repository
+	repo    Repository
+	notifier *sharednotification.Hub
 }
 
-func NewService(repo Repository) Service {
-	return &service{repo: repo}
+func NewService(repo Repository, notifier *sharednotification.Hub) Service {
+	return &service{repo: repo, notifier: notifier}
 }
 
 func (s *service) Publish(ctx context.Context, rq RqNotification) error {
-	return s.repo.CreateNotification(ctx, rq.MapToDB())
+	if err := s.repo.CreateNotification(ctx, rq.MapToDB()); err != nil {
+		return err
+	}
+	if s.notifier != nil {
+		s.notifier.Push(rq.RecipientID, rq)
+	}
+	return nil
 }
 
 func (s *service) List(ctx context.Context, recipientID uuid.UUID, filter FilterNotification) (RsListNotification, error) {
