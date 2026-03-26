@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iamarpitzala/acareca/internal/modules/notification"
+	sharednotification "github.com/iamarpitzala/acareca/internal/shared/notification"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 	"github.com/iamarpitzala/acareca/pkg/config"
 	"golang.org/x/text/cases"
@@ -36,10 +36,10 @@ const (
 type service struct {
 	repo         Repository
 	cfg          *config.Config
-	notification notification.Service
+	notification sharednotification.Notifier
 }
 
-func NewService(repo Repository, cfg *config.Config, notification notification.Service) Service {
+func NewService(repo Repository, cfg *config.Config, notification sharednotification.Notifier) Service {
 	return &service{
 		repo:         repo,
 		cfg:          cfg,
@@ -92,9 +92,17 @@ func (s *service) SendInvite(ctx context.Context, practitionerID uuid.UUID, req 
 
 	// Notify the invitee (best-effort; silently skipped if they haven't registered yet)
 	if s.notification != nil {
-		err = s.notification.NotifyInviteSent(ctx, &practitionerID, invite.ID, invite.Email, senderName)
-		if err != nil {
-			return nil, err
+		recipientID, _ := s.repo.GetAccountantIDByEmail(ctx, invite.Email)
+		if recipientID != nil && *recipientID != practitionerID {
+			_ = s.notification.SendToAccountant(ctx, *recipientID, &practitionerID, sharednotification.Event{
+				Kind:     sharednotification.EventInviteSent,
+				Title:    "Invitation received",
+				Body:     fmt.Sprintf("%s invited you to collaborate.", senderName),
+				EntityID: invite.ID,
+				ExtraData: map[string]any{
+					"invite_id": invite.ID.String(),
+				},
+			})
 		}
 	}
 
@@ -254,7 +262,13 @@ func (s *service) ProcessInvitation(ctx context.Context, req *RqProcessAction) (
 		}
 
 		if s.notification != nil {
-			_ = s.notification.NotifyInviteProcessed(ctx, actorEntityID, inv.ID, inv.PractitionerID, "reject")
+			_ = s.notification.SendToPractitioner(ctx, inv.PractitionerID, actorEntityID, sharednotification.Event{
+				Kind:     sharednotification.EventInviteDeclined,
+				Title:    "Invitation declined",
+				Body:     "The invitee declined the invitation.",
+				EntityID: inv.ID,
+				ExtraData: map[string]any{"invite_id": inv.ID.String()},
+			})
 		}
 
 		res.Status = StatusRejected
@@ -289,7 +303,13 @@ func (s *service) ProcessInvitation(ctx context.Context, req *RqProcessAction) (
 
 		// Notify practitioner once — actor is the accountant entity ID (nil if not registered yet)
 		if s.notification != nil {
-			_ = s.notification.NotifyInviteProcessed(ctx, accountantID, inv.ID, inv.PractitionerID, "accept")
+			_ = s.notification.SendToPractitioner(ctx, inv.PractitionerID, accountantID, sharednotification.Event{
+				Kind:     sharednotification.EventInviteAccepted,
+				Title:    "Invitation accepted",
+				Body:     "The invitee accepted the invitation.",
+				EntityID: inv.ID,
+				ExtraData: map[string]any{"invite_id": inv.ID.String()},
+			})
 		}
 
 		return res, nil

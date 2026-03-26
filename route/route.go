@@ -31,6 +31,7 @@ import (
 	"github.com/iamarpitzala/acareca/internal/modules/notification"
 	"github.com/iamarpitzala/acareca/internal/shared/db"
 	"github.com/iamarpitzala/acareca/internal/shared/middleware"
+	sharednotification "github.com/iamarpitzala/acareca/internal/shared/notification"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 	"github.com/iamarpitzala/acareca/pkg/config"
 	swaggerFiles "github.com/swaggo/files"
@@ -70,9 +71,11 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) audit.Service {
 	notificationRepo := notification.NewRepository(dbConn)
 	notificationSvc := notification.NewService(notificationRepo)
 
+	notifier := sharednotification.NewNotifier(dbConn)
+
 	// invitation
 	invitationRepo := invitation.NewRepository(dbConn)
-	invitationSvc := invitation.NewService(invitationRepo, cfg, notificationSvc)
+	invitationSvc := invitation.NewService(invitationRepo, cfg, notifier)
 	invitationHandler := invitation.NewHandler(invitationSvc)
 	invitation.RegisterRoutes(v1, invitationHandler, cfg)
 
