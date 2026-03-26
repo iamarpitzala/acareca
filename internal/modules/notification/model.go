@@ -99,12 +99,8 @@ type NotificationPayload struct {
 }
 
 type FilterNotification struct {
-	status *string `form:"status"`
+	Status *string `form:"status"`
 	common.Filter
-}
-
-func (f *FilterNotification) MapToFilter() {
-
 }
 
 type RqUpdatePreference struct {
@@ -121,4 +117,16 @@ type RqPublishEvent struct {
 }
 
 type ListNotificationsResponse struct {
+	Notifications []Notification `json:"notifications"`
+	UnreadCount   int            `json:"unread_count"`
+	Total         int            `json:"total"`
+}
+var allowedColumns = map[string]string{
+	"recipient_id": "recipient_id",
+	"sender_id":    "sender_id",
+	"event_type":   "event_type",
+	"entity_type":  "entity_type",
+	"entity_id":    "entity_id",
+	"status":       "status",
+	"created_at":   "created_at",
 }

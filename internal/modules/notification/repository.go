@@ -16,7 +16,7 @@ import (
 type Repository interface {
 	CreateNotification(ctx context.Context, recipientID uuid.UUID, senderID *uuid.UUID, eventType EventType, entityType EntityType, entityID uuid.UUID, payload NotificationPayload) error
 
-	ListByRecipient(ctx context.Context, recipientID uuid.UUID, filter FilterNotification) ([]util.RsList, error)
+	ListByRecipient(ctx context.Context, recipientID uuid.UUID, filter FilterNotification) (*util.RsList, error)
 
 	MarkRead(ctx context.Context, recipientID, notificationID uuid.UUID) error
 	MarkDismissed(ctx context.Context, recipientID, notificationID uuid.UUID) error
@@ -55,61 +55,39 @@ func (r *repository) CreateNotification(ctx context.Context, recipientID uuid.UU
 	return nil
 }
 
-func (r *repository) ListByRecipient(ctx context.Context, recipientID uuid.UUID, filter FilterNotification) ([]util.RsList, error) {
-
-	base := `
-		FROM tbl_notification
-		WHERE recipient_id = $1
-		  AND deleted_at IS NULL
-	`
-
-	base = `
-		FROM tbl_notification
-		WHERE recipient_id = $1
-	`
-
-	var statusClause string
-	var args []any
-	args = append(args, recipientID)
-
-	if filter.status != nil && *filter.status != "" {
-		statusClause = ` AND status = $2 `
-		args = append(args, &filter.status)
+func (r *repository) ListByRecipient(ctx context.Context, recipientID uuid.UUID, filter FilterNotification) (*util.RsList, error) {
+	baseFilters := map[string]interface{}{
+		"recipient_id": recipientID,
+	}
+	if filter.Status != nil && *filter.Status != "" {
+		baseFilters["status"] = *filter.Status
 	}
 
-	// Total count with optional status filter.
-	totalQuery := `SELECT COUNT(*) ` + base + statusClause
+	countFilter := common.NewFilter(nil, baseFilters, nil, nil, nil)
+
+	// Total count
+	countBase := `FROM tbl_notification`
+	totalQuery, totalArgs := common.BuildQuery(countBase, countFilter, allowedColumns, nil, true)
 	var total int
-	if err := r.db.GetContext(ctx, &total, totalQuery, args...); err != nil {
+	if err := r.db.GetContext(ctx, &total, r.db.Rebind(totalQuery), totalArgs...); err != nil {
 		return nil, fmt.Errorf("count notifications: %w", err)
 	}
 
-	// Unread count: always based on pending and optional status filter.
-	// If a status filter is applied, unread should probably respect it too.
-	unreadBase := base
-	unreadStatusClause := ` AND status = 'PENDING' `
-	unreadStatusClauseOptional := ""
-	if filter.status != nil && *filter.status != "" {
-		unreadStatusClauseOptional = ` AND status = $2 `
-		// args already has $2 in statusClause path; keep consistent.
-		// We'll reuse the same args slice.
-	}
-	unreadQuery := `SELECT COUNT(*) ` + unreadBase + unreadStatusClause + unreadStatusClauseOptional
-	var unread int
-	if err := r.db.GetContext(ctx, &unread, unreadQuery, args...); err != nil {
-		return nil, fmt.Errorf("count unread notifications: %w", err)
-	}
-
-	selectBase := `SELECT id, recipient_id, sender_id, event_type, entity_type, entity_id, status, payload, retry_count, created_at, readed_at ` + base
-	listQuery, listArgs := common.BuildQuery(selectBase, filter.Filter, allowedColumns, nil, false)
-	listQuery = r.db.Rebind(listQuery)
+	// List
+	listBase := `SELECT id, recipient_id, sender_id, event_type, entity_type, entity_id, status, payload, retry_count, created_at, readed_at FROM tbl_notification`
+	mergedFilter := common.NewFilter(filter.Filter.Search, baseFilters, nil, &filter.Filter.Limit, &filter.Filter.Offset)
+	mergedFilter.SortBy = filter.Filter.SortBy
+	mergedFilter.OrderBy = filter.Filter.OrderBy
+	listQuery, listArgs := common.BuildQuery(listBase, mergedFilter, allowedColumns, nil, false)
 
 	var items []Notification
-	if err := r.db.SelectContext(ctx, &items, listQuery, listArgs...); err != nil {
+	if err := r.db.SelectContext(ctx, &items, r.db.Rebind(listQuery), listArgs...); err != nil {
 		return nil, fmt.Errorf("list notifications: %w", err)
 	}
 
-	return items, nil
+	var rs util.RsList
+	rs.MapToList(items, total, filter.Filter.Offset, filter.Filter.Limit)
+	return &rs, nil
 }
 
 func (r *repository) MarkRead(ctx context.Context, recipientID, notificationID uuid.UUID) error {

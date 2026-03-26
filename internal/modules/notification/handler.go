@@ -30,8 +30,9 @@ func (h *Handler) ListNotifications(c *gin.Context) {
 	}
 
 	var filter FilterNotification
-	if err := util.BindAndValidate(c, filter); err != nil {
+	if err := util.BindAndValidate(c, &filter); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
+		return
 	}
 
 	res, err := h.svc.ListNotifications(c.Request.Context(), uid, filter)

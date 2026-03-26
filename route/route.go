@@ -66,9 +66,13 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) audit.Service {
 	accountantRepo := accountant.NewRepository(dbConn)
 	accountantSvc := accountant.NewService(accountantRepo)
 
+	// notification (in-app list)
+	notificationRepo := notification.NewRepository(dbConn)
+	notificationSvc := notification.NewService(notificationRepo)
+
 	// invitation
 	invitationRepo := invitation.NewRepository(dbConn)
-	invitationSvc := invitation.NewService(invitationRepo, cfg)
+	invitationSvc := invitation.NewService(invitationRepo, cfg, notificationSvc)
 	invitationHandler := invitation.NewHandler(invitationSvc)
 	invitation.RegisterRoutes(v1, invitationHandler, cfg)
 
@@ -182,9 +186,6 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) audit.Service {
 	userSubscription.RegisterRoutes(userSubscriptionGroup, userSubscriptionHandler)
 
 	// notification (in-app list)
-
-	notificationRepo := notification.NewRepository(dbConn)
-	notificationSvc := notification.NewService(notificationRepo)
 
 	notificationGroup := v1.Group("/notification")
 	notificationGroup.Use(middleware.Auth(cfg), middleware.AuditContext())

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/modules/notification"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 	"github.com/iamarpitzala/acareca/pkg/config"
 	"golang.org/x/text/cases"
@@ -32,14 +33,16 @@ const (
 )
 
 type service struct {
-	repo Repository
-	cfg  *config.Config
+	repo         Repository
+	cfg          *config.Config
+	notification notification.Service
 }
 
-func NewService(repo Repository, cfg *config.Config) Service {
+func NewService(repo Repository, cfg *config.Config, notification notification.Service) Service {
 	return &service{
-		repo: repo,
-		cfg:  cfg,
+		repo:         repo,
+		cfg:          cfg,
+		notification: notification,
 	}
 }
 
@@ -228,7 +231,7 @@ func (s *service) ProcessInvitation(ctx context.Context, req *RqProcessAction) (
 	// Handle STATUS REJECTED
 	if req.Action == ActionReject {
 		var actorUserID *uuid.UUID
-		if s.n != nil {
+		if s.notification != nil {
 			// Best-effort: resolve invitee user id from email for notification sender.
 			actorUserID, _ = s.repo.GetUserIDByEmail(ctx, inv.Email)
 		}
@@ -237,8 +240,8 @@ func (s *service) ProcessInvitation(ctx context.Context, req *RqProcessAction) (
 			return nil, err
 		}
 
-		if s.n != nil {
-			_ = s.n.NotifyInviteProcessed(ctx, actorUserID, inv.ID, inv.PractitionerID, "reject")
+		if s.notification != nil {
+			_ = s.notification.NotifyInviteProcessed(ctx, actorUserID, inv.ID, inv.PractitionerID, "REJECT")
 		}
 
 		res.Status = StatusRejected
@@ -259,8 +262,8 @@ func (s *service) ProcessInvitation(ctx context.Context, req *RqProcessAction) (
 			targetStatus = StatusCompleted
 			res.IsFound = true
 
-			if s.n != nil {
-				_ = s.n.NotifyInviteProcessed(ctx, inv.EntityID, inv.ID, inv.PractitionerID, "ACCEPTED")
+			if s.notification != nil {
+				_ = s.notification.NotifyInviteProcessed(ctx, inv.EntityID, inv.ID, inv.PractitionerID, "ACCEPTED")
 			}
 		} else {
 			// User doesn't exist: mark as ACCEPTED (pending registration)
@@ -275,8 +278,8 @@ func (s *service) ProcessInvitation(ctx context.Context, req *RqProcessAction) (
 		res.Status = targetStatus
 		res.IsFound = false // Redirect to register
 
-		if s.n != nil {
-			_ = s.n.NotifyInviteProcessed(ctx, nil, inv.ID, inv.PractitionerID, "ACCEPTED")
+		if s.notification != nil {
+			_ = s.notification.NotifyInviteProcessed(ctx, nil, inv.ID, inv.PractitionerID, "ACCEPTED")
 		}
 
 		return res, nil

@@ -3,10 +3,10 @@ package notification
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	auditctx "github.com/iamarpitzala/acareca/internal/shared/audit"
+	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
 
 type Service interface {
@@ -34,7 +34,7 @@ type Service interface {
 	NotifyTransactionStatusChanged(ctx context.Context, actorUserID *uuid.UUID, entryID uuid.UUID, fromStatus string, toStatus string) error
 
 	// User-facing notification list
-	ListNotifications(ctx context.Context, recipientID uuid.UUID, filter FilterNotification) (*ListNotificationsResponse, error)
+	ListNotifications(ctx context.Context, recipientID uuid.UUID, filter FilterNotification) (*util.RsList, error)
 	MarkRead(ctx context.Context, recipientID, notificationID uuid.UUID) error
 	MarkDismissed(ctx context.Context, recipientID, notificationID uuid.UUID) error
 }
@@ -240,16 +240,8 @@ func (s *service) NotifyTransactionStatusChanged(
 	return s.repo.CreateNotification(ctx, *recipientUserID, actorUserID, EventTransactionUpdated, EntityTransaction, entryID, payload)
 }
 
-func (s *service) ListNotifications(ctx context.Context, recipientID uuid.UUID, filter FilterNotification) (*ListNotificationsResponse, error) {
-	items, unread, total, err := s.repo.ListByRecipient(ctx, recipientID, filter)
-	if err != nil {
-		return nil, err
-	}
-	return &ListNotificationsResponse{
-		Notifications: items,
-		UnreadCount:   unread,
-		Total:         total,
-	}, nil
+func (s *service) ListNotifications(ctx context.Context, recipientID uuid.UUID, filter FilterNotification) (*util.RsList, error) {
+	return s.repo.ListByRecipient(ctx, recipientID, filter)
 }
 
 func (s *service) MarkRead(ctx context.Context, recipientID, notificationID uuid.UUID) error {
@@ -272,6 +264,3 @@ func ActorUserIDFromAudit(ctx context.Context) *uuid.UUID {
 	}
 	return &id
 }
-
-// Timeout helper for async scenarios (future-proofing).
-func nowUTC() time.Time { return time.Now().UTC() }
