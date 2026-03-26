@@ -3,25 +3,50 @@ package notification
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	auditctx "github.com/iamarpitzala/acareca/internal/shared/audit"
-	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
 
 type Service interface {
 	// Invitation notifications
-	NotifyInviteSent(ctx context.Context, actorUserID *uuid.UUID, practitionerID uuid.UUID, inviteID uuid.UUID, recipientEmail string, senderName string) error
-	NotifyInviteProcessed(ctx context.Context, actorUserID *uuid.UUID, inviteID uuid.UUID, practitionerID uuid.UUID, action string) error
+	NotifyInviteSent(
+		ctx context.Context,
+		actorUserID *uuid.UUID,
+		practitionerID uuid.UUID,
+		inviteID uuid.UUID,
+		recipientEmail string,
+		senderName string,
+	) error
+	NotifyInviteProcessed(
+		ctx context.Context,
+		actorUserID *uuid.UUID,
+		inviteID uuid.UUID,
+		practitionerID uuid.UUID,
+		action string, // "reject" | other (accept)
+	) error
 
 	// Content notifications (account -> practitioner)
 	NotifyClinicUpdated(ctx context.Context, actorUserID *uuid.UUID, clinicID uuid.UUID) error
 	NotifyFormUpdated(ctx context.Context, actorUserID *uuid.UUID, formID uuid.UUID) error
 	NotifyTransactionCreated(ctx context.Context, actorUserID *uuid.UUID, entryID uuid.UUID) error
-	NotifyTransactionStatusChanged(ctx context.Context, actorUserID *uuid.UUID, entryID uuid.UUID, fromStatus string, toStatus string) error
+	NotifyTransactionStatusChanged(
+		ctx context.Context,
+		actorUserID *uuid.UUID,
+		entryID uuid.UUID,
+		fromStatus string,
+		toStatus string,
+	) error
 
 	// User-facing notification list
-	ListNotifications(ctx context.Context, recipientID uuid.UUID, filter Filter) (*util.RsList, error)
+	ListNotifications(
+		ctx context.Context,
+		recipientID uuid.UUID,
+		status *Status,
+		page int,
+		limit int,
+	) (*ListNotificationsResponse, error)
 	MarkRead(ctx context.Context, recipientID, notificationID uuid.UUID) error
 	MarkDismissed(ctx context.Context, recipientID, notificationID uuid.UUID) error
 }
@@ -34,7 +59,14 @@ func NewService(repo Repository) Service {
 	return &service{repo: repo}
 }
 
-func (s *service) NotifyInviteSent(ctx context.Context, actorUserID *uuid.UUID, practitionerID uuid.UUID, inviteID uuid.UUID, recipientEmail string, senderName string) error {
+func (s *service) NotifyInviteSent(
+	ctx context.Context,
+	actorUserID *uuid.UUID,
+	practitionerID uuid.UUID,
+	inviteID uuid.UUID,
+	recipientEmail string,
+	senderName string,
+) error {
 	recipientUserID, err := s.repo.GetUserIDByEmail(ctx, recipientEmail)
 	if err != nil {
 		return err
@@ -68,7 +100,13 @@ func (s *service) NotifyInviteSent(ctx context.Context, actorUserID *uuid.UUID, 
 	)
 }
 
-func (s *service) NotifyInviteProcessed(ctx context.Context, actorUserID *uuid.UUID, inviteID uuid.UUID, practitionerID uuid.UUID, action string) error {
+func (s *service) NotifyInviteProcessed(
+	ctx context.Context,
+	actorUserID *uuid.UUID,
+	inviteID uuid.UUID,
+	practitionerID uuid.UUID,
+	action string,
+) error {
 	recipientUserID, err := s.repo.GetUserIDByPractitionerID(ctx, practitionerID)
 	if err != nil {
 		return err
@@ -214,23 +252,22 @@ func (s *service) NotifyTransactionStatusChanged(
 	return s.repo.CreateNotification(ctx, *recipientUserID, actorUserID, EventTransactionUpdated, EntityTransaction, entryID, payload)
 }
 
-func (s *service) ListNotifications(ctx context.Context, recipientID uuid.UUID, filter Filter) (*util.RsList, error) {
-	f := filter.MapToFilter()
-	items, unread, total, err := s.repo.ListByRecipient(ctx, recipientID, f)
+func (s *service) ListNotifications(
+	ctx context.Context,
+	recipientID uuid.UUID,
+	status *Status,
+	page int,
+	limit int,
+) (*ListNotificationsResponse, error) {
+	items, unread, total, err := s.repo.ListByRecipient(ctx, recipientID, status, page, limit)
 	if err != nil {
 		return nil, err
 	}
-
-	var rs util.RsList
-	rs.MapToList(struct {
-		Notifications []Notification `json:"notifications"`
-		UnreadCount   int            `json:"unread_count"`
-	}{
+	return &ListNotificationsResponse{
 		Notifications: items,
 		UnreadCount:   unread,
-	}, total, f.Offset, f.Limit)
-
-	return &rs, nil
+		Total:         total,
+	}, nil
 }
 
 func (s *service) MarkRead(ctx context.Context, recipientID, notificationID uuid.UUID) error {
@@ -253,3 +290,6 @@ func ActorUserIDFromAudit(ctx context.Context) *uuid.UUID {
 	}
 	return &id
 }
+
+// Timeout helper for async scenarios (future-proofing).
+func nowUTC() time.Time { return time.Now().UTC() }
