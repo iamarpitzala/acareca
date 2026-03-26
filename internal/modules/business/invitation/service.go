@@ -103,9 +103,8 @@ func (s *service) SendInvite(ctx context.Context, practitionerID uuid.UUID, req 
 				EventType:     notification.EventInviteSent,
 				EntityType:    notification.EntityInvite,
 				EntityID:      invite.ID,
-				Status:        notification.StatusPending,
+				Status:        notification.StatusUnread,
 				Payload:       payloadBytes,
-				RetryCount:    0,
 				CreatedAt:     time.Now(),
 			}
 			if err := s.notification.Publish(ctx, rq); err != nil {
@@ -285,7 +284,7 @@ func (s *service) ProcessInvitation(ctx context.Context, req *RqProcessAction) (
 				EventType:     notification.EventInviteAccepted,
 				EntityType:    notification.EntityInvite,
 				EntityID:      inv.ID,
-				Status:        notification.StatusPending,
+				Status:        notification.StatusUnread,
 				Payload:       payloadBytes,
 				CreatedAt:     time.Now(),
 			}

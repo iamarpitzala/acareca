@@ -9,14 +9,22 @@ import (
 
 // Enums
 
+// Status is the user-facing state of a notification.
 type Status string
 
 const (
-	StatusPending   Status = "PENDING"
-	StatusDelivered Status = "DELIVERED"
+	StatusUnread    Status = "UNREAD"
 	StatusRead      Status = "READ"
 	StatusDismissed Status = "DISMISSED"
-	StatusFailed    Status = "FAILED"
+)
+
+// DeliveryStatus tracks per-channel delivery state.
+type DeliveryStatus string
+
+const (
+	DeliveryPending   DeliveryStatus = "PENDING"
+	DeliveryDelivered DeliveryStatus = "DELIVERED"
+	DeliveryFailed    DeliveryStatus = "FAILED"
 )
 
 type EventType string
@@ -73,7 +81,7 @@ type RqNotification struct {
 	EntityID      uuid.UUID  `json:"entity_id"`
 	Status        Status     `json:"status"`
 	Payload       []byte     `json:"payload"`
-	RetryCount    int        `json:"retry_count"`
+	Channels      []Channel  `json:"channels"`
 	CreatedAt     time.Time  `json:"created_at"`
 	ReadedAt      *time.Time `json:"readed_at"`
 }
@@ -89,9 +97,20 @@ type Notification struct {
 	EntityID      uuid.UUID  `db:"entity_id"`
 	Status        Status     `db:"status"`
 	Payload       []byte     `db:"payload"`
-	RetryCount    int        `db:"retry_count"`
 	CreatedAt     time.Time  `db:"created_at"`
 	ReadedAt      *time.Time `db:"readed_at"`
+}
+
+// Delivery tracks the send state for a single channel of a notification.
+type Delivery struct {
+	ID             uuid.UUID      `db:"id"`
+	NotificationID uuid.UUID      `db:"notification_id"`
+	Channel        Channel        `db:"channel"`
+	Status         DeliveryStatus `db:"status"`
+	RetryCount     int            `db:"retry_count"`
+	LastAttemptAt  *time.Time     `db:"last_attempted_at"`
+	DeliveredAt    *time.Time     `db:"delivered_at"`
+	ErrorMessage   *string        `db:"error_message"`
 }
 
 func (n *RqNotification) MapToDB() Notification {
@@ -104,9 +123,8 @@ func (n *RqNotification) MapToDB() Notification {
 		EventType:     n.EventType,
 		EntityType:    n.EntityType,
 		EntityID:      n.EntityID,
-		Status:        n.Status,
+		Status:        StatusUnread,
 		Payload:       n.Payload,
-		RetryCount:    n.RetryCount,
 		CreatedAt:     n.CreatedAt,
 		ReadedAt:      n.ReadedAt,
 	}

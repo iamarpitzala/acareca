@@ -18,6 +18,4 @@ func RegisterRoutes(rg *gin.RouterGroup, h IHandler, hub *sharednotification.Hub
 	nft.GET("", h.ListNotifications)
 	nft.PATCH("/:id/read", h.MarkRead)
 	nft.PATCH("/:id/dismissed", h.MarkDismissed)
-	nft.PATCH("/:id/failed", h.MarkFailed)
-	nft.POST("/:id/retry", h.Retry)
 }
