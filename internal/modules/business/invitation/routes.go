@@ -14,10 +14,9 @@ func RegisterRoutes(rg *gin.RouterGroup, h IHandler, cfg *config.Config) {
 	invite.GET("/:id", h.GetInvitation)
 
 	// Protected Route
-	protected := invite.Group("/")
-	protected.Use(middleware.Auth(cfg))
+	invite.Use(middleware.Auth(cfg))
 
-	protected.POST("", h.SendInvitation)
-		protected.POST("/:id/resend", h.ResendInvitation)
-	protected.GET("", h.ListInvitations)
+	invite.POST("", h.SendInvitation)
+	invite.POST("/:id/resend", h.ResendInvitation)
+	invite.GET("", h.ListInvitations)
 }
