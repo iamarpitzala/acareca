@@ -3,12 +3,13 @@ package auth
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -48,6 +49,9 @@ type Service interface {
 
 	UpdateProfile(ctx context.Context, userID uuid.UUID, req *RqUpdateUser) (*RsUser, error)
 	DeleteUser(ctx context.Context, userID uuid.UUID) error
+
+	ForgotPassword(ctx context.Context, req *RqForgotPassword) error
+	ResetPassword(ctx context.Context, req *RqResetPassword) error
 }
 
 type service struct {
@@ -145,8 +149,8 @@ func (s *service) Register(ctx context.Context, req *RqUser) (*RsUser, error) {
 			return fmt.Errorf("create verification token: %w", err)
 		}
 
-		// This function looks for an invitation by email and links it to the user id
-		err = s.invitationSvc.FinalizeRegistrationInternal(ctx, created.Email, created.ID)
+		// This function looks for an invitation by email and links it to the accountant id
+		err = s.invitationSvc.FinalizeRegistrationInternal(ctx, created.Email, a.ID)
 		if err != nil {
 			return fmt.Errorf("[DEBUG] finalize invitation: %w", err)
 		}
@@ -463,7 +467,7 @@ func sanitizeUser(u *User) map[string]interface{} {
 // Helper function for sending verification email via Resend API
 func (s *service) sendVerificationEmail(to string, firstName string, tokenID uuid.UUID) error {
 	url := "https://api.resend.com/emails"
-	apikey := os.Getenv("RESEND_API_KEY")
+	apikey := s.cfg.ResendAPIKey
 
 	verificationLink := fmt.Sprintf("https://acareca.com/verify-email?token=%s", tokenID)
 	expiryTime := "10 minutes"
@@ -716,4 +720,109 @@ func (s *service) resolveEntityID(ctx context.Context, user *User) (string, erro
 	default:
 		return user.ID.String(), nil
 	}
+}
+
+func (s *service) SendForgotPasswordEmail(to string, firstName string, token string, role string) error {
+	url := "https://api.resend.com/emails"
+	apikey := s.cfg.ResendAPIKey
+
+	var baseURL string
+
+	if s.cfg.Env == "dev" {
+		baseURL = s.cfg.DevUrl
+	} else {
+		baseURL = s.cfg.LocalUrl
+	}
+
+	// 2. Fallback Safety Net: In case envs are missing
+	if baseURL == "" {
+
+		return fmt.Errorf("system configuration error: frontend application URL is not defined")
+	}
+
+	resetLink := fmt.Sprintf("%s/reset-password?token=%s", baseURL, token)
+	expiryTime := "15 minutes"
+
+	payload := map[string]interface{}{
+		"from":    "Acareca <hardik@zenithive.digital>",
+		"to":      []string{to},
+		"subject": "Reset your Acareca password",
+		"html": fmt.Sprintf(`
+            <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px;">
+                <h2 style="color: #d93025;">Password Reset Request</h2>
+                <p>Hi %s,</p>
+                <p>We received a request to reset your password for your Acareca account. Click the button below to choose a new password:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="%s" style="background-color: #d93025; color: white; padding: 14px 28px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
+                        Reset My Password
+                    </a>
+                </div>
+                <p style="font-size: 14px; color: #666;">If the button above doesn’t work, copy and paste this link into your browser:</p>
+                <p style="font-size: 12px; word-break: break-all; color: #d93025;">%s</p>
+                <p style="font-size: 14px; color: #666;">This link will expire in <strong>%s</strong> for security reasons.</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                <p style="font-size: 12px; color: #888;">If you did not request a password reset, you can safely ignore this email; your password will remain unchanged.</p>
+                <p style="font-size: 12px; color: #888;">Best regards,<br>The Acareca Team</p>
+            </div>
+        `, firstName, resetLink, resetLink, expiryTime),
+	}
+
+	// Standard HTTP request logic (same as your verification helper)
+	jsonData, _ := json.Marshal(payload)
+	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	req.Header.Set("Authorization", "Bearer "+apikey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("resend error: %s", string(body))
+	}
+
+	return nil
+}
+
+func (s *service) ForgotPassword(ctx context.Context, req *RqForgotPassword) error {
+	// 1. Find user and their role
+	user, err := s.repo.FindByEmail(ctx, req.Email)
+	if err != nil {
+		return nil
+	}
+
+	// 2. Generate Raw Token and Hash it
+	rawToken := uuid.New().String()
+
+	hash := sha256.Sum256([]byte(rawToken))
+	tokenHash := hex.EncodeToString(hash[:])
+
+	// 3. Save to DB (expires in 15 mins)
+	expiresAt := time.Now().Add(15 * time.Minute)
+	err = s.repo.SaveResetToken(ctx, user.ID.String(), tokenHash, expiresAt)
+	if err != nil {
+		return err
+	}
+
+	// 4. Send Email via Resend helper
+	return s.SendForgotPasswordEmail(user.Email, user.FirstName, rawToken, user.Role)
+}
+
+func (s *service) ResetPassword(ctx context.Context, req *RqResetPassword) error {
+
+	// This must match the SHA-256 hash we saved in ForgotPassword
+	hash := sha256.Sum256([]byte(req.Token))
+	tokenHash := hex.EncodeToString(hash[:])
+
+	// 2. Hash the NEW password using Argon2id
+	newPasswordHash, err := util.GenerateHash(req.NewPassword)
+	if err != nil {
+		return fmt.Errorf("failed to hash new password: %w", err)
+	}
+
+	return s.repo.CompletePasswordReset(ctx, tokenHash, newPasswordHash)
 }
