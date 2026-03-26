@@ -9,8 +9,11 @@ import (
 type Service interface {
 	Publish(ctx context.Context, rq RqNotification) error
 	List(ctx context.Context, recipientID uuid.UUID, filter FilterNotification) (RsListNotification, error)
+	MarkDelivered(ctx context.Context, ids []uuid.UUID, recipientID uuid.UUID) error
 	MarkRead(ctx context.Context, id uuid.UUID, recipientID uuid.UUID) error
 	MarkDismissed(ctx context.Context, id uuid.UUID, recipientID uuid.UUID) error
+	MarkFailed(ctx context.Context, id uuid.UUID, recipientID uuid.UUID) error
+	Retry(ctx context.Context, id uuid.UUID, recipientID uuid.UUID) error
 }
 
 type service struct {
@@ -45,10 +48,22 @@ func (s *service) List(ctx context.Context, recipientID uuid.UUID, filter Filter
 	}, nil
 }
 
+func (s *service) MarkDelivered(ctx context.Context, ids []uuid.UUID, recipientID uuid.UUID) error {
+	return s.repo.MarkDelivered(ctx, ids, recipientID)
+}
+
 func (s *service) MarkRead(ctx context.Context, id uuid.UUID, recipientID uuid.UUID) error {
 	return s.repo.MarkRead(ctx, id, recipientID)
 }
 
 func (s *service) MarkDismissed(ctx context.Context, id uuid.UUID, recipientID uuid.UUID) error {
 	return s.repo.MarkDismissed(ctx, id, recipientID)
+}
+
+func (s *service) MarkFailed(ctx context.Context, id uuid.UUID, recipientID uuid.UUID) error {
+	return s.repo.MarkFailed(ctx, id, recipientID)
+}
+
+func (s *service) Retry(ctx context.Context, id uuid.UUID, recipientID uuid.UUID) error {
+	return s.repo.Retry(ctx, id, recipientID)
 }

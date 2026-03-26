@@ -292,6 +292,25 @@ func (s *service) ProcessInvitation(ctx context.Context, req *RqProcessAction) (
 		res.Status = targetStatus
 		res.IsFound = false
 
+		// Notify the practitioner that their invite was accepted
+		if s.notification != nil {
+			body := json.RawMessage(fmt.Sprintf(`"%s accepted your invitation."`, inv.Email))
+			extraData := map[string]interface{}{"invite_id": inv.ID.String()}
+			payload := notification.BuildNotificationPayload("Invitation Accepted", body, nil, nil, &extraData)
+			payloadBytes, _ := json.Marshal(payload)
+			_ = s.notification.Publish(ctx, notification.RqNotification{
+				ID:          uuid.New(),
+				RecipientID: inv.PractitionerID,
+				SenderID:    accountantID,
+				EventType:   notification.EventInviteAccepted,
+				EntityType:  notification.EntityInvite,
+				EntityID:    inv.ID,
+				Status:      notification.StatusPending,
+				Payload:     payloadBytes,
+				CreatedAt:   time.Now(),
+			})
+		}
+
 		return res, nil
 
 	}

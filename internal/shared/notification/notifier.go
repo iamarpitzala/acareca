@@ -44,9 +44,13 @@ func NewNotifier(db *sqlx.DB) *Hub {
 	}
 }
 
-// Push sends a JSON payload to all connections belonging to entityID.
+// Push sends a live notification event to all connections belonging to entityID.
 func (h *Hub) Push(entityID uuid.UUID, payload any) {
-	data, err := json.Marshal(payload)
+	msg := map[string]any{
+		"type": "notification",
+		"data": payload,
+	}
+	data, err := json.Marshal(msg)
 	if err != nil {
 		log.Printf("notifier: marshal error: %v", err)
 		return
@@ -147,7 +151,22 @@ func (h *Hub) unregister(cl *client) {
 
 // ── stored notifications ──────────────────────────────────────────────────────
 
+type storedNotification struct {
+	ID          uuid.UUID  `db:"id"`
+	RecipientID uuid.UUID  `db:"recipient_id"`
+	SenderID    *uuid.UUID `db:"sender_id"`
+	EventType   string     `db:"event_type"`
+	EntityType  string     `db:"entity_type"`
+	EntityID    uuid.UUID  `db:"entity_id"`
+	Status      string     `db:"status"`
+	Payload     []byte     `db:"payload"`
+	RetryCount  int        `db:"retry_count"`
+	CreatedAt   time.Time  `db:"created_at"`
+	ReadedAt    *time.Time `db:"readed_at"`
+}
+
 func (h *Hub) sendStored(ctx context.Context, cl *client) error {
+	// Fetch all non-dismissed notifications (PENDING, DELIVERED, READ, FAILED)
 	const q = `
 		SELECT id, recipient_id, sender_id, event_type, entity_type, entity_id,
 		       status, payload, retry_count, created_at, read_at AS readed_at
@@ -163,27 +182,35 @@ func (h *Hub) sendStored(ctx context.Context, cl *client) error {
 	}
 	defer rows.Close()
 
-	type row struct {
-		ID          uuid.UUID  `db:"id"`
-		RecipientID uuid.UUID  `db:"recipient_id"`
-		SenderID    *uuid.UUID `db:"sender_id"`
-		EventType   string     `db:"event_type"`
-		EntityType  string     `db:"entity_type"`
-		EntityID    uuid.UUID  `db:"entity_id"`
-		Status      string     `db:"status"`
-		Payload     []byte     `db:"payload"`
-		RetryCount  int        `db:"retry_count"`
-		CreatedAt   time.Time  `db:"created_at"`
-		ReadedAt    *time.Time `db:"readed_at"`
-	}
+	var notifications []storedNotification
+	var pendingIDs []uuid.UUID
 
-	var notifications []row
 	for rows.Next() {
-		var n row
+		var n storedNotification
 		if err := rows.StructScan(&n); err != nil {
 			return fmt.Errorf("scan notification: %w", err)
 		}
 		notifications = append(notifications, n)
+		if n.Status == "PENDING" {
+			pendingIDs = append(pendingIDs, n.ID)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate notifications: %w", err)
+	}
+
+	// Bulk-mark PENDING → DELIVERED now that the client has received them
+	if len(pendingIDs) > 0 {
+		if err := h.markDelivered(ctx, pendingIDs, cl.entityID); err != nil {
+			log.Printf("notifier: markDelivered error: %v", err)
+		} else {
+			// Reflect the updated status in the payload we're about to send
+			for i := range notifications {
+				if notifications[i].Status == "PENDING" {
+					notifications[i].Status = "DELIVERED"
+				}
+			}
+		}
 	}
 
 	msg := map[string]any{
@@ -193,6 +220,40 @@ func (h *Hub) sendStored(ctx context.Context, cl *client) error {
 	data, _ := json.Marshal(msg)
 	cl.send <- data
 	return nil
+}
+
+func (h *Hub) markDelivered(ctx context.Context, ids []uuid.UUID, recipientID uuid.UUID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	// Build $1,$2,... placeholders manually (sqlx.In uses ? style)
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids)+1)
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	args[len(ids)] = recipientID
+
+	q := fmt.Sprintf(
+		`UPDATE tbl_notification SET status = 'DELIVERED'
+		 WHERE id IN (%s) AND recipient_id = $%d AND status = 'PENDING'`,
+		joinStrings(placeholders, ","),
+		len(ids)+1,
+	)
+	_, err := h.db.ExecContext(ctx, q, args...)
+	return err
+}
+
+func joinStrings(ss []string, sep string) string {
+	result := ""
+	for i, s := range ss {
+		if i > 0 {
+			result += sep
+		}
+		result += s
+	}
+	return result
 }
 
 // ── pumps ─────────────────────────────────────────────────────────────────────

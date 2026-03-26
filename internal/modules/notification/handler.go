@@ -1,6 +1,7 @@
 package notification
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +13,8 @@ type IHandler interface {
 	ListNotifications(c *gin.Context)
 	MarkRead(c *gin.Context)
 	MarkDismissed(c *gin.Context)
+	MarkFailed(c *gin.Context)
+	Retry(c *gin.Context)
 }
 
 type handler struct {
@@ -52,7 +55,7 @@ func (h *handler) MarkRead(c *gin.Context) {
 		return
 	}
 	if err := h.svc.MarkRead(c.Request.Context(), id, entityID); err != nil {
-		response.Error(c, http.StatusInternalServerError, err)
+		h.handleTransitionError(c, err)
 		return
 	}
 	response.JSON(c, http.StatusOK, nil, "marked as read")
@@ -68,8 +71,54 @@ func (h *handler) MarkDismissed(c *gin.Context) {
 		return
 	}
 	if err := h.svc.MarkDismissed(c.Request.Context(), id, entityID); err != nil {
-		response.Error(c, http.StatusInternalServerError, err)
+		h.handleTransitionError(c, err)
 		return
 	}
 	response.JSON(c, http.StatusOK, nil, "dismissed")
+}
+
+func (h *handler) MarkFailed(c *gin.Context) {
+	entityID, ok := util.GetEntityID(c)
+	if !ok {
+		return
+	}
+	id, ok := util.ParseUuidID(c, "id")
+	if !ok {
+		return
+	}
+	if err := h.svc.MarkFailed(c.Request.Context(), id, entityID); err != nil {
+		h.handleTransitionError(c, err)
+		return
+	}
+	response.JSON(c, http.StatusOK, nil, "marked as failed")
+}
+
+func (h *handler) Retry(c *gin.Context) {
+	entityID, ok := util.GetEntityID(c)
+	if !ok {
+		return
+	}
+	id, ok := util.ParseUuidID(c, "id")
+	if !ok {
+		return
+	}
+	if err := h.svc.Retry(c.Request.Context(), id, entityID); err != nil {
+		h.handleTransitionError(c, err)
+		return
+	}
+	response.JSON(c, http.StatusOK, nil, "queued for retry")
+}
+
+// handleTransitionError maps sentinel errors to the correct HTTP status.
+func (h *handler) handleTransitionError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, ErrNotFound):
+		response.Error(c, http.StatusNotFound, err)
+	case errors.Is(err, ErrInvalidTransition):
+		response.Error(c, http.StatusConflict, err)
+	case errors.Is(err, ErrMaxRetriesExceeded):
+		response.Error(c, http.StatusUnprocessableEntity, err)
+	default:
+		response.Error(c, http.StatusInternalServerError, err)
+	}
 }
