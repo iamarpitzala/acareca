@@ -8,7 +8,7 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
-CREATE TABLE tbl_password_resets (
+CREATE TABLE IF NOT EXISTS tbl_password_resets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES tbl_user(id) ON DELETE CASCADE,
     token_hash TEXT NOT NULL, 
@@ -17,8 +17,8 @@ CREATE TABLE tbl_password_resets (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_password_resets_user ON tbl_password_resets(user_id);
-CREATE INDEX idx_password_resets_token ON tbl_password_resets(token_hash);
+CREATE INDEX IF NOT EXISTS idx_password_resets_user ON tbl_password_resets(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_resets_token ON tbl_password_resets(token_hash);
 -- +goose StatementEnd
 
 -- +goose Down
