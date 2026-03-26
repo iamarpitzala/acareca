@@ -18,5 +18,6 @@ func RegisterRoutes(rg *gin.RouterGroup, h IHandler, cfg *config.Config) {
 	protected.Use(middleware.Auth(cfg))
 
 	protected.POST("", h.SendInvitation)
+		protected.POST("/:id/resend", h.ResendInvitation)
 	protected.GET("", h.ListInvitations)
 }
