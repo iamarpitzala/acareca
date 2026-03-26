@@ -86,7 +86,7 @@ func (r *repository) ListByRecipient(ctx context.Context, recipientID uuid.UUID,
 	}
 
 	var rs util.RsList
-	rs.MapToList(items, total, *filter.Filter.Offset, *filter.Filter.Limit)
+	rs.MapToList(items, total, *mergedFilter.Offset, *mergedFilter.Limit)
 	return &rs, nil
 }
 
