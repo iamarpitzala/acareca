@@ -9,27 +9,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iamarpitzala/acareca/internal/shared/common"
+	"github.com/iamarpitzala/acareca/internal/shared/util"
 	"github.com/jmoiron/sqlx"
 )
 
 type Repository interface {
-	CreateNotification(
-		ctx context.Context,
-		recipientID uuid.UUID,
-		senderID *uuid.UUID,
-		eventType EventType,
-		entityType EntityType,
-		entityID uuid.UUID,
-		payload NotificationPayload,
-	) error
+	CreateNotification(ctx context.Context, recipientID uuid.UUID, senderID *uuid.UUID, eventType EventType, entityType EntityType, entityID uuid.UUID, payload NotificationPayload) error
 
-	ListByRecipient(
-		ctx context.Context,
-		recipientID uuid.UUID,
-		status *Status,
-		page int,
-		limit int,
-	) ([]Notification, int, int, error)
+	ListByRecipient(ctx context.Context, recipientID uuid.UUID, status *Status) ([]util.RsList, error)
 
 	MarkRead(ctx context.Context, recipientID, notificationID uuid.UUID) error
 	MarkDismissed(ctx context.Context, recipientID, notificationID uuid.UUID) error
@@ -49,15 +36,7 @@ func NewRepository(db *sqlx.DB) Repository {
 	return &repository{db: db}
 }
 
-func (r *repository) CreateNotification(
-	ctx context.Context,
-	recipientID uuid.UUID,
-	senderID *uuid.UUID,
-	eventType EventType,
-	entityType EntityType,
-	entityID uuid.UUID,
-	payload NotificationPayload,
-) error {
+func (r *repository) CreateNotification(ctx context.Context, recipientID uuid.UUID, senderID *uuid.UUID, eventType EventType, entityType EntityType, entityID uuid.UUID, payload NotificationPayload) error {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal notification payload: %w", err)
@@ -76,13 +55,7 @@ func (r *repository) CreateNotification(
 	return nil
 }
 
-func (r *repository) ListByRecipient(
-	ctx context.Context,
-	recipientID uuid.UUID,
-	status *Status,
-	page int,
-	limit int,
-) ([]Notification, int, int, error) {
+func (r *repository) ListByRecipient(ctx context.Context, recipientID uuid.UUID, status *Status) ([]util.RsList, error) {
 	if page < 1 {
 		page = 1
 	}

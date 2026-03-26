@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/shared/common"
 )
 
 // Enums
@@ -97,16 +98,13 @@ type NotificationPayload struct {
 	ExtraData  map[string]interface{} `json:"extra_data,omitempty"`
 }
 
-type ListNotificationsRequest struct {
-	Page   int    `form:"page"   binding:"min=1"`
-	Limit  int    `form:"limit"  binding:"min=1,max=100"`
-	Status Status `form:"status"`
+type FilterNotification struct {
+	status string `form:"status"`
+	common.Filter
 }
 
-type RsListNotifications struct {
-	Notifications []Notification `json:"notifications"`
-	UnreadCount   int            `json:"unread_count"`
-	Total         int            `json:"total"`
+func (f *FilterNotification) MapToFilter() {
+
 }
 
 type RqUpdatePreference struct {
@@ -120,4 +118,7 @@ type RqPublishEvent struct {
 	EntityType EntityType          `json:"entity_type"`
 	EntityID   uuid.UUID           `json:"entity_id"`
 	Payload    NotificationPayload `json:"payload"`
+}
+
+type ListNotificationsResponse struct {
 }

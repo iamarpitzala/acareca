@@ -182,6 +182,10 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) audit.Service {
 	userSubscription.RegisterRoutes(userSubscriptionGroup, userSubscriptionHandler)
 
 	// notification (in-app list)
+
+	notificationRepo := notification.NewRepository(dbConn)
+	notificationSvc := notification.NewService(notificationRepo)
+
 	notificationGroup := v1.Group("/notification")
 	notificationGroup.Use(middleware.Auth(cfg), middleware.AuditContext())
 	notificationHandler := notification.NewHandler(notificationSvc)

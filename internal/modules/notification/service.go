@@ -31,22 +31,10 @@ type Service interface {
 	NotifyClinicUpdated(ctx context.Context, actorUserID *uuid.UUID, clinicID uuid.UUID) error
 	NotifyFormUpdated(ctx context.Context, actorUserID *uuid.UUID, formID uuid.UUID) error
 	NotifyTransactionCreated(ctx context.Context, actorUserID *uuid.UUID, entryID uuid.UUID) error
-	NotifyTransactionStatusChanged(
-		ctx context.Context,
-		actorUserID *uuid.UUID,
-		entryID uuid.UUID,
-		fromStatus string,
-		toStatus string,
-	) error
+	NotifyTransactionStatusChanged(ctx context.Context, actorUserID *uuid.UUID, entryID uuid.UUID, fromStatus string, toStatus string) error
 
 	// User-facing notification list
-	ListNotifications(
-		ctx context.Context,
-		recipientID uuid.UUID,
-		status *Status,
-		page int,
-		limit int,
-	) (*ListNotificationsResponse, error)
+	ListNotifications(ctx context.Context, recipientID uuid.UUID, filter FilterNotification) (*ListNotificationsResponse, error)
 	MarkRead(ctx context.Context, recipientID, notificationID uuid.UUID) error
 	MarkDismissed(ctx context.Context, recipientID, notificationID uuid.UUID) error
 }
@@ -252,14 +240,8 @@ func (s *service) NotifyTransactionStatusChanged(
 	return s.repo.CreateNotification(ctx, *recipientUserID, actorUserID, EventTransactionUpdated, EntityTransaction, entryID, payload)
 }
 
-func (s *service) ListNotifications(
-	ctx context.Context,
-	recipientID uuid.UUID,
-	status *Status,
-	page int,
-	limit int,
-) (*ListNotificationsResponse, error) {
-	items, unread, total, err := s.repo.ListByRecipient(ctx, recipientID, status, page, limit)
+func (s *service) ListNotifications(ctx context.Context, recipientID uuid.UUID, filter FilterNotification) (*ListNotificationsResponse, error) {
+	items, unread, total, err := s.repo.ListByRecipient(ctx, recipientID, filter)
 	if err != nil {
 		return nil, err
 	}
