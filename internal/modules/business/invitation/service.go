@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
+	"github.com/iamarpitzala/acareca/pkg/config"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -32,14 +32,14 @@ const (
 )
 
 type service struct {
-	repo   Repository
-	apiKey string // Resend API Key
+	repo Repository
+	cfg  *config.Config
 }
 
-func NewService(repo Repository, apiKey string) Service {
+func NewService(repo Repository, cfg *config.Config) Service {
 	return &service{
-		repo:   repo,
-		apiKey: apiKey,
+		repo: repo,
+		cfg:  cfg,
 	}
 }
 
@@ -52,16 +52,15 @@ func (s *service) SendInvite(ctx context.Context, practitionerID uuid.UUID, req 
 
 	// Determine Base URL based on ENV
 	var baseURL string
-	env := os.Getenv("ENV")
-	if env == "dev" {
-		baseURL = os.Getenv("DEV_API_URL")
+
+	if s.cfg.Env == "dev" {
+		baseURL = s.cfg.DevUrl
 	} else {
-		baseURL = os.Getenv("LOCAL_API_URL")
+		baseURL = s.cfg.LocalUrl
 	}
 
 	if baseURL == "" {
-
-		fmt.Printf("[CRITICAL] Configuration Error: Frontend URL is missing for ENV=%s\n", env)
+		fmt.Printf("[CRITICAL] Configuration Error: Frontend URL is missing for ENV=%s\n", s.cfg.Env)
 		return nil, fmt.Errorf("system configuration error: frontend application URL is not defined")
 	}
 
@@ -141,7 +140,7 @@ func (s *service) sendEmailViaResend(to string, link string, senderName string) 
 		return err
 	}
 
-	req.Header.Set("Authorization", "Bearer "+s.apiKey)
+	req.Header.Set("Authorization", "Bearer "+s.cfg.ResendAPIKey)
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{Timeout: 10 * time.Second}
