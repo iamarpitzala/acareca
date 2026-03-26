@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -468,7 +467,7 @@ func sanitizeUser(u *User) map[string]interface{} {
 // Helper function for sending verification email via Resend API
 func (s *service) sendVerificationEmail(to string, firstName string, tokenID uuid.UUID) error {
 	url := "https://api.resend.com/emails"
-	apikey := os.Getenv("RESEND_API_KEY")
+	apikey := s.cfg.ResendAPIKey
 
 	verificationLink := fmt.Sprintf("https://acareca.com/verify-email?token=%s", tokenID)
 	expiryTime := "10 minutes"
@@ -725,15 +724,14 @@ func (s *service) resolveEntityID(ctx context.Context, user *User) (string, erro
 
 func (s *service) SendForgotPasswordEmail(to string, firstName string, token string, role string) error {
 	url := "https://api.resend.com/emails"
-	apikey := os.Getenv("RESEND_API_KEY")
+	apikey := s.cfg.ResendAPIKey
 
 	var baseURL string
-	env := os.Getenv("ENV")
 
-	if env == "dev" {
-		baseURL = os.Getenv("DEV_API_URL")
+	if s.cfg.Env == "dev" {
+		baseURL = s.cfg.DevUrl
 	} else {
-		baseURL = os.Getenv("LOCAL_API_URL")
+		baseURL = s.cfg.LocalUrl
 	}
 
 	// 2. Fallback Safety Net: In case envs are missing

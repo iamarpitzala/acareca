@@ -67,7 +67,7 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) audit.Service {
 
 	// invitation
 	invitationRepo := invitation.NewRepository(dbConn)
-	invitationSvc := invitation.NewService(invitationRepo, cfg.ResendAPIKey)
+	invitationSvc := invitation.NewService(invitationRepo, cfg)
 	invitationHandler := invitation.NewHandler(invitationSvc)
 	invitation.RegisterRoutes(v1, invitationHandler, cfg)
 
