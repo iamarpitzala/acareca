@@ -20,10 +20,11 @@ import (
 
 type Service interface {
 	SendInvite(ctx context.Context, practitionerID uuid.UUID, req *RqSendInvitation) (*RsInvitation, error)
-	GetInvitationDetails(ctx context.Context, inviteID uuid.UUID) (*RsInviteProcess, error)
+	GetInvitationDetails(ctx context.Context, inviteID uuid.UUID) (*RsInviteDetails, error)
 	ProcessInvitation(ctx context.Context, req *RqProcessAction) (*RsInviteProcess, error)
 	FinalizeRegistrationInternal(ctx context.Context, email string, entityID uuid.UUID) error
 	ListInvitations(ctx context.Context, pID, aID *uuid.UUID, f *Filter) (*util.RsList, error)
+	ResendInvite(ctx context.Context, practitionerID uuid.UUID, inviteID uuid.UUID) (*RsInvitation, error)
 }
 
 const (
@@ -164,14 +165,14 @@ func (s *service) sendEmailViaResend(to string, link string, senderName string) 
 	return nil
 }
 
-func (s *service) GetInvitationDetails(ctx context.Context, inviteID uuid.UUID) (*RsInviteProcess, error) {
+func (s *service) GetInvitationDetails(ctx context.Context, inviteID uuid.UUID) (*RsInviteDetails, error) {
 	inv, err := s.repo.GetInvitationByID(ctx, inviteID)
 	if err != nil {
 		return nil, err
 	}
 
 	if inv == nil {
-		return &RsInviteProcess{InvitationID: inviteID, IsFound: false}, nil
+		return &RsInviteDetails{InvitationID: inviteID, IsFound: false}, nil
 	}
 
 	// Expiration check
@@ -192,7 +193,7 @@ func (s *service) GetInvitationDetails(ctx context.Context, inviteID uuid.UUID) 
 		isFound = true
 	}
 
-	return &RsInviteProcess{
+	return &RsInviteDetails{
 		InvitationID: inv.ID,
 		Status:       inv.Status,
 		IsFound:      isFound,
@@ -218,7 +219,12 @@ func (s *service) ProcessInvitation(ctx context.Context, req *RqProcessAction) (
 		return nil, errors.New("invitation expired")
 	}
 
-	res := &RsInviteProcess{InvitationID: inv.ID}
+	// Invalidate if status is RESENT
+	if inv.Status == StatusResent {
+		return nil, errors.New("this invitation link is no longer valid as a new one has been sent")
+	}
+
+	res := &RsInviteProcess{InvitationID: inv.ID, PractitionerID: inv.PractitionerID, Email: inv.Email}
 
 	// Safety Check: If already Rejected or Completed, don't allow further changes
 	if inv.Status == StatusRejected || inv.Status == StatusCompleted {
@@ -307,4 +313,53 @@ func (s *service) ListInvitations(ctx context.Context, pID, aID *uuid.UUID, f *F
 	rsList.MapToList(list, total, *ft.Offset, *ft.Limit)
 
 	return &rsList, nil
+}
+
+func (s *service) ResendInvite(ctx context.Context, practitionerID uuid.UUID, inviteID uuid.UUID) (*RsInvitation, error) {
+	// Fetch the existing invitation
+	oldInv, err := s.repo.GetByID(ctx, inviteID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch invitation: %w", err)
+	}
+
+	if oldInv == nil {
+		return nil, errors.New("invitation not found")
+	}
+
+	// Security Check: Ensure the practitioner requesting the resend is the one who sent it
+	if oldInv.PractitionerID != practitionerID {
+		return nil, errors.New("unauthorized: you did not send this invitation")
+	}
+
+	// Limit Check
+	if err := s.checkInvitationLimit(ctx, practitionerID, oldInv.Email); err != nil {
+		return nil, err
+	}
+
+	// Status Check: Only allow resending if not already COMPLETED
+	if oldInv.Status == StatusCompleted {
+		return nil, fmt.Errorf("cannot resend: invitation is already %s", oldInv.Status)
+	}
+
+	// Invalidate the old invite by marking it as RESENT
+	if err := s.repo.UpdateStatus(ctx, oldInv.ID, StatusResent, oldInv.EntityID); err != nil {
+		return nil, fmt.Errorf("failed to invalidate old invitation: %w", err)
+	}
+
+	// Resened Invitation
+	return s.SendInvite(ctx, practitionerID, &RqSendInvitation{
+		Email: oldInv.Email,
+	})
+}
+
+func (s *service) checkInvitationLimit(ctx context.Context, pID uuid.UUID, email string) error {
+	count, err := s.repo.CountDailyInvitesByEmail(ctx, pID, email)
+	if err != nil {
+		return fmt.Errorf("failed to check invitation limit: %w", err)
+	}
+
+	if count >= 5 {
+		return errors.New("daily invitation limit reached for this email (max 5 per 24h)")
+	}
+	return nil
 }

@@ -3227,6 +3227,38 @@ paths:
       summary: Get invitation details
       tags:
       - invitation
+  /invite/{id}/resend:
+    post:
+      description: Invalidates the old invitation and sends a new one to the same
+        email.
+      parameters:
+      - description: Invitation ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/util.RsList'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: Resend an invitation
+      tags:
+      - invitation
   /invite/process:
     post:
       consumes:

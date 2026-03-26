@@ -15,6 +15,7 @@ type IHandler interface {
 	GetInvitation(c *gin.Context)
 	ProcessInvitation(c *gin.Context)
 	ListInvitations(c *gin.Context)
+	ResendInvitation(c *gin.Context)
 }
 
 type Handler struct {
@@ -149,10 +150,37 @@ func (h *Handler) ListInvitations(c *gin.Context) {
 	response.JSON(c, http.StatusOK, res, "Invitations retrieved successfully")
 }
 
-type RequestContext struct {
-	PractitionerID *uuid.UUID
-	AccountantID   *uuid.UUID
-	Role           string
+// @Summary      Resend an invitation
+// @Description  Invalidates the old invitation and sends a new one to the same email.
+// @Tags         invitation
+// @Param        id   path   string  true  "Invitation ID"
+// @Success      200      {object}  util.RsList
+// @Failure      400      {object}  response.RsError
+// @Failure      401      {object}  response.RsError
+// @Failure      500      {object}  response.RsError
+// @Security     BearerToken
+// @Router       /invite/{id}/resend [post]
+func (h *Handler) ResendInvitation(c *gin.Context) {
+	practID, ok := util.GetPractitionerID(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, nil)
+		return
+	}
+
+	inviteIDStr := c.Param("id")
+	inviteID, err := uuid.Parse(inviteIDStr)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	res, err := h.svc.ResendInvite(c.Request.Context(), practID, inviteID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, res, "Invitation resent successfully")
 }
 
 // Helper function to return pointers to Practitioner or Accountant IDs based on the user's role.

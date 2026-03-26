@@ -49,14 +49,22 @@ type UserDetails struct {
 	Email     string `json:"email"      db:"email"`
 }
 
-// RsInviteProcess helps the frontend navigate after a link click
-type RsInviteProcess struct {
+type RsInviteDetails struct {
 	InvitationID uuid.UUID        `json:"invitation_id"`
 	Status       InvitationStatus `json:"status"`
 	IsFound      bool             `json:"is_found"`
 	SentBy       UserDetails      `json:"sent_by"`
 	SentTo       UserDetails      `json:"sent_to"`
 	SenderRole   string           `json:"sender_role"`
+}
+
+// RsInviteProcess helps the frontend navigate after a link click
+type RsInviteProcess struct {
+	InvitationID   uuid.UUID        `json:"invitation_id"`
+	PractitionerID uuid.UUID        `json:"practitioner_id" db:"practitioner_id"`
+	Email          string           `json:"email" db:"email"`
+	Status         InvitationStatus `json:"status"`
+	IsFound        bool             `json:"is_found"`
 }
 
 // Internal struct for Repository JOIN result
