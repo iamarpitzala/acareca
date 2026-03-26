@@ -6,37 +6,35 @@ import (
 
 	"github.com/google/uuid"
 	auditctx "github.com/iamarpitzala/acareca/internal/shared/audit"
-	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
 
 type Service interface {
 	// Invitation notifications
 	NotifyInviteSent(
 		ctx context.Context,
-		actorUserID *uuid.UUID,
-		practitionerID uuid.UUID,
+		actorEntityID *uuid.UUID, // practitioner entity ID
 		inviteID uuid.UUID,
 		recipientEmail string,
 		senderName string,
 	) error
 	NotifyInviteProcessed(
 		ctx context.Context,
-		actorUserID *uuid.UUID,
+		actorEntityID *uuid.UUID, // accountant entity ID (the invitee acting)
 		inviteID uuid.UUID,
-		practitionerID uuid.UUID,
+		practitionerID uuid.UUID, // recipient
 		action string, // "reject" | other (accept)
 	) error
 
 	// Content notifications (account -> practitioner)
-	NotifyClinicUpdated(ctx context.Context, actorUserID *uuid.UUID, clinicID uuid.UUID) error
-	NotifyFormUpdated(ctx context.Context, actorUserID *uuid.UUID, formID uuid.UUID) error
-	NotifyTransactionCreated(ctx context.Context, actorUserID *uuid.UUID, entryID uuid.UUID) error
-	NotifyTransactionStatusChanged(ctx context.Context, actorUserID *uuid.UUID, entryID uuid.UUID, fromStatus string, toStatus string) error
+	NotifyClinicUpdated(ctx context.Context, actorEntityID *uuid.UUID, clinicID uuid.UUID) error
+	NotifyFormUpdated(ctx context.Context, actorEntityID *uuid.UUID, formID uuid.UUID) error
+	NotifyTransactionCreated(ctx context.Context, actorEntityID *uuid.UUID, entryID uuid.UUID) error
+	NotifyTransactionStatusChanged(ctx context.Context, actorEntityID *uuid.UUID, entryID uuid.UUID, fromStatus string, toStatus string) error
 
 	// User-facing notification list
-	ListNotifications(ctx context.Context, recipientID uuid.UUID, filter FilterNotification) (*util.RsList, error)
-	MarkRead(ctx context.Context, recipientID, notificationID uuid.UUID) error
-	MarkDismissed(ctx context.Context, recipientID, notificationID uuid.UUID) error
+	ListNotifications(ctx context.Context, recipientEntityID uuid.UUID, filter FilterNotification) (*ListNotificationsResponse, error)
+	MarkRead(ctx context.Context, recipientEntityID, notificationID uuid.UUID) error
+	MarkDismissed(ctx context.Context, recipientEntityID, notificationID uuid.UUID) error
 }
 
 type service struct {
@@ -49,21 +47,22 @@ func NewService(repo Repository) Service {
 
 func (s *service) NotifyInviteSent(
 	ctx context.Context,
-	actorUserID *uuid.UUID,
-	practitionerID uuid.UUID,
+	actorEntityID *uuid.UUID,
 	inviteID uuid.UUID,
 	recipientEmail string,
 	senderName string,
 ) error {
-	recipientUserID, err := s.repo.GetUserIDByEmail(ctx, recipientEmail)
+	// Resolve the accountant entity ID from email (recipient may not exist yet)
+	recipientEntityID, err := s.repo.GetAccountantEntityIDByEmail(ctx, recipientEmail)
 	if err != nil {
 		return err
 	}
-	if recipientUserID == nil {
-		// Recipient hasn't registered yet; you can queue this via outbox later.
+	if recipientEntityID == nil {
+		// Recipient hasn't registered yet; skip for now (outbox pattern can handle later)
 		return nil
 	}
-	if actorUserID != nil && *actorUserID == *recipientUserID {
+	// Don't notify yourself
+	if actorEntityID != nil && *actorEntityID == *recipientEntityID {
 		return nil
 	}
 
@@ -73,37 +72,22 @@ func (s *service) NotifyInviteSent(
 		SenderName: senderName,
 		EntityName: "Invitation",
 		ExtraData: map[string]any{
-			"practitioner_id": practitionerID.String(),
+			"invite_id": inviteID.String(),
 		},
 	}
 
-	return s.repo.CreateNotification(
-		ctx,
-		*recipientUserID,
-		actorUserID,
-		EventInviteSent,
-		EntityInvite,
-		inviteID,
-		payload,
-	)
+	return s.repo.CreateNotification(ctx, *recipientEntityID, actorEntityID, EventInviteSent, EntityInvite, inviteID, payload)
 }
 
 func (s *service) NotifyInviteProcessed(
 	ctx context.Context,
-	actorUserID *uuid.UUID,
+	actorEntityID *uuid.UUID,
 	inviteID uuid.UUID,
 	practitionerID uuid.UUID,
 	action string,
 ) error {
-	recipientUserID, err := s.repo.GetUserIDByPractitionerID(ctx, practitionerID)
-	if err != nil {
-		return err
-	}
-	if recipientUserID == nil {
-		return nil
-	}
-	if actorUserID != nil && *actorUserID == *recipientUserID {
-		// Usually the actor is the invitee, not the practitioner; but keep it safe.
+	// Recipient is always the practitioner
+	if actorEntityID != nil && *actorEntityID == practitionerID {
 		return nil
 	}
 
@@ -129,26 +113,18 @@ func (s *service) NotifyInviteProcessed(
 		},
 	}
 
-	return s.repo.CreateNotification(
-		ctx,
-		*recipientUserID,
-		actorUserID,
-		eventType,
-		EntityInvite,
-		inviteID,
-		payload,
-	)
+	return s.repo.CreateNotification(ctx, practitionerID, actorEntityID, eventType, EntityInvite, inviteID, payload)
 }
 
-func (s *service) NotifyClinicUpdated(ctx context.Context, actorUserID *uuid.UUID, clinicID uuid.UUID) error {
-	recipientUserID, err := s.repo.GetPractitionerUserIDByClinicID(ctx, clinicID)
+func (s *service) NotifyClinicUpdated(ctx context.Context, actorEntityID *uuid.UUID, clinicID uuid.UUID) error {
+	recipientID, err := s.repo.GetPractitionerIDByClinicID(ctx, clinicID)
 	if err != nil {
 		return err
 	}
-	if recipientUserID == nil {
+	if recipientID == nil {
 		return nil
 	}
-	if actorUserID != nil && *actorUserID == *recipientUserID {
+	if actorEntityID != nil && *actorEntityID == *recipientID {
 		return nil
 	}
 
@@ -156,22 +132,20 @@ func (s *service) NotifyClinicUpdated(ctx context.Context, actorUserID *uuid.UUI
 		Title:      "Clinic updated",
 		Body:       "A clinic was updated.",
 		EntityName: "Clinic",
-		ExtraData: map[string]any{
-			"clinic_id": clinicID.String(),
-		},
+		ExtraData:  map[string]any{"clinic_id": clinicID.String()},
 	}
-	return s.repo.CreateNotification(ctx, *recipientUserID, actorUserID, EventClinicUpdated, EntityClinic, clinicID, payload)
+	return s.repo.CreateNotification(ctx, *recipientID, actorEntityID, EventClinicUpdated, EntityClinic, clinicID, payload)
 }
 
-func (s *service) NotifyFormUpdated(ctx context.Context, actorUserID *uuid.UUID, formID uuid.UUID) error {
-	recipientUserID, err := s.repo.GetPractitionerUserIDByFormID(ctx, formID)
+func (s *service) NotifyFormUpdated(ctx context.Context, actorEntityID *uuid.UUID, formID uuid.UUID) error {
+	recipientID, err := s.repo.GetPractitionerIDByFormID(ctx, formID)
 	if err != nil {
 		return err
 	}
-	if recipientUserID == nil {
+	if recipientID == nil {
 		return nil
 	}
-	if actorUserID != nil && *actorUserID == *recipientUserID {
+	if actorEntityID != nil && *actorEntityID == *recipientID {
 		return nil
 	}
 
@@ -179,22 +153,20 @@ func (s *service) NotifyFormUpdated(ctx context.Context, actorUserID *uuid.UUID,
 		Title:      "Form updated",
 		Body:       "A form was updated.",
 		EntityName: "Form",
-		ExtraData: map[string]any{
-			"form_id": formID.String(),
-		},
+		ExtraData:  map[string]any{"form_id": formID.String()},
 	}
-	return s.repo.CreateNotification(ctx, *recipientUserID, actorUserID, EventFormUpdated, EntityForm, formID, payload)
+	return s.repo.CreateNotification(ctx, *recipientID, actorEntityID, EventFormUpdated, EntityForm, formID, payload)
 }
 
-func (s *service) NotifyTransactionCreated(ctx context.Context, actorUserID *uuid.UUID, entryID uuid.UUID) error {
-	recipientUserID, err := s.repo.GetPractitionerUserIDByEntryID(ctx, entryID)
+func (s *service) NotifyTransactionCreated(ctx context.Context, actorEntityID *uuid.UUID, entryID uuid.UUID) error {
+	recipientID, err := s.repo.GetPractitionerIDByEntryID(ctx, entryID)
 	if err != nil {
 		return err
 	}
-	if recipientUserID == nil {
+	if recipientID == nil {
 		return nil
 	}
-	if actorUserID != nil && *actorUserID == *recipientUserID {
+	if actorEntityID != nil && *actorEntityID == *recipientID {
 		return nil
 	}
 
@@ -202,28 +174,26 @@ func (s *service) NotifyTransactionCreated(ctx context.Context, actorUserID *uui
 		Title:      "Transaction created",
 		Body:       "A transaction was created.",
 		EntityName: "Transaction",
-		ExtraData: map[string]any{
-			"transaction_id": entryID.String(),
-		},
+		ExtraData:  map[string]any{"transaction_id": entryID.String()},
 	}
-	return s.repo.CreateNotification(ctx, *recipientUserID, actorUserID, EventTransactionCreated, EntityTransaction, entryID, payload)
+	return s.repo.CreateNotification(ctx, *recipientID, actorEntityID, EventTransactionCreated, EntityTransaction, entryID, payload)
 }
 
 func (s *service) NotifyTransactionStatusChanged(
 	ctx context.Context,
-	actorUserID *uuid.UUID,
+	actorEntityID *uuid.UUID,
 	entryID uuid.UUID,
 	fromStatus string,
 	toStatus string,
 ) error {
-	recipientUserID, err := s.repo.GetPractitionerUserIDByEntryID(ctx, entryID)
+	recipientID, err := s.repo.GetPractitionerIDByEntryID(ctx, entryID)
 	if err != nil {
 		return err
 	}
-	if recipientUserID == nil {
+	if recipientID == nil {
 		return nil
 	}
-	if actorUserID != nil && *actorUserID == *recipientUserID {
+	if actorEntityID != nil && *actorEntityID == *recipientID {
 		return nil
 	}
 
@@ -237,28 +207,37 @@ func (s *service) NotifyTransactionStatusChanged(
 			"to_status":      toStatus,
 		},
 	}
-	return s.repo.CreateNotification(ctx, *recipientUserID, actorUserID, EventTransactionUpdated, EntityTransaction, entryID, payload)
+	return s.repo.CreateNotification(ctx, *recipientID, actorEntityID, EventTransactionUpdated, EntityTransaction, entryID, payload)
 }
 
-func (s *service) ListNotifications(ctx context.Context, recipientID uuid.UUID, filter FilterNotification) (*util.RsList, error) {
-	return s.repo.ListByRecipient(ctx, recipientID, filter)
+func (s *service) ListNotifications(ctx context.Context, recipientEntityID uuid.UUID, filter FilterNotification) (*ListNotificationsResponse, error) {
+	rs, err := s.repo.ListByRecipient(ctx, recipientEntityID, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	items, _ := rs.Items.([]Notification)
+	return &ListNotificationsResponse{
+		Notifications: items,
+		Total:         rs.Total,
+	}, nil
 }
 
-func (s *service) MarkRead(ctx context.Context, recipientID, notificationID uuid.UUID) error {
-	return s.repo.MarkRead(ctx, recipientID, notificationID)
+func (s *service) MarkRead(ctx context.Context, recipientEntityID, notificationID uuid.UUID) error {
+	return s.repo.MarkRead(ctx, recipientEntityID, notificationID)
 }
 
-func (s *service) MarkDismissed(ctx context.Context, recipientID, notificationID uuid.UUID) error {
-	return s.repo.MarkDismissed(ctx, recipientID, notificationID)
+func (s *service) MarkDismissed(ctx context.Context, recipientEntityID, notificationID uuid.UUID) error {
+	return s.repo.MarkDismissed(ctx, recipientEntityID, notificationID)
 }
 
-// ActorUserIDFromAudit attempts to parse audit user id into uuid.
-func ActorUserIDFromAudit(ctx context.Context) *uuid.UUID {
+// ActorEntityIDFromAudit extracts the entity ID (practitioner/accountant) from audit context.
+func ActorEntityIDFromAudit(ctx context.Context) *uuid.UUID {
 	meta := auditctx.GetMetadata(ctx)
-	if meta == nil || meta.UserID == nil || *meta.UserID == "" {
+	if meta == nil || meta.PracticeID == nil || *meta.PracticeID == "" {
 		return nil
 	}
-	id, err := uuid.Parse(*meta.UserID)
+	id, err := uuid.Parse(*meta.PracticeID)
 	if err != nil {
 		return nil
 	}

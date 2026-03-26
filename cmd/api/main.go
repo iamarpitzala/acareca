@@ -83,27 +83,24 @@ func main() {
 		log.Print(" - using code:  gin.SetMode(gin.ReleaseMode)\n\n")
 	}
 
-	// ALLOWED_ORIGINS must be explicitly set in production.
-	// e.g. "http://localhost:5173,https://your-frontend.com"
-	//
-	// AllowCredentials: true requires specific origins — browsers reject the
-	// combination of wildcard ("*") + credentials, so we only enable credentials
-	// when real origins are configured.
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 	var origins []string
-	allowCredentials := false
+	allowCredentials := true
+
 	if allowedOrigins == "" {
 		origins = []string{cfg.LocalUrl}
-		allowCredentials = true
 		log.Printf("[WARN] ALLOWED_ORIGINS not set — using cfg.LocalUrl=%q for CORS\n", cfg.LocalUrl)
 	} else {
-		origins = strings.Split(allowedOrigins, ",")
-		allowCredentials = true
+		splitOrigins := strings.Split(allowedOrigins, ",")
+		origins = make([]string, 0, len(splitOrigins))
 		containsWildcard := false
-		for _, o := range origins {
-			if strings.TrimSpace(o) == "*" {
-				containsWildcard = true
-				break
+		for _, o := range splitOrigins {
+			trimmed := strings.TrimSpace(o)
+			if trimmed != "" {
+				origins = append(origins, trimmed)
+				if trimmed == "*" {
+					containsWildcard = true
+				}
 			}
 		}
 		if containsWildcard {

@@ -84,12 +84,19 @@ func (s *service) SendInvite(ctx context.Context, practitionerID uuid.UUID, req 
 
 	// Trigger Email via Resend
 	go func() {
-
 		err := s.sendEmailViaResend(invite.Email, inviteLink, senderName)
 		if err != nil {
 			fmt.Printf("[DEBUG] Resend Error: %v\n", err)
 		}
 	}()
+
+	// Notify the invitee (best-effort; silently skipped if they haven't registered yet)
+	if s.notification != nil {
+		err = s.notification.NotifyInviteSent(ctx, &practitionerID, invite.ID, invite.Email, senderName)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return &RsInvitation{
 		ID:         invite.ID,
@@ -236,10 +243,10 @@ func (s *service) ProcessInvitation(ctx context.Context, req *RqProcessAction) (
 
 	// Handle STATUS REJECTED
 	if req.Action == ActionReject {
-		var actorUserID *uuid.UUID
+		// Best-effort: resolve the invitee's accountant entity ID from their email (actor = invitee)
+		var actorEntityID *uuid.UUID
 		if s.notification != nil {
-			// Best-effort: resolve invitee user id from email for notification sender.
-			actorUserID, _ = s.repo.GetUserIDByEmail(ctx, inv.Email)
+			actorEntityID, _ = s.repo.GetAccountantIDByEmail(ctx, inv.Email)
 		}
 
 		if err := s.repo.UpdateStatus(ctx, inv.ID, StatusRejected, nil); err != nil {
@@ -247,7 +254,7 @@ func (s *service) ProcessInvitation(ctx context.Context, req *RqProcessAction) (
 		}
 
 		if s.notification != nil {
-			_ = s.notification.NotifyInviteProcessed(ctx, actorUserID, inv.ID, inv.PractitionerID, "REJECT")
+			_ = s.notification.NotifyInviteProcessed(ctx, actorEntityID, inv.ID, inv.PractitionerID, "reject")
 		}
 
 		res.Status = StatusRejected
@@ -267,10 +274,6 @@ func (s *service) ProcessInvitation(ctx context.Context, req *RqProcessAction) (
 			// User exists: mark as COMPLETED immediately
 			targetStatus = StatusCompleted
 			res.IsFound = true
-
-			if s.notification != nil {
-				_ = s.notification.NotifyInviteProcessed(ctx, inv.EntityID, inv.ID, inv.PractitionerID, "ACCEPTED")
-			}
 		} else {
 			// User doesn't exist: mark as ACCEPTED (pending registration)
 			targetStatus = StatusAccepted
@@ -284,8 +287,9 @@ func (s *service) ProcessInvitation(ctx context.Context, req *RqProcessAction) (
 		res.Status = targetStatus
 		res.IsFound = false // Redirect to register
 
+		// Notify practitioner once — actor is the accountant entity ID (nil if not registered yet)
 		if s.notification != nil {
-			_ = s.notification.NotifyInviteProcessed(ctx, nil, inv.ID, inv.PractitionerID, "ACCEPTED")
+			_ = s.notification.NotifyInviteProcessed(ctx, accountantID, inv.ID, inv.PractitionerID, "accept")
 		}
 
 		return res, nil

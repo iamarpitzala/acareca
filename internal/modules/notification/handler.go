@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
@@ -23,8 +22,10 @@ func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
+// getEntityID reads the entity ID (practitioner or accountant) from context.
+
 func (h *Handler) ListNotifications(c *gin.Context) {
-	uid, ok := util.GetUserID(c)
+	entityID, ok := util.GetEntityID(c)
 	if !ok {
 		return
 	}
@@ -35,7 +36,7 @@ func (h *Handler) ListNotifications(c *gin.Context) {
 		return
 	}
 
-	res, err := h.svc.ListNotifications(c.Request.Context(), uid, filter)
+	res, err := h.svc.ListNotifications(c.Request.Context(), entityID, filter)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
@@ -45,19 +46,17 @@ func (h *Handler) ListNotifications(c *gin.Context) {
 }
 
 func (h *Handler) MarkRead(c *gin.Context) {
-	uid, ok := util.GetUserID(c)
+	entityID, ok := util.GetEntityID(c)
 	if !ok {
 		return
 	}
 
-	idParam := c.Param("id")
-	nid, err := uuid.Parse(idParam)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, err)
+	nid, ok := util.ParseUuidID(c, "id")
+	if !ok {
 		return
 	}
 
-	if err := h.svc.MarkRead(c.Request.Context(), uid, nid); err != nil {
+	if err := h.svc.MarkRead(c.Request.Context(), entityID, nid); err != nil {
 		response.Error(c, http.StatusNotFound, err)
 		return
 	}
@@ -66,19 +65,17 @@ func (h *Handler) MarkRead(c *gin.Context) {
 }
 
 func (h *Handler) MarkDismissed(c *gin.Context) {
-	uid, ok := util.GetUserID(c)
+	entityID, ok := util.GetEntityID(c)
 	if !ok {
 		return
 	}
 
-	idParam := c.Param("id")
-	nid, err := uuid.Parse(idParam)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, err)
+	nid, ok := util.ParseUuidID(c, "id")
+	if !ok {
 		return
 	}
 
-	if err := h.svc.MarkDismissed(c.Request.Context(), uid, nid); err != nil {
+	if err := h.svc.MarkDismissed(c.Request.Context(), entityID, nid); err != nil {
 		response.Error(c, http.StatusNotFound, err)
 		return
 	}
