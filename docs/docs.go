@@ -1281,7 +1281,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/verify-email": {
+        "/auth/verify": {
             "get": {
                 "description": "Validates the UUID token sent via email. If valid, marks the user as verified and the token as used.",
                 "produces": [
@@ -3378,6 +3378,47 @@ const docTemplate = `{
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/response.RsError"
+                        }
+                    }
+                }
+            }
+        },
+        "/form/{id}/status": {
+            "patch": {
+                "description": "Toggle form status between DRAFT and PUBLISHED",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "form"
+                ],
+                "summary": "Update form status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Form ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Status update request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/form.RqUpdateFormStatus"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsBase"
                         }
                     }
                 }
@@ -5862,14 +5903,28 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "DRAFT",
-                        "PUBLISHED",
-                        "ARCHIVED"
+                        "PUBLISHED"
                     ]
                 },
                 "super_component": {
                     "type": "number",
                     "maximum": 100,
                     "minimum": 0
+                }
+            }
+        },
+        "form.RqUpdateFormStatus": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "DRAFT",
+                        "PUBLISHED"
+                    ]
                 }
             }
         },
@@ -5924,8 +5979,7 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "DRAFT",
-                        "PUBLISHED",
-                        "ARCHIVED"
+                        "PUBLISHED"
                     ]
                 },
                 "super_component": {

@@ -565,7 +565,6 @@ definitions:
         enum:
         - DRAFT
         - PUBLISHED
-        - ARCHIVED
         type: string
       super_component:
         maximum: 100
@@ -577,6 +576,16 @@ definitions:
     - method
     - name
     - owner_share
+    type: object
+  form.RqUpdateFormStatus:
+    properties:
+      status:
+        enum:
+        - DRAFT
+        - PUBLISHED
+        type: string
+    required:
+    - status
     type: object
   form.RqUpdateFormWithFields:
     properties:
@@ -613,7 +622,6 @@ definitions:
         enum:
         - DRAFT
         - PUBLISHED
-        - ARCHIVED
         type: string
       super_component:
         maximum: 100
@@ -1848,7 +1856,7 @@ paths:
       summary: Update user profile
       tags:
       - auth
-  /auth/verify-email:
+  /auth/verify:
     get:
       description: Validates the UUID token sent via email. If valid, marks the user
         as verified and the token as used.
@@ -3201,6 +3209,33 @@ paths:
       security:
       - BearerToken: []
       summary: Update form with fields
+      tags:
+      - form
+  /form/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Toggle form status between DRAFT and PUBLISHED
+      parameters:
+      - description: Form ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Status update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/form.RqUpdateFormStatus'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.RsBase'
+      summary: Update form status
       tags:
       - form
   /invite:
