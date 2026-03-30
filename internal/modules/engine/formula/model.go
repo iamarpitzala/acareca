@@ -26,7 +26,6 @@ type FormulaNode struct {
 	CreatedAt     string     `db:"created_at"`
 }
 
-// FormulaNodeWithKey extends FormulaNode with the field_key joined from tbl_form_field.
 type FormulaNodeWithKey struct {
 	FormulaNode
 	FieldKey *string `db:"field_key"`

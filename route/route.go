@@ -153,7 +153,7 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) (audit.Service, *sharedno
 	entryGroup := v1.Group("/entry")
 	entryGroup.Use(middleware.Auth(cfg), middleware.AuditContext())
 	entriesRepo := entry.NewRepository(dbConn)
-	entriesSvc := entry.NewService(dbConn, entriesRepo, fieldRepo, method.NewService(), detailSvc, versionSvc, auditSvc)
+	entriesSvc := entry.NewService(dbConn, entriesRepo, fieldRepo, method.NewService(), detailSvc, versionSvc, auditSvc, formulaSvc)
 	entriesHandler := entry.NewHandler(entriesSvc)
 
 	entry.RegisterRoutes(entryGroup, entriesHandler)

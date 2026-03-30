@@ -52,7 +52,6 @@ func (r *repository) CreateNodeTx(ctx context.Context, tx *sqlx.Tx, n *FormulaNo
 }
 
 func (r *repository) DeleteByFormVersionIDTx(ctx context.Context, tx *sqlx.Tx, formVersionID uuid.UUID) error {
-	// nodes cascade-delete via FK, so deleting formulas is enough
 	_, err := tx.ExecContext(ctx,
 		`DELETE FROM tbl_formula WHERE form_version_id = $1`, formVersionID,
 	)

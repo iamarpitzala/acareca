@@ -3,16 +3,16 @@ package formula
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
 
 type IService interface {
-	// SyncTx replaces all formulas for a form version inside an existing transaction.
-	// keyToFieldID maps field_key (e.g. "A") → field UUID resolved after field creation.
 	SyncTx(ctx context.Context, tx *sqlx.Tx, formVersionID uuid.UUID, formulas []RqFormula, keyToFieldID map[string]uuid.UUID) error
 	ListByFormVersionID(ctx context.Context, formVersionID uuid.UUID) ([]RsFormula, error)
+	EvalFormulas(ctx context.Context, formVersionID uuid.UUID, keyValues map[string]float64) (map[uuid.UUID]float64, error)
 }
 
 type service struct {
@@ -24,7 +24,6 @@ func NewService(repo IRepository) IService {
 }
 
 func (s *service) SyncTx(ctx context.Context, tx *sqlx.Tx, formVersionID uuid.UUID, formulas []RqFormula, keyToFieldID map[string]uuid.UUID) error {
-	// Full replace: delete existing then re-insert
 	if err := s.repo.DeleteByFormVersionIDTx(ctx, tx, formVersionID); err != nil {
 		return err
 	}
@@ -209,4 +208,111 @@ func insertNodes(ctx context.Context, tx *sqlx.Tx, repo IRepository, formulaID u
 		}
 	}
 	return nil
+}
+
+func (s *service) EvalFormulas(ctx context.Context, formVersionID uuid.UUID, keyValues map[string]float64) (map[uuid.UUID]float64, error) {
+	formulas, err := s.ListByFormVersionID(ctx, formVersionID)
+	if err != nil {
+		return nil, err
+	}
+
+	vals := make(map[string]float64, len(keyValues))
+	maps.Copy(vals, keyValues)
+
+	result := make(map[uuid.UUID]float64, len(formulas))
+
+	for _, f := range formulas {
+		val, err := evalNodes(f.Nodes, vals)
+		if err != nil {
+			return nil, fmt.Errorf("formula %q: %w", f.Name, err)
+		}
+		result[f.FieldID] = val
+		vals[f.FieldKey] = val
+	}
+
+	return result, nil
+}
+
+func evalNodes(nodes []RsFormulaNode, vals map[string]float64) (float64, error) {
+	byID := make(map[uuid.UUID]*RsFormulaNode, len(nodes))
+	for i := range nodes {
+		byID[nodes[i].ID] = &nodes[i]
+	}
+
+	var root *RsFormulaNode
+	for i := range nodes {
+		if nodes[i].ParentID == nil {
+			root = &nodes[i]
+			break
+		}
+	}
+	if root == nil {
+		return 0, fmt.Errorf("formula has no root node")
+	}
+
+	return evalNode(root, byID, vals)
+}
+
+func evalNode(n *RsFormulaNode, byID map[uuid.UUID]*RsFormulaNode, vals map[string]float64) (float64, error) {
+	switch n.NodeType {
+	case "CONSTANT":
+		if n.ConstantValue == nil {
+			return 0, fmt.Errorf("constant node has nil value")
+		}
+		return *n.ConstantValue, nil
+
+	case "FIELD":
+		if n.FieldKey == nil {
+			return 0, fmt.Errorf("field node has nil key")
+		}
+		v, ok := vals[*n.FieldKey]
+		if !ok {
+			return 0, fmt.Errorf("field key %q not found in values", *n.FieldKey)
+		}
+		return v, nil
+
+	case "OPERATOR":
+		if n.Operator == nil {
+			return 0, fmt.Errorf("operator node has nil operator")
+		}
+		var left, right *RsFormulaNode
+		for id, node := range byID {
+			if node.ParentID != nil && *node.ParentID == n.ID {
+				if node.Position != nil && *node.Position == 0 {
+					cp := byID[id]
+					left = cp
+				} else if node.Position != nil && *node.Position == 1 {
+					cp := byID[id]
+					right = cp
+				}
+			}
+		}
+		if left == nil || right == nil {
+			return 0, fmt.Errorf("operator %q missing children", *n.Operator)
+		}
+		l, err := evalNode(left, byID, vals)
+		if err != nil {
+			return 0, err
+		}
+		r, err := evalNode(right, byID, vals)
+		if err != nil {
+			return 0, err
+		}
+		switch *n.Operator {
+		case "+":
+			return l + r, nil
+		case "-":
+			return l - r, nil
+		case "*":
+			return l * r, nil
+		case "/":
+			if r == 0 {
+				return 0, fmt.Errorf("division by zero")
+			}
+			return l / r, nil
+		default:
+			return 0, fmt.Errorf("unknown operator %q", *n.Operator)
+		}
+	}
+	return 0, fmt.Errorf("unknown node type %q", n.NodeType)
 }
