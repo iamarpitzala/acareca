@@ -14,6 +14,8 @@ type IRepository interface {
 	DeleteByFormVersionIDTx(ctx context.Context, tx *sqlx.Tx, formVersionID uuid.UUID) error
 	ListByFormVersionID(ctx context.Context, formVersionID uuid.UUID) ([]*Formula, error)
 	ListNodesByFormulaID(ctx context.Context, formulaID uuid.UUID) ([]*FormulaNode, error)
+	ListNodesWithKeyByFormulaID(ctx context.Context, formulaID uuid.UUID) ([]*FormulaNodeWithKey, error)
+	GetFieldKeyByFieldID(ctx context.Context, fieldID uuid.UUID) (string, error)
 }
 
 type repository struct {
@@ -82,4 +84,32 @@ func (r *repository) ListNodesByFormulaID(ctx context.Context, formulaID uuid.UU
 		return nil, fmt.Errorf("list formula nodes: %w", err)
 	}
 	return rows, nil
+}
+
+func (r *repository) ListNodesWithKeyByFormulaID(ctx context.Context, formulaID uuid.UUID) ([]*FormulaNodeWithKey, error) {
+	query := `
+		SELECT
+			n.id, n.formula_id, n.parent_id, n.node_type, n.operator,
+			n.field_id, n.constant_value, n.position, n.created_at,
+			ff.field_key
+		FROM tbl_formula_node n
+		LEFT JOIN tbl_form_field ff ON ff.id = n.field_id AND ff.deleted_at IS NULL
+		WHERE n.formula_id = $1
+	`
+	var rows []*FormulaNodeWithKey
+	if err := r.db.SelectContext(ctx, &rows, query, formulaID); err != nil {
+		return nil, fmt.Errorf("list formula nodes with key: %w", err)
+	}
+	return rows, nil
+}
+
+func (r *repository) GetFieldKeyByFieldID(ctx context.Context, fieldID uuid.UUID) (string, error) {
+	var key string
+	err := r.db.QueryRowContext(ctx,
+		`SELECT field_key FROM tbl_form_field WHERE id = $1 AND deleted_at IS NULL`, fieldID,
+	).Scan(&key)
+	if err != nil {
+		return "", fmt.Errorf("get field key: %w", err)
+	}
+	return key, nil
 }

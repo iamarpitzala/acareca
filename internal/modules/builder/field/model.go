@@ -118,19 +118,19 @@ func (r *RqUpdateFormField) Sanitize() {
 }
 
 type FormField struct {
-	ID                    uuid.UUID `db:"id"`
-	FormVersionID         uuid.UUID `db:"form_version_id"`
-	FieldKey              string    `db:"field_key"`
-	Slug                  *string   `db:"slug"`
-	Label                 string    `db:"label"`
-	IsComputed            bool      `db:"is_computed"`
-	SectionType           *string   `db:"section_type"`
-	PaymentResponsibility *string   `db:"payment_responsibility"`
-	TaxType               *string   `db:"tax_type"`
+	ID                    uuid.UUID  `db:"id"`
+	FormVersionID         uuid.UUID  `db:"form_version_id"`
+	FieldKey              string     `db:"field_key"`
+	Slug                  *string    `db:"slug"`
+	Label                 string     `db:"label"`
+	IsComputed            bool       `db:"is_computed"`
+	SectionType           *string    `db:"section_type"`
+	PaymentResponsibility *string    `db:"payment_responsibility"`
+	TaxType               *string    `db:"tax_type"`
 	CoaID                 *uuid.UUID `db:"coa_id"`
-	SortOrder             int       `db:"sort_order"`
-	CreatedAt             string    `db:"created_at"`
-	UpdatedAt             string    `db:"updated_at"`
+	SortOrder             int        `db:"sort_order"`
+	CreatedAt             string     `db:"created_at"`
+	UpdatedAt             string     `db:"updated_at"`
 }
 
 func (r *RqFormField) ToDB(formVersionID uuid.UUID) *FormField {
@@ -165,10 +165,6 @@ func (r *RqFormField) ToDB(formVersionID uuid.UUID) *FormField {
 }
 
 func (d *FormField) ToRs() *RsFormField {
-	var coaID uuid.UUID
-	if d.CoaID != nil {
-		coaID = *d.CoaID
-	}
 	return &RsFormField{
 		ID:                    d.ID,
 		FormVersionID:         d.FormVersionID,
@@ -179,7 +175,7 @@ func (d *FormField) ToRs() *RsFormField {
 		SectionType:           d.SectionType,
 		PaymentResponsibility: d.PaymentResponsibility,
 		TaxType:               d.TaxType,
-		CoaID:                 coaID,
+		CoaID:                 d.CoaID,
 		SortOrder:             d.SortOrder,
 		CreatedAt:             d.CreatedAt,
 		UpdatedAt:             d.UpdatedAt,
@@ -204,7 +200,7 @@ type RsFormField struct {
 	SectionType           *string      `json:"section_type"`
 	PaymentResponsibility *string      `json:"payment_responsibility"`
 	TaxType               *string      `json:"tax_type"`
-	CoaID                 uuid.UUID    `json:"coa_id"`
+	CoaID                 *uuid.UUID   `json:"coa_id"`
 	Coa                   *RsCoaDetail `json:"coa,omitempty"`
 	SortOrder             int          `json:"sort_order"`
 	CreatedAt             string       `json:"created_at"`

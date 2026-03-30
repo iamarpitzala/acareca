@@ -62,33 +62,109 @@ func (s *service) ListByFormVersionID(ctx context.Context, formVersionID uuid.UU
 		return nil, err
 	}
 
-	out := make([]RsFormula, 0, len(formulas))
+	fieldIDToKey := map[uuid.UUID]string{}
+
+	type formulaWithNodes struct {
+		formula *Formula
+		nodes   []*FormulaNodeWithKey
+	}
+	all := make([]formulaWithNodes, 0, len(formulas))
+
 	for _, f := range formulas {
-		nodes, err := s.repo.ListNodesByFormulaID(ctx, f.ID)
+		nodes, err := s.repo.ListNodesWithKeyByFormulaID(ctx, f.ID)
 		if err != nil {
 			return nil, err
 		}
-		rs := RsFormula{
-			ID:            f.ID,
-			FormVersionID: f.FormVersionID,
-			FieldID:       f.FieldID,
-			Name:          f.Name,
-			CreatedAt:     f.CreatedAt,
-		}
+		all = append(all, formulaWithNodes{f, nodes})
 		for _, n := range nodes {
-			rs.Nodes = append(rs.Nodes, RsFormulaNode{
+			if n.FieldID != nil && n.FieldKey != nil {
+				fieldIDToKey[*n.FieldID] = *n.FieldKey
+			}
+		}
+	}
+
+	type rsItem struct {
+		rs      RsFormula
+		fieldID uuid.UUID
+	}
+	items := make([]rsItem, 0, len(all))
+
+	for _, fw := range all {
+		fieldKey := fieldIDToKey[fw.formula.FieldID]
+
+		rs := RsFormula{
+			ID:            fw.formula.ID,
+			FormVersionID: fw.formula.FormVersionID,
+			FieldID:       fw.formula.FieldID,
+			FieldKey:      fieldKey,
+			Name:          fw.formula.Name,
+			CreatedAt:     fw.formula.CreatedAt,
+		}
+
+		rootPos := int16(0)
+		for _, n := range fw.nodes {
+			pos := n.Position
+			if n.ParentID == nil {
+				pos = &rootPos
+			}
+			node := RsFormulaNode{
 				ID:            n.ID,
 				ParentID:      n.ParentID,
 				NodeType:      n.NodeType,
 				Operator:      n.Operator,
 				FieldID:       n.FieldID,
+				FieldKey:      n.FieldKey,
 				ConstantValue: n.ConstantValue,
-				Position:      n.Position,
-			})
+				Position:      pos,
+			}
+			rs.Nodes = append(rs.Nodes, node)
 		}
-		out = append(out, rs)
+		items = append(items, rsItem{rs, fw.formula.FieldID})
+	}
+
+	fieldIDToIdx := map[uuid.UUID]int{}
+	for i, it := range items {
+		fieldIDToIdx[it.fieldID] = i
+	}
+
+	n := len(items)
+	deps := make([][]int, n)
+	for i, fw := range all {
+		for _, node := range fw.nodes {
+			if node.NodeType == "FIELD" && node.FieldID != nil {
+				if j, ok := fieldIDToIdx[*node.FieldID]; ok && j != i {
+					deps[i] = append(deps[i], j)
+				}
+			}
+		}
+	}
+
+	sorted := topoSort(n, deps)
+	out := make([]RsFormula, 0, n)
+	for _, i := range sorted {
+		out = append(out, items[i].rs)
 	}
 	return out, nil
+}
+
+func topoSort(n int, deps [][]int) []int {
+	visited := make([]bool, n)
+	var order []int
+	var visit func(i int)
+	visit = func(i int) {
+		if visited[i] {
+			return
+		}
+		visited[i] = true
+		for _, dep := range deps[i] {
+			visit(dep)
+		}
+		order = append(order, i)
+	}
+	for i := 0; i < n; i++ {
+		visit(i)
+	}
+	return order
 }
 
 // insertNodes recursively walks the expression tree and inserts rows into tbl_formula_node.

@@ -6,8 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// ─── DB models ────────────────────────────────────────────────────────────────
-
 type Formula struct {
 	ID            uuid.UUID `db:"id"`
 	FormVersionID uuid.UUID `db:"form_version_id"`
@@ -28,7 +26,11 @@ type FormulaNode struct {
 	CreatedAt     string     `db:"created_at"`
 }
 
-// ─── Expression tree (request payload) ───────────────────────────────────────
+// FormulaNodeWithKey extends FormulaNode with the field_key joined from tbl_form_field.
+type FormulaNodeWithKey struct {
+	FormulaNode
+	FieldKey *string `db:"field_key"`
+}
 
 type ExprNode struct {
 	Type  string    `json:"type"`  // "operator" | "field" | "constant"
@@ -69,8 +71,6 @@ func (e *ExprNode) Validate() error {
 	return nil
 }
 
-// ─── Request / Response ───────────────────────────────────────────────────────
-
 type RqFormula struct {
 	FieldKey   string    `json:"field_key" validate:"required,max=5"`
 	Name       string    `json:"name" validate:"required,max=255"`
@@ -85,13 +85,13 @@ func (r *RqFormula) Validate() error {
 }
 
 type RsFormula struct {
-	ID            uuid.UUID    `json:"id"`
-	FormVersionID uuid.UUID    `json:"form_version_id"`
-	FieldID       uuid.UUID    `json:"field_id"`
-	FieldKey      string       `json:"field_key"`
-	Name          string       `json:"name"`
+	ID            uuid.UUID       `json:"id"`
+	FormVersionID uuid.UUID       `json:"form_version_id"`
+	FieldID       uuid.UUID       `json:"field_id"`
+	FieldKey      string          `json:"field_key"`
+	Name          string          `json:"name"`
 	Nodes         []RsFormulaNode `json:"nodes,omitempty"`
-	CreatedAt     string       `json:"created_at"`
+	CreatedAt     string          `json:"created_at"`
 }
 
 type RsFormulaNode struct {
@@ -100,6 +100,7 @@ type RsFormulaNode struct {
 	NodeType      string     `json:"node_type"`
 	Operator      *string    `json:"operator"`
 	FieldID       *uuid.UUID `json:"field_id"`
+	FieldKey      *string    `json:"field_key"`
 	ConstantValue *float64   `json:"constant_value"`
 	Position      *int16     `json:"position"`
 }
