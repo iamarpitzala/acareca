@@ -34,27 +34,33 @@ func NewRepository(db *sqlx.DB) IRepository {
 
 // fieldRow is used to scan field + coa join results.
 type fieldRow struct {
-	ID                    uuid.UUID `db:"id"`
-	FormVersionID         uuid.UUID `db:"form_version_id"`
-	Label                 string    `db:"label"`
-	SectionType           string    `db:"section_type"`
-	PaymentResponsibility *string   `db:"payment_responsibility"`
-	TaxType               *string   `db:"tax_type"`
-	CoaID                 uuid.UUID `db:"coa_id"`
-	SortOrder             int       `db:"sort_order"`
-	CreatedAt             string    `db:"created_at"`
-	UpdatedAt             string    `db:"updated_at"`
-	CoaCode               *int16    `db:"coa_code"`
-	CoaName               *string   `db:"coa_name"`
-	CoaAccountTypeID      *int16    `db:"coa_account_type_id"`
-	CoaAccountTaxID       *int16    `db:"coa_account_tax_id"`
+	ID                    uuid.UUID  `db:"id"`
+	FormVersionID         uuid.UUID  `db:"form_version_id"`
+	FieldKey              string     `db:"field_key"`
+	Slug                  *string    `db:"slug"`
+	Label                 string     `db:"label"`
+	IsComputed            bool       `db:"is_computed"`
+	SectionType           *string    `db:"section_type"`
+	PaymentResponsibility *string    `db:"payment_responsibility"`
+	TaxType               *string    `db:"tax_type"`
+	CoaID                 *uuid.UUID `db:"coa_id"`
+	SortOrder             int        `db:"sort_order"`
+	CreatedAt             string     `db:"created_at"`
+	UpdatedAt             string     `db:"updated_at"`
+	CoaCode               *int16     `db:"coa_code"`
+	CoaName               *string    `db:"coa_name"`
+	CoaAccountTypeID      *int16     `db:"coa_account_type_id"`
+	CoaAccountTaxID       *int16     `db:"coa_account_tax_id"`
 }
 
 func (r *fieldRow) toFormField() *FormField {
 	return &FormField{
 		ID:                    r.ID,
 		FormVersionID:         r.FormVersionID,
+		FieldKey:              r.FieldKey,
+		Slug:                  r.Slug,
 		Label:                 r.Label,
+		IsComputed:            r.IsComputed,
 		SectionType:           r.SectionType,
 		PaymentResponsibility: r.PaymentResponsibility,
 		TaxType:               r.TaxType,
@@ -67,9 +73,9 @@ func (r *fieldRow) toFormField() *FormField {
 
 func (r *fieldRow) toRs() *RsFormField {
 	rs := r.toFormField().ToRs()
-	if r.CoaCode != nil && r.CoaName != nil {
+	if r.CoaCode != nil && r.CoaName != nil && r.CoaID != nil {
 		rs.Coa = &RsCoaDetail{
-			ID:            r.CoaID,
+			ID:            *r.CoaID,
 			Code:          *r.CoaCode,
 			Name:          *r.CoaName,
 			AccountTypeID: *r.CoaAccountTypeID,
@@ -81,8 +87,8 @@ func (r *fieldRow) toRs() *RsFormField {
 
 const fieldWithCoaSelect = `
 	SELECT
-		ff.id, ff.form_version_id, ff.label, ff.section_type,
-		ff.payment_responsibility, ff.tax_type, ff.coa_id,
+		ff.id, ff.form_version_id, ff.field_key, ff.slug, ff.label, ff.is_computed,
+		ff.section_type, ff.payment_responsibility, ff.tax_type, ff.coa_id,
 		ff.sort_order, ff.created_at, ff.updated_at,
 		coa.code  AS coa_code,
 		coa.name  AS coa_name,
@@ -95,12 +101,12 @@ const fieldWithCoaSelect = `
 // Create implements [IRepository].
 func (r *Repository) Create(ctx context.Context, f *FormField) error {
 	query := `
-		INSERT INTO tbl_form_field (id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, sort_order)
-		VALUES ($1, $2, $3, $4::section_type, $5::payment_responsibility, $6::tax_type, $7, $8)
+		INSERT INTO tbl_form_field (id, form_version_id, field_key, slug, label, is_computed, section_type, payment_responsibility, tax_type, coa_id, sort_order)
+		VALUES ($1, $2, $3, $4, $5, $6, $7::section_type, $8::payment_responsibility, $9::tax_type, $10, $11)
 		RETURNING created_at, updated_at
 	`
 	if err := r.db.QueryRowContext(ctx, query,
-		f.ID, f.FormVersionID, f.Label, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.SortOrder,
+		f.ID, f.FormVersionID, f.FieldKey, f.Slug, f.Label, f.IsComputed, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.SortOrder,
 	).Scan(&f.CreatedAt, &f.UpdatedAt); err != nil {
 		return fmt.Errorf("create form field: %w", err)
 	}
@@ -185,12 +191,12 @@ func (r *Repository) ListRsByFormVersionID(ctx context.Context, formVersionID uu
 // CreateTx - Transaction variant of Create
 func (r *Repository) CreateTx(ctx context.Context, tx *sqlx.Tx, f *FormField) error {
 	query := `
-		INSERT INTO tbl_form_field (id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, sort_order)
-		VALUES ($1, $2, $3, $4::section_type, $5::payment_responsibility, $6::tax_type, $7, $8)
+		INSERT INTO tbl_form_field (id, form_version_id, field_key, slug, label, is_computed, section_type, payment_responsibility, tax_type, coa_id, sort_order)
+		VALUES ($1, $2, $3, $4, $5, $6, $7::section_type, $8::payment_responsibility, $9::tax_type, $10, $11)
 		RETURNING created_at, updated_at
 	`
 	if err := tx.QueryRowContext(ctx, query,
-		f.ID, f.FormVersionID, f.Label, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.SortOrder,
+		f.ID, f.FormVersionID, f.FieldKey, f.Slug, f.Label, f.IsComputed, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.SortOrder,
 	).Scan(&f.CreatedAt, &f.UpdatedAt); err != nil {
 		return fmt.Errorf("create form field tx: %w", err)
 	}

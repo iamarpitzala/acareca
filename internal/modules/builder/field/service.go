@@ -164,20 +164,25 @@ func (s *Service) CreateTx(ctx context.Context, tx *sqlx.Tx, formVersionID uuid.
 	if len(current)+1 > MaxFieldsPerVersion {
 		return nil, errors.New("too many fields")
 	}
-	coaID, err := uuid.Parse(req.CoaID)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := s.clinicSvc.GetClinicByID(ctx, practitionerID, clinicID); err != nil {
-		return nil, err
-	}
-	if _, err := s.coaSvc.GetChartOfAccount(ctx, coaID, practitionerID); err != nil {
-		if errors.Is(err, coa.ErrNotFound) {
-			return nil, errors.New("coa not found")
-		}
-		return nil, err
-	}
+
 	f := req.ToDB(formVersionID)
+
+	if !req.IsComputed {
+		coaID, err := uuid.Parse(req.CoaID)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := s.clinicSvc.GetClinicByID(ctx, practitionerID, clinicID); err != nil {
+			return nil, err
+		}
+		if _, err := s.coaSvc.GetChartOfAccount(ctx, coaID, practitionerID); err != nil {
+			if errors.Is(err, coa.ErrNotFound) {
+				return nil, errors.New("coa not found")
+			}
+			return nil, err
+		}
+	}
+
 	if err := s.repo.CreateTx(ctx, tx, f); err != nil {
 		return nil, err
 	}
