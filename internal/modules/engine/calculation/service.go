@@ -48,8 +48,11 @@ func (s *service) GrossMethod(ctx context.Context, formDetail *detail.RsFormDeta
 		if !ok {
 			return nil, fmt.Errorf("field %s not found", v.FormFieldID)
 		}
+		if f.SectionType == nil {
+			continue
+		}
 
-		switch f.SectionType {
+		switch *f.SectionType {
 
 		case "COLLECTION":
 			if v.NetAmount != nil {
@@ -121,8 +124,11 @@ func (s *service) NetMethod(ctx context.Context, formDetail *detail.RsFormDetail
 		if !ok {
 			return nil, fmt.Errorf("field %s not found", v.FormFieldID)
 		}
+		if f.SectionType == nil {
+			continue
+		}
 
-		switch f.SectionType {
+		switch *f.SectionType {
 
 		case "COLLECTION":
 			if v.NetAmount != nil {

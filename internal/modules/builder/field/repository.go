@@ -132,18 +132,18 @@ func (r *Repository) Update(ctx context.Context, f *FormField) (*FormField, erro
 		UPDATE tbl_form_field
 		SET label = $1, section_type = $2::section_type, payment_responsibility = $3::payment_responsibility, tax_type = $4::tax_type, coa_id = $5, sort_order = $6, updated_at = now()
 		WHERE id = $7 AND deleted_at IS NULL
-		RETURNING id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, sort_order, created_at, updated_at
+		RETURNING id, form_version_id, field_key, slug, label, is_computed, section_type, payment_responsibility, tax_type, coa_id, sort_order, created_at, updated_at
 	`
-	var out FormField
-	if err := r.db.QueryRowContext(ctx, query,
+	var row fieldRow
+	if err := r.db.QueryRowxContext(ctx, query,
 		f.Label, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.SortOrder, f.ID,
-	).Scan(&out.ID, &out.FormVersionID, &out.Label, &out.SectionType, &out.PaymentResponsibility, &out.TaxType, &out.CoaID, &out.SortOrder, &out.CreatedAt, &out.UpdatedAt); err != nil {
+	).StructScan(&row); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("form field not found")
 		}
 		return nil, fmt.Errorf("update form field: %w", err)
 	}
-	return &out, nil
+	return row.toFormField(), nil
 }
 
 // Delete implements [IRepository].
@@ -209,18 +209,18 @@ func (r *Repository) UpdateTx(ctx context.Context, tx *sqlx.Tx, f *FormField) (*
 		UPDATE tbl_form_field
 		SET label = $1, section_type = $2::section_type, payment_responsibility = $3::payment_responsibility, tax_type = $4::tax_type, coa_id = $5, sort_order = $6, updated_at = now()
 		WHERE id = $7 AND deleted_at IS NULL
-		RETURNING id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, sort_order, created_at, updated_at
+		RETURNING id, form_version_id, field_key, slug, label, is_computed, section_type, payment_responsibility, tax_type, coa_id, sort_order, created_at, updated_at
 	`
-	var out FormField
-	if err := tx.QueryRowContext(ctx, query,
+	var row fieldRow
+	if err := tx.QueryRowxContext(ctx, query,
 		f.Label, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.SortOrder, f.ID,
-	).Scan(&out.ID, &out.FormVersionID, &out.Label, &out.SectionType, &out.PaymentResponsibility, &out.TaxType, &out.CoaID, &out.SortOrder, &out.CreatedAt, &out.UpdatedAt); err != nil {
+	).StructScan(&row); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("form field not found")
 		}
 		return nil, fmt.Errorf("update form field tx: %w", err)
 	}
-	return &out, nil
+	return row.toFormField(), nil
 }
 
 // DeleteTx - Transaction variant of Delete

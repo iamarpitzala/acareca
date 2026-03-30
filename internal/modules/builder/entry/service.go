@@ -357,10 +357,10 @@ func (s *Service) attachICCalculation(ctx context.Context, rs *RsFormEntry) {
 	var incomeSum, expenseSum, otherCostSum float64
 	for _, v := range rs.Values {
 		f, ok := fieldMap[v.FormFieldID]
-		if !ok {
+		if !ok || f.SectionType == nil {
 			continue
 		}
-		switch f.SectionType {
+		switch *f.SectionType {
 		case field.SectionTypeCollection:
 			if v.NetAmount != nil {
 				incomeSum += *v.NetAmount
