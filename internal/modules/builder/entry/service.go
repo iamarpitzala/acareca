@@ -65,6 +65,7 @@ func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, req *RqFo
 		ClinicID:      req.ClinicID,
 		SubmittedBy:   submittedBy,
 		SubmittedAt:   submittedAt,
+		Date:          req.Date,
 		Status:        status,
 	}
 	values, err := s.CalculateValues(ctx, e.ID, req.Values)
@@ -127,6 +128,9 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, req *RqUpdateFormEnt
 			existing.SubmittedAt = &now
 		}
 		existing.SubmittedBy = submittedBy
+	}
+	if req.Date != nil {
+		existing.Date = req.Date
 	}
 	newValues := values
 	if len(req.Values) > 0 {
