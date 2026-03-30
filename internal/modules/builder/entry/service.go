@@ -80,6 +80,7 @@ func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, req *RqFo
 	}
 
 	result := created.ToRs(vals)
+	s.attachFieldMetadata(ctx, result)
 	s.attachICCalculation(ctx, result)
 
 	// Audit log: entry created
@@ -107,6 +108,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*RsFormEntry, erro
 		return nil, err
 	}
 	rs := e.ToRs(values)
+	s.attachFieldMetadata(ctx, rs)
 	s.attachICCalculation(ctx, rs)
 	return rs, nil
 }
@@ -142,6 +144,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, req *RqUpdateFormEnt
 	}
 
 	result := updated.ToRs(vals)
+	s.attachFieldMetadata(ctx, result)
 	s.attachICCalculation(ctx, result)
 
 	// Audit log: entry updated
@@ -396,6 +399,19 @@ func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []R
 	}
 
 	return out, nil
+}
+
+// attachFieldMetadata enriches each value in the response with field_key, label, and is_computed.
+func (s *Service) attachFieldMetadata(ctx context.Context, rs *RsFormEntry) {
+	for i, v := range rs.Values {
+		f, err := s.fieldRepo.GetByID(ctx, v.FormFieldID)
+		if err != nil {
+			continue
+		}
+		rs.Values[i].FieldKey = f.FieldKey
+		rs.Values[i].Label = f.Label
+		rs.Values[i].IsComputed = f.IsComputed
+	}
 }
 
 func (s *Service) attachICCalculation(ctx context.Context, rs *RsFormEntry) {

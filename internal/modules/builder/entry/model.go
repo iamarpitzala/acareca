@@ -95,6 +95,9 @@ type RsFormEntry struct {
 
 type RsEntryValue struct {
 	FormFieldID uuid.UUID `json:"form_field_id"`
+	FieldKey    string    `json:"field_key,omitempty"`
+	Label       string    `json:"label,omitempty"`
+	IsComputed  bool      `json:"is_computed"`
 	NetAmount   *float64  `json:"net_amount,omitempty"`
 	GstAmount   *float64  `json:"gst_amount,omitempty"`
 	GrossAmount *float64  `json:"gross_amount,omitempty"`

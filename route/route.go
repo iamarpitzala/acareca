@@ -158,7 +158,7 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) (audit.Service, *sharedno
 
 	entry.RegisterRoutes(entryGroup, entriesHandler)
 
-	calculationSvc := calculation.NewService(formSvc, versionSvc, fieldSvc, entriesSvc)
+	calculationSvc := calculation.NewServiceWithFormula(formSvc, versionSvc, fieldSvc, entriesSvc, formulaSvc)
 	calculationHandler := calculation.NewHandler(calculationSvc)
 	calculation.RegisterRoutes(v1, calculationHandler)
 

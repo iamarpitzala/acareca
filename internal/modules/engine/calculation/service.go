@@ -10,6 +10,8 @@ import (
 	"github.com/iamarpitzala/acareca/internal/modules/builder/field"
 	"github.com/iamarpitzala/acareca/internal/modules/builder/form"
 	"github.com/iamarpitzala/acareca/internal/modules/builder/version"
+	"github.com/iamarpitzala/acareca/internal/modules/engine/formula"
+	"github.com/iamarpitzala/acareca/internal/modules/engine/method"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
 
@@ -17,8 +19,8 @@ type Service interface {
 	GrossMethod(ctx context.Context, formDetail *detail.RsFormDetail, formValue []entry.RsEntryValue, fieldMap map[uuid.UUID]*field.RsFormField) (*GrossResult, error)
 	NetMethod(ctx context.Context, formDetail *detail.RsFormDetail, formValue []entry.RsEntryValue, fieldMap map[uuid.UUID]*field.RsFormField, filter *NetFilter) (*NetResult, error)
 	Calculate(ctx context.Context, formId uuid.UUID, filter *NetFilter) (interface{}, error)
-
 	CalculateFromEntries(ctx context.Context, req *RqCalculateFromEntries) (interface{}, error)
+	FormulaCalculate(ctx context.Context, formID uuid.UUID, req *RqFormulaCalculate) (*RsFormulaCalculate, error)
 }
 
 type service struct {
@@ -26,10 +28,30 @@ type service struct {
 	versionSvc version.IService
 	fieldSvc   field.IService
 	entries    entry.IService
+	formulaSvc formula.IService
+	methodSvc  method.IService
 }
 
 func NewService(formSvc form.IService, versionSvc version.IService, fieldSvc field.IService, entries entry.IService) Service {
-	return &service{formSvc: formSvc, versionSvc: versionSvc, fieldSvc: fieldSvc, entries: entries}
+	return &service{
+		formSvc:    formSvc,
+		versionSvc: versionSvc,
+		fieldSvc:   fieldSvc,
+		entries:    entries,
+		methodSvc:  method.NewService(),
+	}
+}
+
+// NewServiceWithFormula constructs the service with formula and method support.
+func NewServiceWithFormula(formSvc form.IService, versionSvc version.IService, fieldSvc field.IService, entries entry.IService, formulaSvc formula.IService) Service {
+	return &service{
+		formSvc:    formSvc,
+		versionSvc: versionSvc,
+		fieldSvc:   fieldSvc,
+		entries:    entries,
+		formulaSvc: formulaSvc,
+		methodSvc:  method.NewService(),
+	}
 }
 
 func (s *service) GrossMethod(ctx context.Context, formDetail *detail.RsFormDetail, formValue []entry.RsEntryValue, fieldMap map[uuid.UUID]*field.RsFormField) (*GrossResult, error) {
@@ -247,4 +269,63 @@ func (s *service) CalculateFromEntries(ctx context.Context, req *RqCalculateFrom
 	default:
 		return nil, fmt.Errorf("unsupported method: %s", form.Method)
 	}
+}
+
+// FormulaCalculate evaluates all is_computed=true fields for a form using the
+// provided manual field key→amount values, and returns per-field results with
+// net/gst/gross breakdown when the field has a tax_type.
+func (s *service) FormulaCalculate(ctx context.Context, formID uuid.UUID, req *RqFormulaCalculate) (*RsFormulaCalculate, error) {
+	// Resolve active version for the form.
+	ver, err := s.versionSvc.GetVersionByFormID(ctx, formID)
+	if err != nil {
+		return nil, fmt.Errorf("get version: %w", err)
+	}
+
+	// Evaluate all formulas in topological order.
+	computed, err := s.formulaSvc.EvalFormulas(ctx, ver.Id, req.Values)
+	if err != nil {
+		return nil, fmt.Errorf("eval formulas: %w", err)
+	}
+
+	// Fetch all fields so we can look up label, tax_type, is_computed, and key.
+	fieldMap, err := s.fieldSvc.GetFieldMap(ctx, ver.Id)
+	if err != nil {
+		return nil, fmt.Errorf("get field map: %w", err)
+	}
+
+	results := make([]RsComputedFieldValue, 0, len(computed))
+	for fieldID, val := range computed {
+		f, ok := fieldMap[fieldID]
+		if !ok || !f.IsComputed {
+			continue
+		}
+
+		item := RsComputedFieldValue{
+			FieldID:  fieldID,
+			FieldKey: f.FieldKey,
+			Label:    f.Label,
+			Amount:   util.Round(val, 2),
+		}
+
+		// Apply tax treatment when the computed field has a tax_type.
+		if f.TaxType != nil && *f.TaxType != "" {
+			taxResult, err := s.methodSvc.Calculate(ctx, method.TaxTreatment(*f.TaxType), &method.Input{Amount: val})
+			if err != nil {
+				return nil, fmt.Errorf("tax calc for field %s: %w", f.FieldKey, err)
+			}
+			net := util.Round(taxResult.Amount, 2)
+			gst := util.Round(taxResult.GstAmount, 2)
+			gross := util.Round(taxResult.TotalAmount, 2)
+			item.Amount = net
+			item.GstAmount = &gst
+			item.Gross = &gross
+		}
+
+		results = append(results, item)
+	}
+
+	return &RsFormulaCalculate{
+		FormID:         formID,
+		ComputedFields: results,
+	}, nil
 }
