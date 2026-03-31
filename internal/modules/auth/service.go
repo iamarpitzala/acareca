@@ -109,10 +109,11 @@ func (s *service) Register(ctx context.Context, req *RqUser) (*RsUser, error) {
 		return nil, fmt.Errorf("failed to verify invitation status: %w", err)
 	}
 
+	var assignedRole string
 	if invite != nil {
-		req.Role = util.RoleAccountant
+		assignedRole = util.RoleAccountant
 	} else {
-		req.Role = util.RolePractitioner
+		assignedRole = util.RolePractitioner
 	}
 
 	hashedPassword, err := util.GenerateHash(req.Password)
