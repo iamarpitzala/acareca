@@ -193,6 +193,9 @@ func (s *service) CreateWithFields(ctx context.Context, d *RqCreateFormWithField
 
 func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFields, practitionerID uuid.UUID) (*detail.RsFormDetail, *RsFormWithFieldsSyncResult, error) {
 	meta := auditctx.GetMetadata(ctx)
+
+	req.Normalize()
+
 	if err := req.ValidateShares(); err != nil {
 		return nil, nil, err
 	}
@@ -247,18 +250,25 @@ func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFie
 		}
 
 		// Delete fields
+		forceDelete := req.ForceDelete != nil && *req.ForceDelete
 		for _, id := range req.Fields.Delete {
-			if s.entryRepo != nil {
+			existingField, err := s.fieldSvc.GetByID(ctx, id)
+			if err != nil {
+				return fmt.Errorf("field %s not found for deletion: %w", id, err)
+			}
+
+			if s.entryRepo != nil && !forceDelete {
 				has, err := s.entryRepo.HasSubmittedEntryValuesForField(ctx, id)
 				if err != nil {
 					return err
 				}
 				if has {
-					return errors.New("field has submitted entries")
+					return fmt.Errorf("cannot delete field %q (key: %s): field has submitted entries. Use force_delete=true to override (warning: this will orphan entry data)", existingField.Label, existingField.FieldKey)
 				}
 			}
+
 			if err := s.fieldSvc.DeleteTx(ctx, tx, id); err != nil {
-				return err
+				return fmt.Errorf("failed to delete field %s: %w", id, err)
 			}
 			syncResult.DeletedCount++
 		}
@@ -273,6 +283,7 @@ func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFie
 		}
 
 		// Seed map with existing fields (excluding deleted ones) so formulas can reference them
+		// Note: If multiple fields have the same key, the last one wins (map behavior)
 		existingFields, err := s.fieldSvc.ListByFormVersionID(ctx, activeVersionID)
 		if err != nil {
 			return err
@@ -287,12 +298,20 @@ func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFie
 		// Update fields
 		for _, item := range req.Fields.Update {
 			item.Sanitize()
+
+			// Verify the field exists before updating
+			existingField, err := s.fieldSvc.GetByID(ctx, item.ID)
+			if err != nil {
+				return fmt.Errorf("field %s not found for update: %w", item.ID, err)
+			}
+
 			updated, err := s.fieldSvc.UpdateTx(ctx, tx, item.ID, req.ClinicID, realOwnerID, &item)
 			if err != nil {
 				return err
 			}
-			// Update the map with the potentially new key
-			keyToFieldID[updated.FieldKey] = updated.ID
+			// Use the existing field key (field_key is immutable)
+			// If duplicate keys exist, the last one wins
+			keyToFieldID[existingField.FieldKey] = updated.ID
 			syncResult.UpdatedCount++
 		}
 
@@ -300,12 +319,14 @@ func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFie
 		for _, item := range req.Fields.Create {
 			item.Sanitize()
 			if err := item.Validate(); err != nil {
-				return err
+				return fmt.Errorf("validation failed for field %s: %w", item.FieldKey, err)
 			}
+
 			created, err := s.fieldSvc.CreateTx(ctx, tx, activeVersionID, req.ClinicID, practitionerID, item.ToRqFormField())
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to create field %s: %w", item.FieldKey, err)
 			}
+			// If duplicate keys exist, the last one wins
 			keyToFieldID[item.FieldKey] = created.ID
 			syncResult.CreatedCount++
 		}

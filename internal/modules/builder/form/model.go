@@ -77,7 +77,11 @@ type RqUpdateFormWithFields struct {
 	ClinicShare    *int                `json:"clinic_share" validate:"omitempty,min=0,max=100"`
 	SuperComponent *float64            `json:"super_component" validate:"omitempty"`
 	Fields         RqFieldsSync        `json:"fields"`
-	Formulas       []formula.RqFormula `json:"formulas" validate:"omitempty,dive"`
+	Create       []field.RqCreateField     `json:"create" validate:"omitempty,dive"`
+	Update       []field.RqUpdateFormField `json:"update" validate:"omitempty,dive"`
+	Delete       []uuid.UUID               `json:"delete" validate:"omitempty,dive"`
+	ForceDelete  *bool                     `json:"force_delete"` // If true, delete fields even if they have submitted entries
+	Formulas     []formula.RqFormula       `json:"formulas" validate:"omitempty,dive"`
 }
 
 func (r *RqUpdateFormWithFields) ValidateShares() error {
@@ -87,6 +91,16 @@ func (r *RqUpdateFormWithFields) ValidateShares() error {
 		}
 	}
 	return nil
+}
+
+func (r *RqUpdateFormWithFields) Normalize() {
+	if len(r.Create) > 0 || len(r.Update) > 0 || len(r.Delete) > 0 {
+		if len(r.Fields.Create) == 0 && len(r.Fields.Update) == 0 && len(r.Fields.Delete) == 0 {
+			r.Fields.Create = r.Create
+			r.Fields.Update = r.Update
+			r.Fields.Delete = r.Delete
+		}
+	}
 }
 
 type RsFormWithFields struct {
