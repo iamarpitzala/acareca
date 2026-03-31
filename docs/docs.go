@@ -60,6 +60,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin": {
+            "post": {
+                "description": "Creates a new entry in tbl_user with Role=ADMIN and a corresponding entry in tbl_admin within a single transaction.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Create admin profile and user",
+                "parameters": [
+                    {
+                        "description": "Admin and User details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.RqCreateAdmin"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsBase"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/audit": {
             "get": {
                 "security": [
@@ -826,6 +872,49 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
+                "description": "Get nested Admin and User information by Admin ID",
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Get Admin Detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Admin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsBase"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/response.RsError"
                         }
@@ -2071,6 +2160,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Practitioner UUID (Required for Accountants)",
+                        "name": "practitioner_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -5101,6 +5196,33 @@ const docTemplate = `{
                 }
             }
         },
+        "admin.RqCreateAdmin": {
+            "type": "object",
+            "required": [
+                "email",
+                "first_name",
+                "last_name",
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string",
+                    "minLength": 8
+                },
+                "phone": {
+                    "type": "string"
+                }
+            }
+        },
         "auth.RqChangePassword": {
             "type": "object",
             "required": [
@@ -5189,8 +5311,7 @@ const docTemplate = `{
                 "email",
                 "first_name",
                 "last_name",
-                "password",
-                "role"
+                "password"
             ],
             "properties": {
                 "email": {
@@ -5208,14 +5329,6 @@ const docTemplate = `{
                 },
                 "phone": {
                     "type": "string"
-                },
-                "role": {
-                    "type": "string",
-                    "enum": [
-                        "ADMIN",
-                        "PRACTITIONER",
-                        "ACCOUNTANT"
-                    ]
                 }
             }
         },
@@ -5528,6 +5641,9 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "practitioner_id": {
+                    "type": "string"
+                },
                 "profile_picture": {
                     "type": "string"
                 }
@@ -5590,6 +5706,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "practitioner_id": {
                     "type": "string"
                 },
                 "profile_picture": {
@@ -5903,8 +6022,7 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "DRAFT",
-                        "PUBLISHED",
-                        "ARCHIVED"
+                        "PUBLISHED"
                     ]
                 },
                 "super_component": {
@@ -5980,8 +6098,7 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "DRAFT",
-                        "PUBLISHED",
-                        "ARCHIVED"
+                        "PUBLISHED"
                     ]
                 },
                 "super_component": {

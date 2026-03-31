@@ -18,9 +18,9 @@ const (
 
 // RqFieldsSync groups field create/update/delete in a nested object.
 type RqFieldsSync struct {
-	Create []field.RqCreateField       `json:"create" validate:"omitempty,dive"`
-	Update []field.RqUpdateFormField   `json:"update" validate:"omitempty,dive"`
-	Delete []uuid.UUID                 `json:"delete" validate:"omitempty,dive"`
+	Create []field.RqCreateField     `json:"create" validate:"omitempty,dive"`
+	Update []field.RqUpdateFormField `json:"update" validate:"omitempty,dive"`
+	Delete []uuid.UUID               `json:"delete" validate:"omitempty,dive"`
 }
 
 type RqBulkSyncFields struct {
@@ -90,10 +90,10 @@ func (r *RqUpdateFormWithFields) ValidateShares() error {
 }
 
 type RsFormWithFields struct {
-	Form            detail.RsFormDetail  `json:"form"`
-	ActiveVersionID uuid.UUID            `json:"active_version_id"`
-	Fields          []field.RsFormField  `json:"fields"`
-	Formulas        []formula.RsFormula  `json:"formulas"`
+	Form            detail.RsFormDetail `json:"form"`
+	ActiveVersionID uuid.UUID           `json:"active_version_id"`
+	Fields          []field.RsFormField `json:"fields"`
+	Formulas        []formula.RsFormula `json:"formulas"`
 }
 
 type Filter struct {
