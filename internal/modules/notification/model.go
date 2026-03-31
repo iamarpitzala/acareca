@@ -96,7 +96,7 @@ type Notification struct {
 	EntityType    EntityType      `db:"entity_type"`
 	EntityID      uuid.UUID       `db:"entity_id"`
 	Status        Status          `db:"status"`
-	Payload       json.RawMessage `db:"payload"`
+	Payload       json.RawMessage `db:"payload" swaggertype:"object"`
 	CreatedAt     time.Time       `db:"created_at"`
 	ReadedAt      *time.Time      `db:"readed_at"`
 }
