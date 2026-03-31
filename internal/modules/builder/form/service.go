@@ -263,28 +263,40 @@ func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFie
 			syncResult.DeletedCount++
 		}
 
-		// Update fields
-		for _, item := range req.Fields.Update {
-			item.Sanitize()
-			_, err = s.fieldSvc.UpdateTx(ctx, tx, item.ID, req.ClinicID, realOwnerID, &item)
-			if err != nil {
-				return err
-			}
-			syncResult.UpdatedCount++
-		}
-
-		// Create fields — build key→UUID map for formula resolution
+		// Build key→UUID map for formula resolution
 		keyToFieldID := make(map[string]uuid.UUID)
 
-		// Seed map with existing fields so formulas can reference them too
+		// Create a set of deleted field IDs for quick lookup
+		deletedFieldIDs := make(map[uuid.UUID]bool, len(req.Fields.Delete))
+		for _, id := range req.Fields.Delete {
+			deletedFieldIDs[id] = true
+		}
+
+		// Seed map with existing fields (excluding deleted ones) so formulas can reference them
 		existingFields, err := s.fieldSvc.ListByFormVersionID(ctx, activeVersionID)
 		if err != nil {
 			return err
 		}
 		for _, f := range existingFields {
-			keyToFieldID[f.FieldKey] = f.ID
+			// Skip fields that are being deleted in this transaction
+			if !deletedFieldIDs[f.ID] {
+				keyToFieldID[f.FieldKey] = f.ID
+			}
 		}
 
+		// Update fields
+		for _, item := range req.Fields.Update {
+			item.Sanitize()
+			updated, err := s.fieldSvc.UpdateTx(ctx, tx, item.ID, req.ClinicID, realOwnerID, &item)
+			if err != nil {
+				return err
+			}
+			// Update the map with the potentially new key
+			keyToFieldID[updated.FieldKey] = updated.ID
+			syncResult.UpdatedCount++
+		}
+
+		// Create fields
 		for _, item := range req.Fields.Create {
 			item.Sanitize()
 			if err := item.Validate(); err != nil {
@@ -299,6 +311,8 @@ func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFie
 		}
 
 		// Sync formulas (full replace)
+		// At this point, keyToFieldID contains all fields: existing (not deleted), updated, and newly created
+		// This ensures formulas can reference any field, including newly created calculated fields
 		if len(req.Formulas) > 0 {
 			if err := s.formulaSvc.SyncTx(ctx, tx, activeVersionID, req.Formulas, keyToFieldID); err != nil {
 				return err

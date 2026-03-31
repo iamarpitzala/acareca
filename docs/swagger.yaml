@@ -251,22 +251,64 @@ definitions:
     - entries
     - form_id
     type: object
+  calculation.RqLiveCalculate:
+    properties:
+      entries:
+        items:
+          $ref: '#/definitions/calculation.RqLiveCalculateEntry'
+        minItems: 1
+        type: array
+      form_version_id:
+        type: string
+    required:
+    - entries
+    - form_version_id
+    type: object
+  calculation.RqLiveCalculateEntry:
+    properties:
+      form_field_id:
+        type: string
+      gross_amount:
+        type: number
+      gst_amount:
+        type: number
+      net_amount:
+        type: number
+    required:
+    - form_field_id
+    type: object
   calculation.RsComputedFieldValue:
     properties:
-      amount:
-        description: net amount (ex-GST when tax applies)
-        type: number
+      coa_id:
+        description: Chart of Account ID
+        type: string
       field_id:
         type: string
       field_key:
         type: string
-      gross:
-        description: only present when field has a tax_type
+      form_field_id:
+        description: UUID as string for consistency with request
+        type: string
+      gross_amount:
+        description: gross amount (including GST), null when no tax
         type: number
       gst_amount:
-        description: only present when field has a tax_type
+        description: GST amount, null when no tax
         type: number
+      is_computed:
+        type: boolean
       label:
+        type: string
+      net_amount:
+        description: net amount (ex-GST when tax applies)
+        type: number
+      section_type:
+        description: COLLECTION, COST, OTHER_COST
+        type: string
+      sort_order:
+        type: integer
+      tax_type:
+        description: INCLUSIVE, EXCLUSIVE, MANUAL, ZERO
         type: string
     type: object
   calculation.RsFormulaCalculate:
@@ -276,6 +318,15 @@ definitions:
           $ref: '#/definitions/calculation.RsComputedFieldValue'
         type: array
       form_id:
+        type: string
+    type: object
+  calculation.RsLiveCalculate:
+    properties:
+      computed_fields:
+        items:
+          $ref: '#/definitions/calculation.RsComputedFieldValue'
+        type: array
+      form_version_id:
         type: string
     type: object
   clinic.RqBulkDeleteClinic:
@@ -2344,6 +2395,41 @@ paths:
       security:
       - BearerToken: []
       summary: Calculate computed fields for a form
+      tags:
+      - calculation
+  /calculate/live:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Evaluates all is_computed=true fields for a form version using provided field entries.
+        Returns net amount for each computed field; net/gst/gross when the field has a tax_type.
+        Pass form_field_id with net_amount, gst_amount, and gross_amount for each field.
+      parameters:
+      - description: Form version ID and field entries
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/calculation.RqLiveCalculate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/calculation.RsLiveCalculate'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.RsError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.RsError'
+      security:
+      - BearerToken: []
+      summary: Live calculation based on form version ID
       tags:
       - calculation
   /clinic:

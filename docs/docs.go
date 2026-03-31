@@ -1791,6 +1791,57 @@ const docTemplate = `{
                 }
             }
         },
+        "/calculate/live": {
+            "post": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
+                "description": "Evaluates all is_computed=true fields for a form version using provided field entries.\nReturns net amount for each computed field; net/gst/gross when the field has a tax_type.\nPass form_field_id with net_amount, gst_amount, and gross_amount for each field.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "calculation"
+                ],
+                "summary": "Live calculation based on form version ID",
+                "parameters": [
+                    {
+                        "description": "Form version ID and field entries",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/calculation.RqLiveCalculate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/calculation.RsLiveCalculate"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    }
+                }
+            }
+        },
         "/calculate/{id}": {
             "get": {
                 "security": [
@@ -5605,12 +5656,51 @@ const docTemplate = `{
                 }
             }
         },
+        "calculation.RqLiveCalculate": {
+            "type": "object",
+            "required": [
+                "entries",
+                "form_version_id"
+            ],
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/calculation.RqLiveCalculateEntry"
+                    }
+                },
+                "form_version_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "calculation.RqLiveCalculateEntry": {
+            "type": "object",
+            "required": [
+                "form_field_id"
+            ],
+            "properties": {
+                "form_field_id": {
+                    "type": "string"
+                },
+                "gross_amount": {
+                    "type": "number"
+                },
+                "gst_amount": {
+                    "type": "number"
+                },
+                "net_amount": {
+                    "type": "number"
+                }
+            }
+        },
         "calculation.RsComputedFieldValue": {
             "type": "object",
             "properties": {
-                "amount": {
-                    "description": "net amount (ex-GST when tax applies)",
-                    "type": "number"
+                "coa_id": {
+                    "description": "Chart of Account ID",
+                    "type": "string"
                 },
                 "field_id": {
                     "type": "string"
@@ -5618,15 +5708,37 @@ const docTemplate = `{
                 "field_key": {
                     "type": "string"
                 },
-                "gross": {
-                    "description": "only present when field has a tax_type",
+                "form_field_id": {
+                    "description": "UUID as string for consistency with request",
+                    "type": "string"
+                },
+                "gross_amount": {
+                    "description": "gross amount (including GST), null when no tax",
                     "type": "number"
                 },
                 "gst_amount": {
-                    "description": "only present when field has a tax_type",
+                    "description": "GST amount, null when no tax",
                     "type": "number"
                 },
+                "is_computed": {
+                    "type": "boolean"
+                },
                 "label": {
+                    "type": "string"
+                },
+                "net_amount": {
+                    "description": "net amount (ex-GST when tax applies)",
+                    "type": "number"
+                },
+                "section_type": {
+                    "description": "COLLECTION, COST, OTHER_COST",
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "tax_type": {
+                    "description": "INCLUSIVE, EXCLUSIVE, MANUAL, ZERO",
                     "type": "string"
                 }
             }
@@ -5641,6 +5753,20 @@ const docTemplate = `{
                     }
                 },
                 "form_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "calculation.RsLiveCalculate": {
+            "type": "object",
+            "properties": {
+                "computed_fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/calculation.RsComputedFieldValue"
+                    }
+                },
+                "form_version_id": {
                     "type": "string"
                 }
             }
