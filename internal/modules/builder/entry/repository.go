@@ -53,12 +53,12 @@ func (r *Repository) Create(ctx context.Context, e *FormEntry, values []*FormEnt
 	defer func() { _ = tx.Rollback() }()
 
 	query := `
-		INSERT INTO tbl_form_entry (id, form_version_id, clinic_id, submitted_by, submitted_at, status)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO tbl_form_entry (id, form_version_id, clinic_id, submitted_by, submitted_at, status, date)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING created_at, updated_at
 	`
 	if err := tx.QueryRowContext(ctx, query,
-		e.ID, e.FormVersionID, e.ClinicID, e.SubmittedBy, e.SubmittedAt, e.Status,
+		e.ID, e.FormVersionID, e.ClinicID, e.SubmittedBy, e.SubmittedAt, e.Status, e.Date,
 	).Scan(&e.CreatedAt, &e.UpdatedAt); err != nil {
 		return fmt.Errorf("create form entry: %w", err)
 	}
@@ -81,11 +81,11 @@ func (r *Repository) Create(ctx context.Context, e *FormEntry, values []*FormEnt
 
 // GetByID implements [IRepository].
 func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*FormEntry, []*FormEntryValue, error) {
-	query := `SELECT id, form_version_id, clinic_id, submitted_by, submitted_at, status, created_at, updated_at
+	query := `SELECT id, form_version_id, clinic_id, submitted_by, submitted_at, status, date, created_at, updated_at
 		FROM tbl_form_entry WHERE id = $1 AND deleted_at IS NULL`
 	var e FormEntry
 	if err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&e.ID, &e.FormVersionID, &e.ClinicID, &e.SubmittedBy, &e.SubmittedAt, &e.Status, &e.CreatedAt, &e.UpdatedAt,
+		&e.ID, &e.FormVersionID, &e.ClinicID, &e.SubmittedBy, &e.SubmittedAt, &e.Status, &e.Date, &e.CreatedAt, &e.UpdatedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil, ErrNotFound
@@ -115,11 +115,11 @@ func (r *Repository) Update(ctx context.Context, e *FormEntry, values []*FormEnt
 	// Update the parent entry
 	query := `
         UPDATE tbl_form_entry
-        SET submitted_by = $1, submitted_at = $2, status = $3, updated_at = now()
-        WHERE id = $4 AND deleted_at IS NULL
+        SET submitted_by = $1, submitted_at = $2, status = $3, date = $4, updated_at = now()
+        WHERE id = $5 AND deleted_at IS NULL
         RETURNING created_at, updated_at
     `
-	if err := tx.QueryRowContext(ctx, query, e.SubmittedBy, e.SubmittedAt, e.Status, e.ID).
+	if err := tx.QueryRowContext(ctx, query, e.SubmittedBy, e.SubmittedAt, e.Status, e.Date, e.ID).
 		Scan(&e.CreatedAt, &e.UpdatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
@@ -179,7 +179,7 @@ func (r *Repository) ListByFormVersionID(ctx context.Context, formVersionID uuid
 		"created_at": "created_at",
 		"status":     "status",
 	}
-	base := `SELECT id, form_version_id, clinic_id, submitted_by, submitted_at, status, created_at, updated_at
+	base := `SELECT id, form_version_id, clinic_id, submitted_by, submitted_at, status, date, created_at, updated_at
 		FROM tbl_form_entry WHERE form_version_id = ? AND deleted_at IS NULL`
 	q, args := common.BuildQuery(base, f, allowedColumns, []string{"status"}, false)
 	q = sqlx.Rebind(sqlx.DOLLAR, q)
@@ -224,11 +224,11 @@ func (r *Repository) HasSubmittedEntryValuesForField(ctx context.Context, formFi
 }
 
 func (r *Repository) GetByVersionID(ctx context.Context, id uuid.UUID) (*FormEntry, []*FormEntryValue, error) {
-	query := `SELECT id, form_version_id, clinic_id, submitted_by, submitted_at, status, created_at, updated_at
+	query := `SELECT id, form_version_id, clinic_id, submitted_by, submitted_at, status, date, created_at, updated_at
 		FROM tbl_form_entry WHERE form_version_id = $1 AND deleted_at IS NULL`
 	var e FormEntry
 	if err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&e.ID, &e.FormVersionID, &e.ClinicID, &e.SubmittedBy, &e.SubmittedAt, &e.Status, &e.CreatedAt, &e.UpdatedAt,
+		&e.ID, &e.FormVersionID, &e.ClinicID, &e.SubmittedBy, &e.SubmittedAt, &e.Status, &e.Date, &e.CreatedAt, &e.UpdatedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil, ErrNotFound
@@ -282,7 +282,7 @@ func (r *Repository) ListTransactions(ctx context.Context, f common.Filter) ([]*
 			ev.updated_at
 		FROM tbl_form_entry_value ev
 		INNER JOIN tbl_form_entry              e   ON e.id   = ev.entry_id          AND e.deleted_at  IS NULL
-		INNER JOIN tbl_form_field              ff  ON ff.id  = ev.form_field_id     AND ff.deleted_at IS NULL
+		INNER JOIN tbl_form_field              ff  ON ff.id  = ev.form_field_id     AND ff.deleted_at IS NULL AND ff.is_computed = FALSE
 		INNER JOIN tbl_chart_of_accounts        coa ON coa.id = ff.coa_id            AND coa.deleted_at IS NULL
 		LEFT  JOIN tbl_account_tax             at2 ON at2.id = coa.account_tax_id
 		INNER JOIN tbl_custom_form_version     fv  ON fv.id  = e.form_version_id    AND fv.deleted_at IS NULL
@@ -328,7 +328,7 @@ func (r *Repository) CountTransactions(ctx context.Context, f common.Filter) (in
 	base := `
 		FROM tbl_form_entry_value ev
 		INNER JOIN tbl_form_entry              e   ON e.id   = ev.entry_id          AND e.deleted_at  IS NULL
-		INNER JOIN tbl_form_field              ff  ON ff.id  = ev.form_field_id     AND ff.deleted_at IS NULL
+		INNER JOIN tbl_form_field              ff  ON ff.id  = ev.form_field_id     AND ff.deleted_at IS NULL AND ff.is_computed = FALSE
 		INNER JOIN tbl_chart_of_accounts        coa ON coa.id = ff.coa_id            AND coa.deleted_at IS NULL
 		LEFT  JOIN tbl_account_tax             at2 ON at2.id = coa.account_tax_id
 		INNER JOIN tbl_custom_form_version     fv  ON fv.id  = e.form_version_id    AND fv.deleted_at IS NULL
@@ -356,12 +356,12 @@ func (r *Repository) CountTransactions(ctx context.Context, f common.Filter) (in
 // CreateTx - Transaction variant of Create
 func (r *Repository) CreateTx(ctx context.Context, tx *sqlx.Tx, e *FormEntry, values []*FormEntryValue) error {
 	query := `
-		INSERT INTO tbl_form_entry (id, form_version_id, clinic_id, submitted_by, submitted_at, status)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO tbl_form_entry (id, form_version_id, clinic_id, submitted_by, submitted_at, status, date)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING created_at, updated_at
 	`
 	if err := tx.QueryRowContext(ctx, query,
-		e.ID, e.FormVersionID, e.ClinicID, e.SubmittedBy, e.SubmittedAt, e.Status,
+		e.ID, e.FormVersionID, e.ClinicID, e.SubmittedBy, e.SubmittedAt, e.Status, e.Date,
 	).Scan(&e.CreatedAt, &e.UpdatedAt); err != nil {
 		return fmt.Errorf("create form entry tx: %w", err)
 	}
@@ -387,11 +387,11 @@ func (r *Repository) UpdateTx(ctx context.Context, tx *sqlx.Tx, e *FormEntry, va
 	// Update the parent entry
 	query := `
         UPDATE tbl_form_entry
-        SET submitted_by = $1, submitted_at = $2, status = $3, updated_at = now()
-        WHERE id = $4 AND deleted_at IS NULL
+        SET submitted_by = $1, submitted_at = $2, status = $3, date = $4, updated_at = now()
+        WHERE id = $5 AND deleted_at IS NULL
         RETURNING created_at, updated_at
     `
-	if err := tx.QueryRowContext(ctx, query, e.SubmittedBy, e.SubmittedAt, e.Status, e.ID).
+	if err := tx.QueryRowContext(ctx, query, e.SubmittedBy, e.SubmittedAt, e.Status, e.Date, e.ID).
 		Scan(&e.CreatedAt, &e.UpdatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
