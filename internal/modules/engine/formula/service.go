@@ -102,6 +102,21 @@ func (s *service) ListByFormVersionID(ctx context.Context, formVersionID uuid.UU
 
 		rs.Expression = buildExpressionTree(fw.nodes)
 
+		// Populate Nodes for evaluation
+		rs.Nodes = make([]RsFormulaNode, 0, len(fw.nodes))
+		for _, n := range fw.nodes {
+			rs.Nodes = append(rs.Nodes, RsFormulaNode{
+				ID:            n.ID,
+				ParentID:      n.ParentID,
+				NodeType:      n.NodeType,
+				Operator:      n.Operator,
+				FieldID:       n.FieldID,
+				FieldKey:      n.FieldKey,
+				ConstantValue: n.ConstantValue,
+				Position:      n.Position,
+			})
+		}
+
 		items = append(items, rsItem{rs, fw.formula.FieldID})
 	}
 
