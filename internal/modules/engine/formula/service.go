@@ -61,8 +61,6 @@ func (s *service) ListByFormVersionID(ctx context.Context, formVersionID uuid.UU
 		return nil, err
 	}
 
-	fieldIDToKey := map[uuid.UUID]string{}
-
 	type formulaWithNodes struct {
 		formula *Formula
 		nodes   []*FormulaNodeWithKey
@@ -75,11 +73,6 @@ func (s *service) ListByFormVersionID(ctx context.Context, formVersionID uuid.UU
 			return nil, err
 		}
 		all = append(all, formulaWithNodes{f, nodes})
-		for _, n := range nodes {
-			if n.FieldID != nil && n.FieldKey != nil {
-				fieldIDToKey[*n.FieldID] = *n.FieldKey
-			}
-		}
 	}
 
 	type rsItem struct {
@@ -89,13 +82,11 @@ func (s *service) ListByFormVersionID(ctx context.Context, formVersionID uuid.UU
 	items := make([]rsItem, 0, len(all))
 
 	for _, fw := range all {
-		fieldKey := fieldIDToKey[fw.formula.FieldID]
-
 		rs := RsFormula{
 			ID:            fw.formula.ID,
 			FormVersionID: fw.formula.FormVersionID,
 			FieldID:       fw.formula.FieldID,
-			FieldKey:      fieldKey,
+			FieldKey:      fw.formula.FieldKey,
 			Name:          fw.formula.Name,
 			CreatedAt:     fw.formula.CreatedAt,
 		}
