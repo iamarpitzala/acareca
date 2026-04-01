@@ -387,7 +387,12 @@ func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []R
 			return nil, fmt.Errorf("unsupported tax treatment: %s", taxType)
 		}
 
-		keyValues[f.FieldKey] = netBase
+		if f.TaxType != nil && *f.TaxType != "" {
+			keyValues[f.FieldKey] = grossTotal
+		} else {
+			keyValues[f.FieldKey] = netBase
+		}
+
 		out = append(out, &FormEntryValue{
 			ID:          uuid.New(),
 			EntryID:     entryID,
@@ -435,21 +440,22 @@ func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []R
 			if f.TaxType != nil {
 				taxType := method.TaxTreatment(*f.TaxType)
 				switch taxType {
-				case method.TaxTreatmentInclusive:
-					result, err := s.methodSvc.Calculate(ctx, taxType, &method.Input{Amount: val})
+				case method.TaxTreatmentInclusive, method.TaxTreatmentExclusive:
+					result, err := s.methodSvc.Calculate(ctx, method.TaxTreatmentExclusive, &method.Input{Amount: val})
 					if err != nil {
 						return nil, err
 					}
 					gstAmount = &result.GstAmount
 					netBase = result.Amount
 					grossTotal = result.TotalAmount
-				case method.TaxTreatmentExclusive:
-					result, err := s.methodSvc.Calculate(ctx, taxType, &method.Input{Amount: val})
-					if err != nil {
-						return nil, err
-					}
-					gstAmount = &result.GstAmount
-					grossTotal = result.TotalAmount
+				case method.TaxTreatmentZero:
+					gstAmount = nil
+					netBase = val
+					grossTotal = val
+				case method.TaxTreatmentManual:
+					gstAmount = nil
+					netBase = val
+					grossTotal = val
 				}
 			}
 

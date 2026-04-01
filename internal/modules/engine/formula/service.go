@@ -102,7 +102,6 @@ func (s *service) ListByFormVersionID(ctx context.Context, formVersionID uuid.UU
 
 		rs.Expression = buildExpressionTree(fw.nodes)
 
-		// Populate Nodes for evaluation
 		rs.Nodes = make([]RsFormulaNode, 0, len(fw.nodes))
 		for _, n := range fw.nodes {
 			rs.Nodes = append(rs.Nodes, RsFormulaNode{
@@ -146,9 +145,14 @@ func (s *service) ListByFormVersionID(ctx context.Context, formVersionID uuid.UU
 }
 
 func topoSort(n int, deps [][]int) []int {
+	dependents := make([][]int, n)
 	inDegree := make([]int, n)
+
 	for i := 0; i < n; i++ {
 		inDegree[i] = len(deps[i])
+		for _, dep := range deps[i] {
+			dependents[dep] = append(dependents[dep], i)
+		}
 	}
 
 	var queue []int
@@ -164,15 +168,25 @@ func topoSort(n int, deps [][]int) []int {
 		queue = queue[1:]
 		order = append(order, curr)
 
+		for _, dependent := range dependents[curr] {
+			inDegree[dependent]--
+			if inDegree[dependent] == 0 {
+				queue = append(queue, dependent)
+			}
+		}
+	}
+
+	if len(order) != n {
 		for i := 0; i < n; i++ {
-			for _, dep := range deps[i] {
-				if dep == curr {
-					inDegree[i]--
-					if inDegree[i] == 0 {
-						queue = append(queue, i)
-					}
+			found := false
+			for _, idx := range order {
+				if idx == i {
+					found = true
 					break
 				}
+			}
+			if !found {
+				order = append(order, i)
 			}
 		}
 	}
@@ -211,14 +225,22 @@ func buildExprNode(node *FormulaNodeWithKey, nodeMap map[uuid.UUID]*FormulaNodeW
 			expr.Op = *node.Operator
 		}
 
+		var leftNode, rightNode *FormulaNodeWithKey
 		for _, n := range nodeMap {
 			if n.ParentID != nil && *n.ParentID == node.ID {
 				if n.Position != nil && *n.Position == 0 {
-					expr.Left = buildExprNode(n, nodeMap)
+					leftNode = n
 				} else if n.Position != nil && *n.Position == 1 {
-					expr.Right = buildExprNode(n, nodeMap)
+					rightNode = n
 				}
 			}
+		}
+
+		if leftNode != nil {
+			expr.Left = buildExprNode(leftNode, nodeMap)
+		}
+		if rightNode != nil {
+			expr.Right = buildExprNode(rightNode, nodeMap)
 		}
 
 	case "FIELD":
@@ -284,15 +306,23 @@ func (s *service) EvalFormulas(ctx context.Context, formVersionID uuid.UUID, key
 		return nil, err
 	}
 
+	if len(formulas) == 0 {
+		return make(map[uuid.UUID]float64), nil
+	}
+
 	vals := make(map[string]float64, len(keyValues))
 	maps.Copy(vals, keyValues)
 
 	result := make(map[uuid.UUID]float64, len(formulas))
 
 	for _, f := range formulas {
+		if len(f.Nodes) == 0 {
+			continue
+		}
+
 		val, err := evalNodes(f.Nodes, vals)
 		if err != nil {
-			return nil, fmt.Errorf("formula %q: %w", f.Name, err)
+			return nil, fmt.Errorf("formula %q (field %s): %w", f.Name, f.FieldKey, err)
 		}
 		result[f.FieldID] = val
 		vals[f.FieldKey] = val
@@ -344,19 +374,17 @@ func evalNode(n *RsFormulaNode, byID map[uuid.UUID]*RsFormulaNode, vals map[stri
 			return 0, fmt.Errorf("operator node has nil operator")
 		}
 		var left, right *RsFormulaNode
-		for id, node := range byID {
+		for _, node := range byID {
 			if node.ParentID != nil && *node.ParentID == n.ID {
 				if node.Position != nil && *node.Position == 0 {
-					cp := byID[id]
-					left = cp
+					left = node
 				} else if node.Position != nil && *node.Position == 1 {
-					cp := byID[id]
-					right = cp
+					right = node
 				}
 			}
 		}
 		if left == nil || right == nil {
-			return 0, fmt.Errorf("operator %q missing children", *n.Operator)
+			return 0, fmt.Errorf("operator %q missing children (left=%v, right=%v)", *n.Operator, left != nil, right != nil)
 		}
 		l, err := evalNode(left, byID, vals)
 		if err != nil {

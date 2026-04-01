@@ -276,6 +276,10 @@ func (s *service) CalculateFromEntries(ctx context.Context, req *RqCalculateFrom
 // provided manual field key→amount values, and returns per-field results with
 // net/gst/gross breakdown when the field has a tax_type.
 func (s *service) FormulaCalculate(ctx context.Context, formID uuid.UUID, req *RqFormulaCalculate) (*RsFormulaCalculate, error) {
+	if s.formulaSvc == nil {
+		return nil, fmt.Errorf("formula service not initialized")
+	}
+
 	// Resolve active version for the form.
 	ver, err := s.versionSvc.GetVersionByFormID(ctx, formID)
 	if err != nil {
@@ -301,13 +305,31 @@ func (s *service) FormulaCalculate(ctx context.Context, formID uuid.UUID, req *R
 			continue
 		}
 
+		// Formula result is always the net amount (base amount before tax)
 		netAmount := util.Round(val, 2)
 		var gstAmount *float64
 		var grossAmount *float64
 
 		// Apply tax treatment when the computed field has a tax_type.
 		if f.TaxType != nil && *f.TaxType != "" {
-			taxResult, err := s.methodSvc.Calculate(ctx, method.TaxTreatment(*f.TaxType), &method.Input{Amount: val})
+			// For computed fields, the formula result is the net amount
+			// We need to calculate GST and gross based on the tax type
+			var taxResult *method.Result
+			var err error
+
+			switch method.TaxTreatment(*f.TaxType) {
+			case method.TaxTreatmentExclusive:
+				taxResult, err = s.methodSvc.Calculate(ctx, method.TaxTreatmentExclusive, &method.Input{Amount: val})
+			case method.TaxTreatmentInclusive:
+				taxResult, err = s.methodSvc.Calculate(ctx, method.TaxTreatmentExclusive, &method.Input{Amount: val})
+			case method.TaxTreatmentZero:
+				taxResult, err = s.methodSvc.Calculate(ctx, method.TaxTreatmentZero, &method.Input{Amount: val})
+			case method.TaxTreatmentManual:
+				taxResult, err = s.methodSvc.Calculate(ctx, method.TaxTreatmentZero, &method.Input{Amount: val})
+			default:
+				taxResult, err = s.methodSvc.Calculate(ctx, method.TaxTreatment(*f.TaxType), &method.Input{Amount: val})
+			}
+
 			if err != nil {
 				return nil, fmt.Errorf("tax calc for field %s: %w", f.FieldKey, err)
 			}
@@ -344,6 +366,10 @@ func (s *service) FormulaCalculate(ctx context.Context, formID uuid.UUID, req *R
 }
 
 func (s *service) LiveCalculate(ctx context.Context, req *RqLiveCalculate) (*RsLiveCalculate, error) {
+	if s.formulaSvc == nil {
+		return nil, fmt.Errorf("formula service not initialized")
+	}
+
 	formVersionID, err := uuid.Parse(req.FormVersionID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid form_version_id: %w", err)
@@ -373,7 +399,13 @@ func (s *service) LiveCalculate(ctx context.Context, req *RqLiveCalculate) (*RsL
 		}
 
 		if !f.IsComputed {
-			keyValues[f.FieldKey] = entry.NetAmount
+			// If the field has a tax_type and gross_amount is provided, use gross_amount
+			// Otherwise use net_amount
+			if f.TaxType != nil && *f.TaxType != "" && entry.GrossAmount != nil {
+				keyValues[f.FieldKey] = *entry.GrossAmount
+			} else {
+				keyValues[f.FieldKey] = entry.NetAmount
+			}
 		}
 	}
 
@@ -389,12 +421,29 @@ func (s *service) LiveCalculate(ctx context.Context, req *RqLiveCalculate) (*RsL
 			continue
 		}
 
+		// Formula result is always the net amount (base amount before tax)
 		netAmount := util.Round(val, 2)
 		var gstAmount *float64
 		var grossAmount *float64
 
+		// Apply tax treatment when the computed field has a tax_type.
 		if f.TaxType != nil && *f.TaxType != "" {
-			taxResult, err := s.methodSvc.Calculate(ctx, method.TaxTreatment(*f.TaxType), &method.Input{Amount: val})
+			var taxResult *method.Result
+			var err error
+
+			switch method.TaxTreatment(*f.TaxType) {
+			case method.TaxTreatmentExclusive:
+				taxResult, err = s.methodSvc.Calculate(ctx, method.TaxTreatmentExclusive, &method.Input{Amount: val})
+			case method.TaxTreatmentInclusive:
+				taxResult, err = s.methodSvc.Calculate(ctx, method.TaxTreatmentExclusive, &method.Input{Amount: val})
+			case method.TaxTreatmentZero:
+				taxResult, err = s.methodSvc.Calculate(ctx, method.TaxTreatmentZero, &method.Input{Amount: val})
+			case method.TaxTreatmentManual:
+				taxResult, err = s.methodSvc.Calculate(ctx, method.TaxTreatmentZero, &method.Input{Amount: val})
+			default:
+				taxResult, err = s.methodSvc.Calculate(ctx, method.TaxTreatment(*f.TaxType), &method.Input{Amount: val})
+			}
+
 			if err != nil {
 				return nil, fmt.Errorf("tax calc for field %s: %w", f.FieldKey, err)
 			}
