@@ -426,11 +426,11 @@ func (s *service) LiveCalculate(ctx context.Context, req *RqLiveCalculate) (*RsL
 
 			case method.TaxTreatmentManual:
 				// User provided both net and GST explicitly
-				actualNetAmount = entry.NetAmount
-
-			case method.TaxTreatmentZero:
-				// No GST, net = gross
-				actualNetAmount = entry.NetAmount
+				if entry.GstAmount != nil {
+					actualNetAmount = entry.NetAmount - *entry.GstAmount
+				} else {
+					actualNetAmount = entry.NetAmount
+				}
 			}
 		}
 
