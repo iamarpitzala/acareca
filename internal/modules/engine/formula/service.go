@@ -191,6 +191,13 @@ func buildExprNode(node *FormulaNodeWithKey, nodeMap map[uuid.UUID]*FormulaNodeW
 	case "CONSTANT":
 		expr.Type = "constant"
 		expr.Value = node.ConstantValue
+	case "SECTION":
+		expr.Type = "section"
+		if node.FieldKey != nil {
+			expr.Key = *node.FieldKey
+		}
+	case "TEXT":
+		expr.Type = "text"
 	}
 	return expr
 }
@@ -217,6 +224,11 @@ func insertNodes(ctx context.Context, tx *sqlx.Tx, repo IRepository, formulaID u
 	case "constant":
 		n.NodeType = "CONSTANT"
 		n.ConstantValue = node.Value
+	case "section":
+		n.NodeType = "SECTION"
+		// Section nodes don't need FieldID, key is stored for lookup
+	case "text":
+		n.NodeType = "TEXT"
 	}
 
 	if err := repo.CreateNodeTx(ctx, tx, n); err != nil {
@@ -289,13 +301,9 @@ func (s *service) EvalFormulas(ctx context.Context, formVersionID uuid.UUID, key
 		}
 		result[fw.formula.FieldID] = val
 
-		feedbackVal := val
-		if taxTypeByKey != nil {
-			if taxType, ok := taxTypeByKey[fw.formula.FieldKey]; ok && taxType != "" {
-				feedbackVal = val * 1.1
-			}
-		}
-		vals[fw.formula.FieldKey] = feedbackVal
+		// Feedback value: computed fields feed NET result back for dependent formulas
+		// All formulas work with NET amounts for consistency
+		vals[fw.formula.FieldKey] = val
 	}
 
 	return result, nil
@@ -333,6 +341,22 @@ func evalNode(n *FormulaNodeWithKey, byID map[uuid.UUID]*FormulaNodeWithKey, val
 			return 0, fmt.Errorf("field key %q not found in values", *n.FieldKey)
 		}
 		return v, nil
+
+	case "SECTION":
+		// SECTION aggregates all fields with matching section_type
+		// Section key format: "SECTION:COLLECTION", "SECTION:COST", "SECTION:OTHER_COST"
+		if n.FieldKey == nil {
+			return 0, fmt.Errorf("section node has nil key")
+		}
+		v, ok := vals[*n.FieldKey]
+		if !ok {
+			return 0, fmt.Errorf("section key %q not found in values", *n.FieldKey)
+		}
+		return v, nil
+
+	case "TEXT":
+		// TEXT fields are non-numeric, return 0
+		return 0, nil
 
 	case "OPERATOR":
 		if n.Operator == nil {

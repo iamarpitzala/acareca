@@ -296,6 +296,25 @@ func (s *service) FormulaCalculate(ctx context.Context, formID uuid.UUID, req *R
 		}
 	}
 
+	// Compute section totals from keyValues (which contain NET amounts)
+	sectionTotals := make(map[string]float64)
+	for _, f := range fieldMap {
+		if f.IsComputed || f.SectionType == nil || *f.SectionType == "" {
+			continue
+		}
+		val, ok := req.Values[f.FieldKey]
+		if !ok {
+			continue
+		}
+		sectionKey := "SECTION:" + *f.SectionType
+		sectionTotals[sectionKey] += val
+	}
+
+	// Merge section totals into req.Values
+	for key, val := range sectionTotals {
+		req.Values[key] = val
+	}
+
 	// Evaluate all formulas in topological order.
 	computed, err := s.formulaSvc.EvalFormulas(ctx, ver.Id, req.Values, taxTypeByKey)
 	if err != nil {
@@ -369,6 +388,8 @@ func (s *service) LiveCalculate(ctx context.Context, req *RqLiveCalculate) (*RsL
 		}
 	}
 
+	// Process each entry: calculate proper net/gst/gross based on field tax type
+	// The frontend sends the ENTERED value as net_amount, but we need to interpret it correctly
 	for _, entry := range req.Entries {
 		fieldID, err := uuid.Parse(entry.FormFieldID)
 		if err != nil {
@@ -380,14 +401,40 @@ func (s *service) LiveCalculate(ctx context.Context, req *RqLiveCalculate) (*RsL
 			return nil, fmt.Errorf("field %s not found in form version", entry.FormFieldID)
 		}
 
-		if !f.IsComputed {
-			// Use gross amount when the field has GST (tax_type set), otherwise net.
-			if f.TaxType != nil && *f.TaxType != "" && entry.GrossAmount != nil {
-				keyValues[f.FieldKey] = *entry.GrossAmount
-			} else {
-				keyValues[f.FieldKey] = entry.NetAmount
+		if f.IsComputed {
+			continue
+		}
+
+		// Calculate actual net amount based on tax type
+		actualNetAmount := entry.NetAmount
+
+		if f.TaxType != nil && *f.TaxType != "" {
+			taxType := method.TaxTreatment(*f.TaxType)
+			switch taxType {
+			case method.TaxTreatmentInclusive:
+				// User entered GROSS amount (includes GST), extract NET
+				// Example: entered 1000 → net = 1000/1.1 = 909.09
+				taxResult, err := s.methodSvc.Calculate(ctx, taxType, &method.Input{Amount: entry.NetAmount})
+				if err != nil {
+					return nil, fmt.Errorf("tax calc for field %s: %w", f.FieldKey, err)
+				}
+				actualNetAmount = taxResult.Amount
+
+			case method.TaxTreatmentExclusive:
+				// User entered NET amount, use as-is
+				actualNetAmount = entry.NetAmount
+
+			case method.TaxTreatmentManual:
+				// User provided both net and GST explicitly
+				actualNetAmount = entry.NetAmount
+
+			case method.TaxTreatmentZero:
+				// No GST, net = gross
+				actualNetAmount = entry.NetAmount
 			}
 		}
+
+		keyValues[f.FieldKey] = actualNetAmount
 	}
 
 	// Build tax type map so computed fields with GST feed gross into downstream formulas.
@@ -396,6 +443,40 @@ func (s *service) LiveCalculate(ctx context.Context, req *RqLiveCalculate) (*RsL
 		if f.IsComputed && f.TaxType != nil && *f.TaxType != "" {
 			taxTypeByKey[f.FieldKey] = *f.TaxType
 		}
+	}
+
+	// Compute section totals using corrected NET amounts
+	sectionTotals := make(map[string]float64)
+	for _, entry := range req.Entries {
+		fieldID, err := uuid.Parse(entry.FormFieldID)
+		if err != nil {
+			continue
+		}
+		f, ok := fieldMap[fieldID]
+		if !ok || f.IsComputed || f.SectionType == nil || *f.SectionType == "" {
+			continue
+		}
+
+		// Calculate actual net amount based on tax type (same logic as above)
+		actualNetAmount := entry.NetAmount
+		if f.TaxType != nil && *f.TaxType != "" {
+			taxType := method.TaxTreatment(*f.TaxType)
+			if taxType == method.TaxTreatmentInclusive {
+				// Extract net from gross (entered value)
+				taxResult, err := s.methodSvc.Calculate(ctx, taxType, &method.Input{Amount: entry.NetAmount})
+				if err == nil {
+					actualNetAmount = taxResult.Amount
+				}
+			}
+		}
+
+		sectionKey := "SECTION:" + *f.SectionType
+		sectionTotals[sectionKey] += actualNetAmount
+	}
+
+	// Merge section totals into keyValues for formula evaluation
+	for key, val := range sectionTotals {
+		keyValues[key] = val
 	}
 
 	computed, err := s.formulaSvc.EvalFormulas(ctx, formVersionID, keyValues, taxTypeByKey)

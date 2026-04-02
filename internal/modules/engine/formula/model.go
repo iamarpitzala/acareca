@@ -65,6 +65,12 @@ func (e *ExprNode) Validate() error {
 		if e.Value == nil {
 			return errors.New("constant node missing value")
 		}
+	case "section":
+		if e.Key == "" {
+			return errors.New("section node missing key")
+		}
+	case "text":
+		// TEXT nodes are always valid
 	default:
 		return errors.New("unknown node type: " + e.Type)
 	}

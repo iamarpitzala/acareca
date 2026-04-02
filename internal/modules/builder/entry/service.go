@@ -339,7 +339,8 @@ func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []R
 		grossTotal := v.Amount
 
 		if f.TaxType == nil {
-			keyValues[f.FieldKey] = grossTotal
+			// No tax type: net = gross, use netBase for formulas
+			keyValues[f.FieldKey] = netBase
 			out = append(out, &FormEntryValue{
 				ID:          uuid.New(),
 				EntryID:     entryID,
@@ -388,7 +389,9 @@ func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []R
 			return nil, fmt.Errorf("unsupported tax treatment: %s", taxType)
 		}
 
-		keyValues[f.FieldKey] = grossTotal
+		// CRITICAL: Always use NET amount for formulas
+		// This ensures COLLECTION - COST uses net values consistently
+		keyValues[f.FieldKey] = netBase
 		taxTypeByKey[f.FieldKey] = string(taxType)
 		out = append(out, &FormEntryValue{
 			ID:          uuid.New(),
@@ -410,18 +413,35 @@ func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []R
 			return nil, err
 		}
 
-		computed, err := s.formulaSvc.EvalFormulas(ctx, firstField.FormVersionID, keyValues, taxTypeByKey)
-		if err != nil {
-			return nil, fmt.Errorf("evaluate formulas: %w", err)
-		}
-
+		// Get all fields to compute section totals
 		allFields, err := s.fieldRepo.ListByFormVersionID(ctx, firstField.FormVersionID)
 		if err != nil {
 			return nil, err
 		}
+
 		fieldByID := make(map[uuid.UUID]*field.FormField, len(allFields))
 		for _, af := range allFields {
 			fieldByID[af.ID] = af
+		}
+
+		// Compute section totals using NET amounts from out
+		sectionTotals := make(map[string]float64)
+		for _, entryVal := range out {
+			f, ok := fieldByID[entryVal.FormFieldID]
+			if ok && f.SectionType != nil && *f.SectionType != "" && entryVal.NetAmount != nil {
+				sectionKey := "SECTION:" + *f.SectionType
+				sectionTotals[sectionKey] += *entryVal.NetAmount
+			}
+		}
+
+		// Merge section totals into keyValues
+		for key, val := range sectionTotals {
+			keyValues[key] = val
+		}
+
+		computed, err := s.formulaSvc.EvalFormulas(ctx, firstField.FormVersionID, keyValues, taxTypeByKey)
+		if err != nil {
+			return nil, fmt.Errorf("evaluate formulas: %w", err)
 		}
 
 		// Track which field IDs already have a value in out to prevent duplicates.
