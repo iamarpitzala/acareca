@@ -63,9 +63,12 @@ func (r *repository) DeleteByFormVersionIDTx(ctx context.Context, tx *sqlx.Tx, f
 
 func (r *repository) ListByFormVersionID(ctx context.Context, formVersionID uuid.UUID) ([]*Formula, error) {
 	var rows []*Formula
-	err := r.db.SelectContext(ctx, &rows,
-		`SELECT id, form_version_id, field_id, name, created_at
-		 FROM tbl_formula WHERE form_version_id = $1 ORDER BY created_at ASC`, formVersionID,
+	err := r.db.SelectContext(ctx, &rows, `
+		SELECT f.id, f.form_version_id, f.field_id, COALESCE(ff.field_key, '') AS field_key, f.name, f.created_at
+		FROM tbl_formula f
+		LEFT JOIN tbl_form_field ff ON ff.id = f.field_id AND ff.deleted_at IS NULL
+		WHERE f.form_version_id = $1
+		ORDER BY f.created_at ASC`, formVersionID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list formulas: %w", err)

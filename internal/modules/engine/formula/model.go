@@ -10,6 +10,7 @@ type Formula struct {
 	ID            uuid.UUID `db:"id"`
 	FormVersionID uuid.UUID `db:"form_version_id"`
 	FieldID       uuid.UUID `db:"field_id"`
+	FieldKey      string    `db:"field_key"`
 	Name          string    `db:"name"`
 	CreatedAt     string    `db:"created_at"`
 }
