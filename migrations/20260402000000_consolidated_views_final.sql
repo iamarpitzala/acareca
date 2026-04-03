@@ -186,7 +186,7 @@ WITH base AS (
     FROM vw_bas_line_items WHERE bas_category != 'BAS_EXCLUDED'
 )
 SELECT clinic_id, practitioner_id, period_month,
-    COALESCE(SUM(gross_amount) FILTER (WHERE section_type = 'COLLECTION'), 0)                                   AS g1_total_sales_gross,
+    COALESCE(SUM(net_amount) FILTER (WHERE section_type = 'COLLECTION'), 0)                                   AS g1_total_sales_gross,
     COALESCE(SUM(net_amount)   FILTER (WHERE section_type = 'COLLECTION' AND bas_category = 'GST_FREE'), 0)     AS g3_gst_free_sales,
     COALESCE(SUM(gst_amount)   FILTER (WHERE section_type = 'COLLECTION' AND bas_category = 'TAXABLE'), 0)      AS label_1a_gst_on_sales,
     COALESCE(SUM(gross_amount) FILTER (WHERE section_type IN ('COST','OTHER_COST')), 0)                         AS g11_total_purchases_gross,
