@@ -66,7 +66,7 @@ func (s *service) CreateClinic(ctx context.Context, practitionerID uuid.UUID, re
 		}
 
 		clinic := &Clinic{
-			PractitionerID: practitionerID,
+			EntityID:       req.EntityID,
 			ProfilePicture: req.ProfilePicture,
 			Name:           req.Name,
 			ABN:            req.ABN,
@@ -159,7 +159,7 @@ func (s *service) CreateClinic(ctx context.Context, practitionerID uuid.UUID, re
 		// Map to result struct for use in event/audit
 		result = &RsClinic{
 			ID:             created.ID,
-			PractitionerID: created.PractitionerID,
+			EntityID:       created.EntityID,
 			ProfilePicture: created.ProfilePicture,
 			Name:           created.Name,
 			ABN:            created.ABN,
@@ -304,7 +304,7 @@ func (s *service) ListClinic(ctx context.Context, practitionerID uuid.UUID, filt
 
 		result = append(result, RsClinic{
 			ID:                clinic.ID,
-			PractitionerID:    clinic.PractitionerID,
+			EntityID:          clinic.EntityID,
 			ProfilePicture:    clinic.ProfilePicture,
 			Name:              clinic.Name,
 			ABN:               clinic.ABN,
@@ -389,7 +389,7 @@ func (s *service) GetClinicByID(ctx context.Context, practitionerID uuid.UUID, i
 
 	return &RsClinic{
 		ID:                clinic.ID,
-		PractitionerID:    clinic.PractitionerID,
+		EntityID:          clinic.EntityID,
 		ProfilePicture:    clinic.ProfilePicture,
 		Name:              clinic.Name,
 		ABN:               clinic.ABN,
@@ -734,7 +734,7 @@ func (s *service) GetClinicByIDInternal(ctx context.Context, id uuid.UUID) (*RsC
 
 	return &RsClinic{
 		ID:                clinic.ID,
-		PractitionerID:    clinic.PractitionerID,
+		EntityID:          clinic.EntityID,
 		ProfilePicture:    clinic.ProfilePicture,
 		Name:              clinic.Name,
 		ABN:               clinic.ABN,
@@ -842,7 +842,7 @@ func (s *service) getClinicByIDInternalTx(ctx context.Context, tx *sqlx.Tx, id u
 
 	return &RsClinic{
 		ID:                clinic.ID,
-		PractitionerID:    clinic.PractitionerID,
+		EntityID:          clinic.EntityID,
 		ProfilePicture:    clinic.ProfilePicture,
 		Name:              clinic.Name,
 		ABN:               clinic.ABN,

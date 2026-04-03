@@ -63,7 +63,7 @@ func (s *service) CreateWithFields(ctx context.Context, d *RqCreateFormWithField
 	if err != nil {
 		return nil, nil, err
 	}
-	realOwnerID := clinic.PractitionerID
+	realOwnerID := clinic.EntityID
 	if err := d.ValidateShares(); err != nil {
 		return nil, nil, err
 	}
@@ -217,7 +217,7 @@ func (s *service) UpdateWithFields(ctx context.Context, req *RqUpdateFormWithFie
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to resolve clinic owner: %w", err)
 	}
-	realOwnerID := clinic.PractitionerID
+	realOwnerID := clinic.EntityID
 
 	var updated *detail.RsFormDetail
 	var syncResult *RsFormWithFieldsSyncResult
@@ -545,7 +545,7 @@ func (s *service) Delete(ctx context.Context, formID uuid.UUID) error {
 	if err != nil {
 		return fmt.Errorf("failed to resolve clinic owner: %w", err)
 	}
-	realOwnerID := clinic.PractitionerID
+	realOwnerID := clinic.EntityID
 	if err := s.detailSvc.Delete(ctx, formDetail.ID); err != nil {
 		return err
 	}

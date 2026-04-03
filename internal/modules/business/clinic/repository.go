@@ -249,7 +249,7 @@ func (r *repository) CreateClinicTx(ctx context.Context, tx *sqlx.Tx, clinic *Cl
 	`
 	var c Clinic
 	err := tx.QueryRowxContext(ctx, query,
-		clinic.PractitionerID, clinic.ProfilePicture, clinic.Name,
+		clinic.EntityID, clinic.ProfilePicture, clinic.Name,
 		clinic.ABN, clinic.Description, clinic.IsActive,
 	).StructScan(&c)
 	if err != nil {
@@ -438,7 +438,7 @@ func (r *repository) UpdateClinicTx(ctx context.Context, tx *sqlx.Tx, clinic *Cl
 	`
 	var c Clinic
 	err := tx.QueryRowxContext(ctx, query,
-		clinic.PractitionerID, clinic.ProfilePicture, clinic.Name,
+		clinic.EntityID, clinic.ProfilePicture, clinic.Name,
 		clinic.ABN, clinic.Description, clinic.IsActive, clinic.ID,
 	).StructScan(&c)
 	if err != nil {

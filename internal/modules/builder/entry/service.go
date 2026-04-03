@@ -57,7 +57,7 @@ func NewService(db *sqlx.DB, repo IRepository, fieldRepo field.IRepository, meth
 }
 
 // Create implements [IService].
-func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, req *RqFormEntry, submittedBy *uuid.UUID, practitionerID uuid.UUID) (*RsFormEntry, error) {
+func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, req *RqFormEntry, submittedBy *uuid.UUID, entityID uuid.UUID) (*RsFormEntry, error) {
 	meta := auditctx.GetMetadata(ctx)
 	// Resolve the REAL owner at the start of THIS function
 	clinic, err := s.formClinic.GetClinicByIDInternal(ctx, req.ClinicID)
@@ -65,7 +65,7 @@ func (s *Service) Create(ctx context.Context, formVersionID uuid.UUID, req *RqFo
 		return nil, err
 	}
 
-	realOwnerID := clinic.PractitionerID
+	realOwnerID := clinic.EntityID
 
 	if err := s.limitsSvc.Check(ctx, realOwnerID, limits.KeyTransactionCreate); err != nil {
 		return nil, err
@@ -648,7 +648,7 @@ func (s *Service) recordSharedEvent(ctx context.Context, clinicID uuid.UUID, for
 	// Record Event
 	_ = s.eventsSvc.Record(ctx, events.SharedEvent{
 		ID:             uuid.New(),
-		PractitionerID: clinic.PractitionerID,
+		PractitionerID: clinic.EntityID,
 		AccountantID:   accountantID,
 		ActorID:        actorUserID,
 		ActorName:      &fullName,

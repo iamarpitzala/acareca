@@ -59,11 +59,11 @@ func (h *handler) Create(c *gin.Context) {
 	meta := auditctx.GetMetadata(c.Request.Context())
 	if meta.UserType != nil && *meta.UserType == util.RoleAccountant {
 
-		if req.PractitionerID == uuid.Nil {
+		if req.EntityID == uuid.Nil {
 			response.Error(c, http.StatusBadRequest, errors.New("practitioner_id is required in body for accountants"))
 			return
 		}
-		targetPractitionerID = req.PractitionerID
+		targetPractitionerID = req.EntityID
 	}
 
 	clinic, err := h.svc.CreateClinic(c.Request.Context(), targetPractitionerID, &req)
@@ -193,11 +193,11 @@ func (h *handler) Update(c *gin.Context) {
 	meta := auditctx.GetMetadata(c.Request.Context())
 	if meta.UserType != nil && *meta.UserType == util.RoleAccountant {
 
-		if req.PractitionerID == uuid.Nil {
-			response.Error(c, http.StatusBadRequest, errors.New("practitioner_id is required in body for accountants"))
+		if req.EntityID == uuid.Nil {
+			response.Error(c, http.StatusBadRequest, errors.New("entity_id is required in body for accountants"))
 			return
 		}
-		targetPractitionerID = req.PractitionerID
+		targetPractitionerID = req.EntityID
 	}
 
 	clinic, err := h.svc.UpdateClinic(c.Request.Context(), targetPractitionerID, id, &req)

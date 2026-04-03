@@ -52,7 +52,7 @@ func (s *Service) Create(ctx context.Context, d *RqFormDetail, clinicID uuid.UUI
 		}
 
 		// Overwrite the ID so we check the OWNER'S subscription, not the accountant's
-		practitionerID = clinic.PractitionerID
+		practitionerID = clinic.EntityID
 
 	}
 
@@ -99,7 +99,7 @@ func (s *Service) CreateTx(ctx context.Context, tx *sqlx.Tx, d *RqFormDetail, cl
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve clinic owner: %w", err)
 		}
-		practitionerID = clinic.PractitionerID
+		practitionerID = clinic.EntityID
 	}
 
 	// Subscription limit check
