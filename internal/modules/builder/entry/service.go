@@ -478,7 +478,6 @@ func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []R
 
 			if f.TaxType != nil {
 				taxType := method.TaxTreatment(*f.TaxType)
-				fmt.Printf("Saving computed field %s: formula_result=%.2f, tax_type=%s\n", f.FieldKey, val, taxType)
 				switch taxType {
 				case method.TaxTreatmentInclusive:
 					result, err := s.methodSvc.Calculate(ctx, taxType, &method.Input{Amount: val})
@@ -496,7 +495,6 @@ func (s *Service) CalculateValues(ctx context.Context, entryID uuid.UUID, rq []R
 					gstAmount = &result.GstAmount
 					grossTotal = result.TotalAmount
 				}
-				fmt.Printf("  -> Saved as: net=%.2f, gst=%.2f, gross=%.2f\n", netBase, *gstAmount, grossTotal)
 			}
 
 			out = append(out, &FormEntryValue{
