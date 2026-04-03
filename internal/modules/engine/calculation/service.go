@@ -422,8 +422,16 @@ func (s *service) LiveCalculate(ctx context.Context, req *RqLiveCalculate) (*RsL
 				actualNetAmount = taxResult.Amount
 
 			case method.TaxTreatmentExclusive:
+				taxResult, err := s.methodSvc.Calculate(ctx, taxType, &method.Input{Amount: entry.NetAmount})
+				if err != nil {
+					return nil, fmt.Errorf("tax calc for field %s: %w", f.FieldKey, err)
+				}
+				if (f.SectionType) != nil && *f.SectionType == "OTHER_COST" {
+					actualNetAmount = taxResult.TotalAmount
+				} else {
+					actualNetAmount = entry.NetAmount
+				}
 				// User entered NET amount, use as-is
-				actualNetAmount = entry.NetAmount
 
 			case method.TaxTreatmentManual:
 				if (f.SectionType) != nil && *f.SectionType == "COLLECTION" {
