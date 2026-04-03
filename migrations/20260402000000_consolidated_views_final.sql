@@ -122,7 +122,7 @@ WITH base AS (
         net_amount,
         gst_amount,
         gross_amount
-    FROM vw_bas_line_items
+    FROM vw_bas_line_items WHERE bas_category != 'BAS_EXCLUDED'
 )
 SELECT
     clinic_id,
