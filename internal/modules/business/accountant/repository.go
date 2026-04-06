@@ -2,7 +2,9 @@ package accountant
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/iamarpitzala/acareca/internal/shared/common"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -13,6 +15,12 @@ type Repository interface {
 	GetAllUsers(ctx context.Context, userID string) ([]RsAccountantUser, error)
 	GetClinicsForAccountant(ctx context.Context, accountantID string) ([]ClinicDetail, error)
 	GetFormsForAccountant(ctx context.Context, accountantID string) ([]RsAccountantForm, error)
+
+	GetSummary(ctx context.Context, accountantID string, ft common.Filter) (*Summary, error)
+	GetRecentTransactions(ctx context.Context, accountantID string, ft common.Filter) ([]RecentTransaction, error)
+	GetPractitioners(ctx context.Context, accountantID string, ft common.Filter) ([]Practitioner, error)
+	GetClinics(ctx context.Context, accountantID string, ft common.Filter) ([]Clinic, error)
+	GetForms(ctx context.Context, accountantID string, ft common.Filter) ([]Form, error)
 }
 
 type repository struct {
@@ -166,5 +174,195 @@ func (r *repository) GetFormsForAccountant(ctx context.Context, accountantID str
 	if err != nil {
 		return nil, err
 	}
+	return forms, nil
+}
+
+func (r *repository) GetSummary(ctx context.Context, accountantID string, ft common.Filter) (*Summary, error) {
+	summary := &Summary{}
+
+	// Get total clinics associated with this accountant
+	err := r.db.GetContext(ctx, &summary.TotalClinics,
+		`SELECT COUNT(DISTINCT c.id) 
+		FROM tbl_clinic c
+		WHERE c.id IN (
+			SELECT DISTINCT entity_id 
+			FROM tbl_shared_events 
+			WHERE accountant_id = $1 AND entity_type = 'CLINIC'
+		)`, accountantID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get total forms associated with this accountant's clinics
+	err = r.db.GetContext(ctx, &summary.TotalForms,
+		`SELECT COUNT(DISTINCT f.id) 
+		FROM tbl_form f
+		WHERE f.clinic_id IN (
+			SELECT DISTINCT entity_id 
+			FROM tbl_shared_events 
+			WHERE accountant_id = $1 AND entity_type = 'CLINIC'
+		)`, accountantID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get total transactions (form entries) for this accountant's clinics
+	err = r.db.GetContext(ctx, &summary.TotalTransactions,
+		`SELECT COUNT(*) 
+		FROM tbl_form_field_entry e
+		WHERE e.clinic_id IN (
+			SELECT DISTINCT entity_id 
+			FROM tbl_shared_events 
+			WHERE accountant_id = $1 AND entity_type = 'CLINIC'
+		)`, accountantID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get total practitioners associated with this accountant
+	err = r.db.GetContext(ctx, &summary.TotalPractitioners,
+		`SELECT COUNT(DISTINCT practitioner_id) 
+		FROM tbl_shared_events 
+		WHERE accountant_id = $1`, accountantID)
+	if err != nil {
+		return nil, err
+	}
+
+	return summary, nil
+}
+
+func (r *repository) GetRecentTransactions(ctx context.Context, accountantID string, ft common.Filter) ([]RecentTransaction, error) {
+	transactions := []RecentTransaction{}
+
+	query := `
+		SELECT 
+			e.id,
+			e.clinic_id,
+			c.name as clinic_name,
+			COALESCE(e.value::numeric, 0) as amount,
+			CASE WHEN e.value::numeric > 0 THEN 'credit' ELSE 'debit' END as type,
+			e.created_at as date,
+			'completed' as status
+		FROM tbl_form_field_entry e
+		JOIN tbl_clinic c ON e.clinic_id = c.id
+		WHERE e.value ~ '^[0-9]+\.?[0-9]*$'
+		AND e.clinic_id IN (
+			SELECT DISTINCT entity_id 
+			FROM tbl_shared_events 
+			WHERE accountant_id = $1 AND entity_type = 'CLINIC'
+		)
+		ORDER BY e.created_at DESC
+	`
+
+	// Apply limit if provided
+	if ft.Limit != nil {
+		query += fmt.Sprintf(" LIMIT %d", *ft.Limit)
+	}
+
+	err := r.db.SelectContext(ctx, &transactions, query, accountantID)
+	if err != nil {
+		return nil, err
+	}
+
+	return transactions, nil
+}
+
+func (r *repository) GetPractitioners(ctx context.Context, accountantID string, ft common.Filter) ([]Practitioner, error) {
+	practitioners := []Practitioner{}
+
+	query := `
+		SELECT 
+			p.id,
+			u.name,
+			u.email,
+			COUNT(DISTINCT c.id) as clinic_count,
+			CASE WHEN u.is_active THEN 'active' ELSE 'inactive' END as status
+		FROM tbl_practitioner p
+		JOIN tbl_user u ON p.user_id = u.id
+		LEFT JOIN tbl_clinic c ON c.practitioner_id = p.id
+		WHERE p.id IN (
+			SELECT DISTINCT practitioner_id 
+			FROM tbl_shared_events 
+			WHERE accountant_id = $1
+		)
+		GROUP BY p.id, u.name, u.email, u.is_active
+		ORDER BY p.created_at DESC
+	`
+
+	// Apply limit if provided
+	if ft.Limit != nil {
+		query += fmt.Sprintf(" LIMIT %d", *ft.Limit)
+	}
+
+	err := r.db.SelectContext(ctx, &practitioners, query, accountantID)
+	if err != nil {
+		return nil, err
+	}
+
+	return practitioners, nil
+}
+
+func (r *repository) GetClinics(ctx context.Context, accountantID string, ft common.Filter) ([]Clinic, error) {
+	clinics := []Clinic{}
+
+	query := `
+		SELECT 
+			c.id,
+			c.name,
+			COALESCE(ca.city, '') as location,
+			c.created_at
+		FROM tbl_clinic c
+		LEFT JOIN tbl_clinic_address ca ON c.id = ca.clinic_id
+		WHERE c.id IN (
+			SELECT DISTINCT entity_id 
+			FROM tbl_shared_events 
+			WHERE accountant_id = $1 AND entity_type = 'CLINIC'
+		)
+		ORDER BY c.created_at DESC
+	`
+
+	// Apply limit if provided
+	if ft.Limit != nil {
+		query += fmt.Sprintf(" LIMIT %d", *ft.Limit)
+	}
+
+	err := r.db.SelectContext(ctx, &clinics, query, accountantID)
+	if err != nil {
+		return nil, err
+	}
+
+	return clinics, nil
+}
+
+func (r *repository) GetForms(ctx context.Context, accountantID string, ft common.Filter) ([]Form, error) {
+	forms := []Form{}
+
+	query := `
+		SELECT 
+			f.id,
+			f.name,
+			f.clinic_id,
+			COALESCE(cfv.version_number::text, 'v1') as version,
+			f.created_at
+		FROM tbl_form f
+		LEFT JOIN tbl_custom_form_version cfv ON f.id = cfv.form_id
+		WHERE f.clinic_id IN (
+			SELECT DISTINCT entity_id 
+			FROM tbl_shared_events 
+			WHERE accountant_id = $1 AND entity_type = 'CLINIC'
+		)
+		ORDER BY f.created_at DESC
+	`
+
+	// Apply limit if provided
+	if ft.Limit != nil {
+		query += fmt.Sprintf(" LIMIT %d", *ft.Limit)
+	}
+
+	err := r.db.SelectContext(ctx, &forms, query, accountantID)
+	if err != nil {
+		return nil, err
+	}
+
 	return forms, nil
 }
