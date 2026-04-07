@@ -198,6 +198,11 @@ func (h *handler) GetReport(c *gin.Context) {
 // @Security     BearerToken
 // @Router       /bas/clinic/{clinic_id}/bas-preparation [get]
 func (h *handler) GetBASPreparation(c *gin.Context) {
+	actorID, ok := util.GetUserID(c) // Accountant's User ID from JWT
+	if !ok {
+		return
+	}
+
 	clinicID, ok := parseClinicID(c)
 	if !ok {
 		return
@@ -209,7 +214,7 @@ func (h *handler) GetBASPreparation(c *gin.Context) {
 		return
 	}
 
-	result, err := h.svc.GetBASPreparation(c.Request.Context(), clinicID, &f)
+	result, err := h.svc.GetBASPreparation(c.Request.Context(), actorID, clinicID, &f)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return

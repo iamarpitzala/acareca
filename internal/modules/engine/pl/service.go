@@ -4,9 +4,14 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/modules/business/accountant"
+	"github.com/iamarpitzala/acareca/internal/modules/business/clinic"
+	auditctx "github.com/iamarpitzala/acareca/internal/shared/audit"
+	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
 
 type Service interface {
@@ -14,15 +19,17 @@ type Service interface {
 	GetByAccount(ctx context.Context, f *PLFilter) ([]RsPLAccount, error)
 	GetByResponsibility(ctx context.Context, f *PLFilter) ([]RsPLResponsibility, error)
 	GetFYSummary(ctx context.Context, f *PLFilter) ([]RsPLFYSummary, error)
-	GetReport(ctx context.Context, f *PLReportFilter) (*RsReport, error)
+	GetReport(ctx context.Context, actorID uuid.UUID, f *PLReportFilter) (*RsReport, error)
 }
 
 type service struct {
-	repo Repository
+	repo           Repository
+	clinicRepo     clinic.Repository
+	accountantRepo accountant.Repository
 }
 
-func NewService(repo Repository) Service {
-	return &service{repo: repo}
+func NewService(repo Repository, clinicRepo clinic.Repository, accountantRepo accountant.Repository) Service {
+	return &service{repo: repo, clinicRepo: clinicRepo, accountantRepo: accountantRepo}
 }
 
 func (s *service) GetMonthlySummary(ctx context.Context, f *PLFilter) ([]RsPLSummary, error) {
@@ -133,15 +140,81 @@ func parseAndValidate(f *PLFilter) (uuid.UUID, error) {
 	return clinicID, nil
 }
 
-func (s *service) GetReport(ctx context.Context, f *PLReportFilter) (*RsReport, error) {
-	if f.ClinicID != nil {
-		if _, err := uuid.Parse(*f.ClinicID); err != nil {
-			return nil, fmt.Errorf("invalid clinic_id: must be a valid UUID")
+func (s *service) GetReport(ctx context.Context, actorID uuid.UUID, f *PLReportFilter) (*RsReport, error) {
+
+	meta := auditctx.GetMetadata(ctx)
+
+	isAccountant := false
+	if meta.UserType != nil {
+		isAccountant = strings.EqualFold(*meta.UserType, util.RoleAccountant)
+	}
+
+	accProfile, err := s.accountantRepo.GetAccountantByUserID(ctx, actorID.String())
+	if err == nil && accProfile != nil {
+		isAccountant = true
+	}
+
+	var finalOwnerID uuid.UUID
+
+	if isAccountant {
+		if accProfile == nil {
+			return nil, fmt.Errorf("access denied: accountant profile not found")
+		}
+
+		if f.ClinicID != nil && *f.ClinicID != "" {
+			clinicUUID, err := uuid.Parse(*f.ClinicID)
+			if err != nil {
+				return nil, fmt.Errorf("invalid clinic_id format")
+			}
+			permission, err := s.clinicRepo.GetAccountantPermission(ctx, accProfile.ID, clinicUUID)
+			if err != nil {
+				return nil, fmt.Errorf("permission denied: you are not associated with this clinic")
+			}
+			finalOwnerID = permission.PractitionerID
+		} else {
+			// Case B: Practice-wide
+			if f.PractitionerID == "" {
+				targetPracID, err := s.clinicRepo.GetPractitionerForAccountant(ctx, accProfile.ID)
+				if err != nil {
+					return nil, fmt.Errorf("no linked practitioner found: please provide a practitioner_id")
+				}
+				finalOwnerID = *targetPracID
+			} else {
+				targetPracID, err := uuid.Parse(f.PractitionerID)
+				if err != nil {
+					return nil, fmt.Errorf("invalid practitioner_id format")
+				}
+				isLinked, err := s.clinicRepo.IsAccountantInvitedByPractitioner(ctx, accProfile.ID, targetPracID)
+				if err != nil || !isLinked {
+					return nil, fmt.Errorf("permission denied: no association with this practitioner")
+				}
+				finalOwnerID = targetPracID
+			}
+		}
+	} else {
+		// Case C: User is a Practitioner (OUTSIDE the accountant block)
+		finalOwnerID = actorID
+
+		if f.ClinicID != nil && *f.ClinicID != "" {
+			clinicUUID, _ := uuid.Parse(*f.ClinicID)
+			_, err := s.clinicRepo.GetClinicByIDAndPractitioner(ctx, clinicUUID, finalOwnerID)
+			if err != nil {
+				return nil, fmt.Errorf("access denied: clinic not found or ownership mismatch")
+			}
 		}
 	}
 
+	// 3. APPLY VERIFIED PRACTITIONER ID (OUTSIDE all if/else blocks)
+	f.PractitionerID = finalOwnerID.String()
+
+	/*
+		if f.ClinicID != nil {
+			if _, err := uuid.Parse(*f.ClinicID); err != nil {
+				return nil, fmt.Errorf("invalid clinic_id: must be a valid UUID")
+			}
+		}*/
 	var from, to time.Time
-	var err error
+	//var err error
 	if f.DateFrom != nil {
 		if from, err = time.Parse(dateLayout, *f.DateFrom); err != nil {
 			return nil, fmt.Errorf("invalid date_from: use YYYY-MM-DD format")

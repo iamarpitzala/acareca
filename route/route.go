@@ -189,13 +189,13 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) (audit.Service, *sharedno
 
 	// P&L reporting — engine/pl module
 	plRepo := pl.NewRepository(dbConn)
-	plSvc := pl.NewService(plRepo)
+	plSvc := pl.NewService(plRepo, clinicRepo, accountantRepo)
 	plHandler := pl.NewHandler(plSvc)
 	pl.RegisterRoutes(v1, plHandler, cfg)
 
 	// BAS reporting — engine/bas module
 	basRepo := bas.NewRepository(dbConn)
-	basSvc := bas.NewService(basRepo)
+	basSvc := bas.NewService(basRepo, accountantRepo, auditSvc, clinicRepo)
 	basHandler := bas.NewHandler(basSvc)
 	bas.RegisterRoutes(v1, basHandler, cfg)
 
