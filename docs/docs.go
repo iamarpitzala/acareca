@@ -6699,7 +6699,6 @@ const docTemplate = `{
         "entry.RqEntryValue": {
             "type": "object",
             "required": [
-                "amount",
                 "form_field_id"
             ],
             "properties": {
@@ -6710,7 +6709,13 @@ const docTemplate = `{
                 "form_field_id": {
                     "type": "string"
                 },
+                "gross_amount": {
+                    "type": "number"
+                },
                 "gst_amount": {
+                    "type": "number"
+                },
+                "net_amount": {
                     "type": "number"
                 }
             }
@@ -6805,6 +6810,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "is_computed": {
+                    "type": "boolean"
+                },
+                "is_formula": {
                     "type": "boolean"
                 },
                 "key": {

@@ -6696,7 +6696,6 @@
         "entry.RqEntryValue": {
             "type": "object",
             "required": [
-                "amount",
                 "form_field_id"
             ],
             "properties": {
@@ -6707,7 +6706,13 @@
                 "form_field_id": {
                     "type": "string"
                 },
+                "gross_amount": {
+                    "type": "number"
+                },
                 "gst_amount": {
+                    "type": "number"
+                },
+                "net_amount": {
                     "type": "number"
                 }
             }
@@ -6802,6 +6807,9 @@
                     "type": "string"
                 },
                 "is_computed": {
+                    "type": "boolean"
+                },
+                "is_formula": {
                     "type": "boolean"
                 },
                 "key": {

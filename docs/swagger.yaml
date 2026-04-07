@@ -729,10 +729,13 @@ definitions:
         type: number
       form_field_id:
         type: string
+      gross_amount:
+        type: number
       gst_amount:
         type: number
+      net_amount:
+        type: number
     required:
-    - amount
     - form_field_id
     type: object
   entry.RqFormEntry:
@@ -794,6 +797,8 @@ definitions:
       coa_id:
         type: string
       is_computed:
+        type: boolean
+      is_formula:
         type: boolean
       key:
         maxLength: 5
