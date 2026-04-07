@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -243,8 +244,7 @@ func (h *handler) GoogleLogin(c *gin.Context) {
 // @Router /auth/google [get]
 func (h *handler) GoogleAuthURL(c *gin.Context) {
 	state := util.NewUUID()
-	// Store state in a short-lived cookie with SameSite=Lax for OAuth redirects
-	// SameSite=Lax allows the cookie to be sent on top-level navigation (OAuth callback)
+
 	c.SetSameSite(http.SameSiteLaxMode)
 	if h.cfg.Env == "local" {
 		c.SetCookie("oauth_state", state, 300, "/", "", false, true)
@@ -274,31 +274,29 @@ func (h *handler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	// In local env, skip state check (to allow easier dev/test)
+	c.SetSameSite(http.SameSiteLaxMode)
+
 	if h.cfg.Env == "local" {
-		// optionally try to consume the cookie, if set
-		c.SetSameSite(http.SameSiteLaxMode)
+		// CSRF validation intentionally skipped in local env
+		fmt.Println("OAuth state validation skipped (local env)")
 		c.SetCookie("oauth_state", "", -1, "/", "", false, true)
 	} else {
 		stateParam := c.Query("state")
 		stateCookie, err := c.Cookie("oauth_state")
-		if err != nil || stateParam == "" || stateParam != stateCookie {
-			response.Error(c, http.StatusBadRequest, errors.New("invaild oauth state"))
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, errors.New("missing oauth state cookie"))
 			return
 		}
-		// Only enforce state validation if cookie was set (production flow)
 		if stateParam == "" {
 			response.Error(c, http.StatusBadRequest, errors.New("oauth state parameter is empty"))
 			return
 		}
-
 		if stateParam != stateCookie {
 			response.Error(c, http.StatusBadRequest, errors.New("oauth state mismatch"))
 			return
 		}
 
 		// Consume the state cookie
-		c.SetSameSite(http.SameSiteLaxMode)
 		c.SetCookie("oauth_state", "", -1, "/", "", true, true)
 	}
 
