@@ -101,8 +101,8 @@ const fieldWithCoaSelect = `
 // Create implements [IRepository].
 func (r *Repository) Create(ctx context.Context, f *FormField) error {
 	query := `
-		INSERT INTO tbl_form_field (id, form_version_id, field_key, slug, label, is_computed, section_type, payment_responsibility, tax_type, coa_id, sort_order)
-		VALUES ($1, $2, $3, $4, $5, $6, $7::section_type, $8::payment_responsibility, $9::tax_type, $10, $11)
+		INSERT INTO tbl_form_field (id, form_version_id, field_key, slug, label, is_computed, section_type, payment_responsibility, tax_type, coa_id, sort_order, is_formula)
+		VALUES ($1, $2, $3, $4, $5, $6, $7::section_type, $8::payment_responsibility, $9::tax_type, $10, $11, $12)
 		RETURNING created_at, updated_at
 	`
 	if err := r.db.QueryRowContext(ctx, query,
