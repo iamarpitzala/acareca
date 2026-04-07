@@ -15,7 +15,8 @@ type IService interface {
 	ListUsers(ctx context.Context) ([]RsAccountantUser, error)
 	ListClinics(ctx context.Context) ([]ClinicDetail, error)
 	ListForms(ctx context.Context) ([]RsAccountantForm, error)
-	getAccountantID(ctx context.Context) (string, error)
+	Analytics(ctx context.Context, filter *FilterAnalytics) (*RsAnalytics, error)
+	GetAccountantID(ctx context.Context) (string, error)
 }
 
 type service struct {
@@ -77,7 +78,7 @@ func (s *service) ListUsers(ctx context.Context) ([]RsAccountantUser, error) {
 }
 
 func (s *service) ListClinics(ctx context.Context) ([]ClinicDetail, error) {
-	accID, err := s.getAccountantID(ctx)
+	accID, err := s.GetAccountantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -85,14 +86,14 @@ func (s *service) ListClinics(ctx context.Context) ([]ClinicDetail, error) {
 }
 
 func (s *service) ListForms(ctx context.Context) ([]RsAccountantForm, error) {
-	accID, err := s.getAccountantID(ctx)
+	accID, err := s.GetAccountantID(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return s.repo.GetFormsForAccountant(ctx, accID)
 }
 
-func (s *service) getAccountantID(ctx context.Context) (string, error) {
+func (s *service) GetAccountantID(ctx context.Context) (string, error) {
 	val := ctx.Value(util.EntityIDKey)
 	switch v := val.(type) {
 	case string:
@@ -102,4 +103,46 @@ func (s *service) getAccountantID(ctx context.Context) (string, error) {
 	default:
 		return "", fmt.Errorf("invalid accountant identity in context")
 	}
+}
+
+// Analytics implements [IService].
+func (s *service) Analytics(ctx context.Context, filter *FilterAnalytics) (*RsAnalytics, error) {
+	ft := filter.MapToFilter()
+	accountantID, err := s.GetAccountantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	summary, err := s.repo.GetSummary(ctx, accountantID, ft)
+	if err != nil {
+		return nil, err
+	}
+
+	transactions, err := s.repo.GetRecentTransactions(ctx, accountantID, ft)
+	if err != nil {
+		return nil, err
+	}
+
+	practitioners, err := s.repo.GetPractitioners(ctx, accountantID, ft)
+	if err != nil {
+		return nil, err
+	}
+
+	clinics, err := s.repo.GetClinics(ctx, accountantID, ft)
+	if err != nil {
+		return nil, err
+	}
+
+	forms, err := s.repo.GetForms(ctx, accountantID, ft)
+	if err != nil {
+		return nil, err
+	}
+
+	return &RsAnalytics{
+		Summary:            *summary,
+		RecentTransactions: transactions,
+		Practitioners:      practitioners,
+		Clinics:            clinics,
+		Forms:              forms,
+	}, nil
 }
