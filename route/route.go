@@ -2,7 +2,6 @@ package route
 
 import (
 	"log"
-	"os"
 
 	"context"
 	"net/http"
@@ -48,11 +47,10 @@ import (
 func RegisterRoutes(r *gin.Engine, cfg *config.Config) (audit.Service, *sharednotification.Hub, notification.Repository) {
 
 	// Initialize Stripe SDK
-	stripeKey := os.Getenv("STRIPE_SECRET_KEY")
-	if stripeKey == "" {
+	if cfg.StripeSecretKey == "" {
 		log.Fatal("STRIPE_SECRET_KEY is required but not set")
 	}
-	stripe.Key = stripeKey
+	stripe.Key = cfg.StripeSecretKey
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
