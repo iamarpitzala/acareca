@@ -2139,7 +2139,7 @@ const docTemplate = `{
                 "tags": [
                     "clinic"
                 ],
-                "summary": "Get all clinics for practitioner",
+                "summary": "Get all clinics for the logged-in user (Practitioner or Accountant)",
                 "parameters": [
                     {
                         "type": "string",
@@ -3583,6 +3583,12 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Filter by practitioner ID (UUID)",
+                        "name": "practitioner_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
                         "description": "Filter by clinic ID (UUID)",
                         "name": "clinic_id",
                         "in": "query"
@@ -3877,6 +3883,11 @@ const docTemplate = `{
         },
         "/form/{id}/status": {
             "patch": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
                 "description": "Toggle form status between DRAFT and PUBLISHED",
                 "consumes": [
                     "application/json"

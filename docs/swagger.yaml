@@ -2851,7 +2851,7 @@ paths:
             $ref: '#/definitions/response.RsError'
       security:
       - BearerToken: []
-      summary: Get all clinics for practitioner
+      summary: Get all clinics for the logged-in user (Practitioner or Accountant)
       tags:
       - clinic
     post:
@@ -3719,6 +3719,10 @@ paths:
         filter by clinic, method, or status. If clinic_id is omitted, all clinics
         are included.
       parameters:
+      - description: Filter by practitioner ID (UUID)
+        in: query
+        name: practitioner_id
+        type: string
       - description: Filter by clinic ID (UUID)
         in: query
         name: clinic_id
@@ -3940,6 +3944,8 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/response.RsBase'
+      security:
+      - BearerToken: []
       summary: Update form status
       tags:
       - form

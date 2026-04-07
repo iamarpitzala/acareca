@@ -9,6 +9,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/modules/admin/audit"
+	"github.com/iamarpitzala/acareca/internal/modules/business/accountant"
+	"github.com/iamarpitzala/acareca/internal/modules/business/clinic"
+	auditctx "github.com/iamarpitzala/acareca/internal/shared/audit"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
 
@@ -18,15 +22,18 @@ type Service interface {
 	GetByAccount(ctx context.Context, clinicID uuid.UUID, f *BASFilter) ([]RsBASByAccount, error)
 	GetMonthly(ctx context.Context, clinicID uuid.UUID, f *BASFilter) ([]RsBASMonthly, error)
 	GetReport(ctx context.Context, f *BASReportFilter) (*RsBASReport, error)
-	GetBASPreparation(ctx context.Context, clinicID uuid.UUID, f *BASFilter) (*RsBASPreparation, error)
+	GetBASPreparation(ctx context.Context, actorID uuid.UUID, clinicID uuid.UUID, f *BASFilter) (*RsBASPreparation, error)
 }
 
 type service struct {
-	repo Repository
+	repo           Repository
+	accountantRepo accountant.Repository
+	auditSvc       audit.Service
+	clinicRepo     clinic.Repository
 }
 
-func NewService(repo Repository) Service {
-	return &service{repo: repo}
+func NewService(repo Repository, accountantRepo accountant.Repository, auditSvc audit.Service, clinicRepo clinic.Repository) Service {
+	return &service{repo: repo, accountantRepo: accountantRepo, auditSvc: auditSvc, clinicRepo: clinicRepo}
 }
 
 func (s *service) GetQuarterlySummary(ctx context.Context, clinicID uuid.UUID, f *BASFilter) ([]RsBASSummary, error) {
@@ -148,7 +155,45 @@ func (s *service) GetReport(ctx context.Context, f *BASReportFilter) (*RsBASRepo
 	}, nil
 }
 
-func (s *service) GetBASPreparation(ctx context.Context, clinicID uuid.UUID, f *BASFilter) (*RsBASPreparation, error) {
+func (s *service) GetBASPreparation(ctx context.Context, actorID uuid.UUID, clinicID uuid.UUID, f *BASFilter) (*RsBASPreparation, error) {
+
+	meta := auditctx.GetMetadata(ctx)
+
+	isAccountant := false
+	if meta.UserType != nil {
+		isAccountant = strings.EqualFold(*meta.UserType, util.RoleAccountant)
+	} else {
+
+		acc, err := s.accountantRepo.GetAccountantByUserID(ctx, actorID.String())
+		if err == nil && acc != nil {
+			isAccountant = true
+		}
+	}
+
+	var ownerID uuid.UUID
+
+	if isAccountant {
+
+		accProfile, err := s.accountantRepo.GetAccountantByUserID(ctx, actorID.String())
+		if err != nil {
+			return nil, fmt.Errorf("access denied: accountant profile not found")
+		}
+
+		permission, err := s.clinicRepo.GetAccountantPermission(ctx, accProfile.ID, clinicID)
+		if err != nil {
+			return nil, fmt.Errorf("permission denied: you are not associated with this clinic")
+		}
+		ownerID = permission.PractitionerID
+	} else {
+
+		ownerID = actorID
+
+		// Verify the practitioner actually owns this clinic
+		_, err := s.clinicRepo.GetClinicByIDAndPractitioner(ctx, clinicID, ownerID)
+		if err != nil {
+			return nil, fmt.Errorf("clinic not found or access denied")
+		}
+	}
 	rows, err := s.repo.GetBASLineItems(ctx, clinicID, f)
 	if err != nil {
 		return nil, err

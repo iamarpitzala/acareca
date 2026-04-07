@@ -165,20 +165,20 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) (audit.Service, *sharedno
 	versionRepo := version.NewRepository(dbConn)
 	fieldRepo := field.NewRepository(dbConn)
 	entryRepo := entry.NewRepository(dbConn)
-	detailSvc := detail.NewService(dbConn, detailRepo, version.NewService(dbConn, versionRepo, clinicSvc), clinicRepo)
+	detailSvc := detail.NewService(dbConn, detailRepo, version.NewService(dbConn, versionRepo, clinicSvc), clinicRepo, invitationSvc)
 	fieldSvc := field.NewService(fieldRepo, coaSvc, clinicSvc, practitionerSvc, version.NewService(dbConn, versionRepo, clinicSvc))
 
 	versionSvc := version.NewService(dbConn, versionRepo, clinicSvc)
 	formulaRepo := formula.NewRepository(dbConn)
 	formulaSvc := formula.NewService(formulaRepo)
-	formSvc := form.NewService(dbConn, detailSvc, versionSvc, fieldSvc, formulaSvc, entryRepo, coaSvc, auditSvc, eventsSvc, accountantRepo, authRepo, clinicSvc)
+	formSvc := form.NewService(dbConn, detailSvc, versionSvc, fieldSvc, formulaSvc, entryRepo, coaSvc, auditSvc, eventsSvc, accountantRepo, authRepo, clinicSvc, invitationSvc)
 	formHandler := form.NewHandler(formSvc)
 	form.RegisterRoutes(formGroup, formHandler)
 
 	entryGroup := v1.Group("/entry")
 	entryGroup.Use(middleware.Auth(cfg), middleware.AuditContext())
 	entriesRepo := entry.NewRepository(dbConn)
-	entriesSvc := entry.NewService(dbConn, entriesRepo, fieldRepo, method.NewService(), detailSvc, versionSvc, auditSvc, eventsSvc, accountantRepo, authRepo, clinicRepo, clinicSvc, formulaSvc, fieldSvc)
+	entriesSvc := entry.NewService(dbConn, entriesRepo, fieldRepo, method.NewService(), detailSvc, versionSvc, auditSvc, eventsSvc, accountantRepo, authRepo, clinicRepo, clinicSvc, formulaSvc, fieldSvc, invitationSvc)
 	entriesHandler := entry.NewHandler(entriesSvc)
 
 	entry.RegisterRoutes(entryGroup, entriesHandler)
@@ -189,14 +189,14 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) (audit.Service, *sharedno
 
 	// P&L reporting — engine/pl module
 	plRepo := pl.NewRepository(dbConn)
-	plSvc := pl.NewService(plRepo)
+	plSvc := pl.NewService(plRepo, clinicRepo, accountantRepo, practitionerSvc)
 	plHandler := pl.NewHandler(plSvc)
 	pl.RegisterRoutes(v1, plHandler, cfg)
 
 	// BAS reporting — engine/bas module
 	basRepo := bas.NewRepository(dbConn)
-	basSvc := bas.NewService(basRepo)
-	basHandler := bas.NewHandler(basSvc)
+	basSvc := bas.NewService(basRepo, accountantRepo, auditSvc, clinicRepo)
+	basHandler := bas.NewHandler(basSvc, invitationSvc)
 	bas.RegisterRoutes(v1, basHandler, cfg)
 
 	settingGroup := v1.Group("/setting")
