@@ -9,13 +9,16 @@ import (
 
 type IHandler interface {
 	ListUsers(c *gin.Context)
+	ListClinics(c *gin.Context)
+	ListForms(c *gin.Context)
+	Analytics(c *gin.Context)
 }
 
 type Handler struct {
 	svc IService
 }
 
-func NewHandler(svc IService) *Handler {
+func NewHandler(svc IService) IHandler {
 	return &Handler{svc: svc}
 }
 
@@ -68,7 +71,7 @@ func (h *Handler) ListClinics(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Security     BearerToken
-// @Success      200  {array}   map[string]interface{}
+// @Success      200  {array}   RsAccountantForm
 // @Failure      401  {object}  response.RsError
 // @Failure      500  {object}  response.RsError
 // @Router       /accountant/forms [get]
@@ -80,4 +83,30 @@ func (h *Handler) ListForms(c *gin.Context) {
 	}
 
 	response.JSON(c, http.StatusOK, forms, "Forms retrieved successfully")
+}
+
+// Analytics godoc
+// @Summary      Fetch analytics
+// @Description  Retrieves analytics for the accountant.
+// @Tags         accountant
+// @Accept       json
+// @Produce      json
+// @Security     BearerToken
+// @Success      200  {object}   RsAnalytics
+// @Failure      401  {object}  response.RsError
+// @Failure      500  {object}  response.RsError
+// @Router       /accountant/analytics [get]
+func (h *Handler) Analytics(c *gin.Context) {
+	var filter FilterAnalytics
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+	analytics, err := h.svc.Analytics(c, &filter)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, analytics, "Analytics retrieved successfully")
 }
