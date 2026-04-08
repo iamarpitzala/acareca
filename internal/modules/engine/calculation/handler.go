@@ -16,10 +16,12 @@ import (
 )
 
 type IHandler interface {
+	LiveCalculate(c *gin.Context)
+
+	// Legacy Code 
 	Calculation(c *gin.Context)
 	CalculateFromEntries(c *gin.Context)
 	FormulaCalculate(c *gin.Context)
-	LiveCalculate(c *gin.Context)
 }
 
 type handler struct {
@@ -31,6 +33,39 @@ func NewHandler(svc Service) IHandler {
 		svc: svc,
 	}
 }
+
+// LiveCalculate godoc
+// @Summary Live calculation based on form version ID
+// @Description Evaluates all is_computed=true fields for a form version using provided field entries.
+// @Description Returns net amount for each computed field; net/gst/gross when the field has a tax_type.
+// @Description Pass form_field_id with net_amount, gst_amount, and gross_amount for each field.
+// @Tags calculation
+// @Accept json
+// @Produce json
+// @Param request body RqLiveCalculate true "Form version ID and field entries"
+// @Success 200 {object} RsLiveCalculate
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /calculate/live [post]
+func (h *handler) LiveCalculate(c *gin.Context) {
+	var req RqLiveCalculate
+	if err := util.BindAndValidate(c, &req); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	result, err := h.svc.LiveCalculate(c.Request.Context(), &req)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, result, "Live calculation completed successfully")
+}
+
+
+//Legacy code
 
 // Calculation godoc
 // @Summary Run calculation for a form
@@ -201,32 +236,3 @@ func (h *handler) FormulaCalculate(c *gin.Context) {
 	response.JSON(c, http.StatusOK, result, "Formula calculation completed successfully")
 }
 
-// LiveCalculate godoc
-// @Summary Live calculation based on form version ID
-// @Description Evaluates all is_computed=true fields for a form version using provided field entries.
-// @Description Returns net amount for each computed field; net/gst/gross when the field has a tax_type.
-// @Description Pass form_field_id with net_amount, gst_amount, and gross_amount for each field.
-// @Tags calculation
-// @Accept json
-// @Produce json
-// @Param request body RqLiveCalculate true "Form version ID and field entries"
-// @Success 200 {object} RsLiveCalculate
-// @Failure 400 {object} response.RsError
-// @Failure 500 {object} response.RsError
-// @Security BearerToken
-// @Router /calculate/live [post]
-func (h *handler) LiveCalculate(c *gin.Context) {
-	var req RqLiveCalculate
-	if err := util.BindAndValidate(c, &req); err != nil {
-		response.Error(c, http.StatusBadRequest, err)
-		return
-	}
-
-	result, err := h.svc.LiveCalculate(c.Request.Context(), &req)
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, err)
-		return
-	}
-
-	response.JSON(c, http.StatusOK, result, "Live calculation completed successfully")
-}

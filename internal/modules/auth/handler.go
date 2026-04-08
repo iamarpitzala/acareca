@@ -271,11 +271,13 @@ func (h *handler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	// Redirect to frontend with tokens
-	frontendURL := h.cfg.LocalUrl
-	if frontendURL == "" {
-		frontendURL = "http://localhost:5173"
+	var frontendURL string
+	if h.cfg.Env == "local" {
+		frontendURL = h.cfg.LocalUrl
+	}else{
+		frontendURL = h.cfg.FrontendURL
 	}
+
 	
 	redirectURL := fmt.Sprintf("%s/auth/callback?access_token=%s&refresh_token=%s", 
 		frontendURL, 
