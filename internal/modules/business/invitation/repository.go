@@ -34,6 +34,11 @@ type Repository interface {
 	GrantEntityPermissionTx(ctx context.Context, tx *sqlx.Tx, practitionerID, accountantID, entityID uuid.UUID, entityType string, perms Permissions) error
 	DeletePermissionsByEntityTx(ctx context.Context, tx *sqlx.Tx, entityID uuid.UUID) error
 	GetPractitionerLinkedToAccountant(ctx context.Context, accountantID uuid.UUID) (uuid.UUID, error)
+	GrantEntityPermission(ctx context.Context, pID, aID, eID uuid.UUID, eType string, permJson []byte) error
+	DeleteAllPermissionsForAccountantTx(ctx context.Context, tx *sqlx.Tx, practitionerID, accountantID uuid.UUID) error
+	UpdateStatusTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID, status InvitationStatus, entityID *uuid.UUID) error
+	ListAccountantPermissions(ctx context.Context, accountantID uuid.UUID, f common.Filter) ([]AccountantPermissionRow, error)
+	CountAccountantPermissions(ctx context.Context, accountantID uuid.UUID, f common.Filter) (int, error)
 }
 
 type repository struct {
@@ -283,6 +288,8 @@ func (r *repository) GetPermissions(ctx context.Context, accountantID uuid.UUID,
 	return &permissions, nil
 }
 
+// This method is for granting access to the resouce on "create" action since no mapping exisitng while creating a new
+// entity so we check for parent entity permissions and after creating the resource by default assign a "read" permission.
 func (r *repository) GrantEntityPermissionTx(ctx context.Context, tx *sqlx.Tx, practitionerID, accountantID, entityID uuid.UUID, entityType string, perms Permissions) error {
 	permJSON, err := json.Marshal(perms)
 	if err != nil {
@@ -330,5 +337,101 @@ func (r *repository) GetPractitionerLinkedToAccountant(ctx context.Context, acco
 	var practitionerID uuid.UUID
 	query := `SELECT practitioner_id FROM tbl_invitation WHERE entity_id = $1 AND status = 'COMPLETED' LIMIT 1`
 	err := r.db.GetContext(ctx, &practitionerID, query, accountantID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, fmt.Errorf("accountant %s is not linked to any practitioner", accountantID)
+		}
+		return uuid.Nil, err
+	}
 	return practitionerID, err
+}
+
+func (r *repository) GrantEntityPermission(ctx context.Context, pID, aID, eID uuid.UUID, eType string, permJson []byte) error {
+	query := `
+        INSERT INTO tbl_invite_permissions (
+            id, practitioner_id, accountant_id, entity_id, entity_type, permissions, created_at, updated_at
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, NOW(), NOW()
+        )
+        ON CONFLICT ON CONSTRAINT unique_permission_scope
+        DO UPDATE SET 
+            -- This performs the 'Full Overwrite' to remove old keys
+            permissions = EXCLUDED.permissions,
+            updated_at = NOW(),
+            deleted_at = NULL;
+    `
+
+	_, err := r.db.ExecContext(ctx, query, uuid.New(), pID, aID, eID, eType, permJson)
+	return err
+}
+
+func (r *repository) DeleteAllPermissionsForAccountantTx(ctx context.Context, tx *sqlx.Tx, practitionerID, accountantID uuid.UUID) error {
+	query := `
+        UPDATE tbl_invite_permissions 
+        SET deleted_at = NOW(), updated_at = NOW() 
+        WHERE practitioner_id = $1 
+          AND accountant_id = $2 
+          AND deleted_at IS NULL
+    `
+	_, err := tx.ExecContext(ctx, query, practitionerID, accountantID)
+	if err != nil {
+		return fmt.Errorf("delete accountant permissions tx: %w", err)
+	}
+	return nil
+}
+
+func (r *repository) UpdateStatusTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID, status InvitationStatus, entityID *uuid.UUID) error {
+	query := `UPDATE tbl_invitation SET status = $1, entity_id = $2 WHERE id = $3`
+	_, err := tx.ExecContext(ctx, query, status, entityID, id)
+	return err
+}
+
+func (r *repository) ListAccountantPermissions(ctx context.Context, accountantID uuid.UUID, f common.Filter) ([]AccountantPermissionRow, error) {
+	f.Where = append(f.Where, common.Condition{
+		Field:    "accountant_id",
+		Operator: common.OpEq,
+		Value:    accountantID,
+	})
+
+	// 2. Base query must be just the FROM clause (BuildQuery adds WHERE, ORDER, LIMIT)
+	// IMPORTANT: Do not include "WHERE accountant_id = $1" here!
+	base := `FROM tbl_invite_permissions`
+
+	// Select columns
+	columns := `SELECT id, entity_id, entity_type, practitioner_id, accountant_id, permissions, created_at, updated_at, deleted_at `
+
+	// 3. Build the query and the argument slice
+	// BuildQuery will handle the "?", the sorting, and the LIMIT/OFFSET integers.
+	querySuffix, filterArgs := common.BuildQuery(base, f, invitationColumns, invitationSearchCols, false)
+
+	fullQuery := columns + querySuffix
+
+	var perms []AccountantPermissionRow
+	// 4. Rebind converts all "?" into sequential "$1, $2, $3..."
+	// This ensures accountantID is $1 and LIMIT is a later number (BigInt).
+	if err := r.db.SelectContext(ctx, &perms, r.db.Rebind(fullQuery), filterArgs...); err != nil {
+		return nil, fmt.Errorf("list accountant permissions repo: %w", err)
+	}
+
+	return perms, nil
+}
+
+func (r *repository) CountAccountantPermissions(ctx context.Context, accountantID uuid.UUID, f common.Filter) (int, error) {
+
+	f.Where = append(f.Where, common.Condition{
+		Field:    "accountant_id",
+		Operator: common.OpEq,
+		Value:    accountantID,
+	})
+
+	base := `FROM tbl_invite_permissions`
+
+	query, filterArgs := common.BuildQuery(base, f, invitationColumns, invitationSearchCols, true)
+
+	var total int
+	if err := r.db.GetContext(ctx, &total, r.db.Rebind(query), filterArgs...); err != nil {
+		return 0, fmt.Errorf("count accountant permissions repo: %w", err)
+	}
+
+	return total, nil
 }

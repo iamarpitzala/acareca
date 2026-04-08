@@ -1,6 +1,7 @@
 package invitation
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -83,6 +84,18 @@ type RqProcessAction struct {
 	Action  string    `json:"action" validate:"required,oneof=ACCEPT REJECT"`
 }
 
+type AccountantPermissionRow struct {
+	ID             uuid.UUID       `db:"id" json:"id"`
+	EntityID       uuid.UUID       `db:"entity_id" json:"entity_id"`
+	EntityType     string          `db:"entity_type" json:"entity_type"`
+	PractitionerID uuid.UUID       `db:"practitioner_id" json:"practitioner_id"`
+	AccountantID   uuid.UUID       `db:"accountant_id" json:"accountant_id"`
+	Permissions    json.RawMessage `db:"permissions" json:"permissions"`
+	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time       `db:"updated_at" json:"updated_at"`
+	DeletedAt      *time.Time      `db:"deleted_at" json:"deleted_at,omitempty"`
+}
+
 // FILTERS
 var invitationColumns = map[string]string{
 	"email":           "email",
@@ -158,4 +171,12 @@ func (p *Permissions) HasAccess(action string) bool {
 	default:
 		return false
 	}
+}
+
+// RqGrantPermission is the input for granting/updating permissions
+type RqGrantPermission struct {
+	AccountantID uuid.UUID   `json:"accountant_id" validate:"required"`
+	EntityID     uuid.UUID   `json:"entity_id" validate:"required"`
+	EntityType   string      `json:"entity_type" validate:"required,oneof=CLINIC FORM ENTRY"`
+	Permissions  Permissions `json:"permissions" validate:"required"`
 }

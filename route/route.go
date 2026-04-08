@@ -96,7 +96,7 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) (audit.Service, *sharedno
 	// invitation
 	invitationRepo := invitation.NewRepository(dbConn)
 	invitationSvc := invitation.NewService(invitationRepo, cfg, notificationSvc, auditSvc)
-	invitationHandler := invitation.NewHandler(invitationSvc)
+	invitationHandler := invitation.NewHandler(invitationSvc, accountantRepo)
 	invitation.RegisterRoutes(v1, invitationHandler, cfg)
 
 	//admin auth
