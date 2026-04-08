@@ -15,6 +15,7 @@ import (
 	"github.com/iamarpitzala/acareca/internal/modules/admin/audit"
 	"github.com/iamarpitzala/acareca/internal/modules/notification"
 	auditctx "github.com/iamarpitzala/acareca/internal/shared/audit"
+	"github.com/iamarpitzala/acareca/internal/shared/common"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 	"github.com/iamarpitzala/acareca/pkg/config"
 	"github.com/jmoiron/sqlx"
@@ -38,6 +39,8 @@ type Service interface {
 	GetPractitionerLinkedToAccountant(ctx context.Context, accountantID uuid.UUID) (uuid.UUID, error)
 	GrantEntityPermission(ctx context.Context, pID, aID, eID uuid.UUID, eType string, perms Permissions) (*Permissions, error)
 	ListAccountantPermissions(ctx context.Context, accountantID uuid.UUID, f *Filter) (*util.RsList, error)
+
+	ListAccountantPermission(ctx context.Context, accId uuid.UUID) (*[]Permissions, int, error)
 }
 
 const (
@@ -646,4 +649,24 @@ func (s *service) GrantEntityPermission(ctx context.Context, pID, aID, eID uuid.
 	}
 
 	return finalDisplay, nil
+}
+
+// ListAccountantPermission implements [Service].
+func (s *service) ListAccountantPermission(ctx context.Context, accId uuid.UUID) (*[]Permissions, int, error) {
+	var filter common.Filter
+
+	permissionRows, err := s.repo.ListAccountantPermissions(ctx, accId, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var perms []Permissions
+	for _, v := range permissionRows {
+		var permission Permissions
+		if err := json.Unmarshal(v.Permissions, &permission); err != nil {
+			return nil, 0, fmt.Errorf("failed to unmarshal permissions: %w", err)
+		}
+		perms = append(perms, permission)
+	}
+	return &perms, 0, nil
 }

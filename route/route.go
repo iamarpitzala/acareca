@@ -70,6 +70,7 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) (audit.Service, *sharedno
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
+
 	authRepo := auth.NewRepository(dbConn)
 	subscriptionRepo := subscription.NewRepository(dbConn)
 	practitionerRepo := practitioner.NewRepository(dbConn)
@@ -97,7 +98,15 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) (audit.Service, *sharedno
 	invitationRepo := invitation.NewRepository(dbConn)
 	invitationSvc := invitation.NewService(invitationRepo, cfg, notificationSvc, auditSvc)
 	invitationHandler := invitation.NewHandler(invitationSvc, accountantRepo)
-	invitation.RegisterRoutes(v1, invitationHandler, cfg)
+
+	//invite api
+	invite := v1.Group("/invite")
+	// Public Route (These endpoints are for the person receiving the invite)
+	invite.POST("/process", invitationHandler.ProcessInvitation)
+	invite.GET("/:id", invitationHandler.GetInvitation)
+	// Protected Route
+	invite.Use(middleware.Auth(cfg))
+	invitation.RegisterRoutes(v1, invitationHandler)
 
 	//admin auth
 	adminRepo := admin.NewRepository(dbConn)
