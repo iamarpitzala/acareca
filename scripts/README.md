@@ -130,6 +130,7 @@ go run scripts/seed_advanced.go -clinics 5 -forms 3 -fields 6 -verbose -create-p
 | `-fields` | int | 6 | Number of fields per form (max 10) |
 | `-create-practitioner` | bool | false | Create a new practitioner |
 | `-practitioner-email` | string | "" | Email for new practitioner |
+| `-practitioner-id` | string | "" | Specific practitioner UUID to seed for |
 | `-verbose` | bool | false | Enable verbose logging |
 
 ### Examples
@@ -145,6 +146,14 @@ go run scripts/seed_advanced.go -clinics 50 -forms 10 -fields 8 -verbose
 ```
 
 Create data for a specific practitioner:
+```bash
+go run scripts/seed_advanced.go \
+  -practitioner-id c9b2ecb5-ced4-43ea-9507-ac9ba56482f0 \
+  -clinics 5 \
+  -forms 3
+```
+
+Create a new practitioner and seed data:
 ```bash
 go run scripts/seed_advanced.go -create-practitioner -practitioner-email "john.doe@clinic.com" -clinics 5
 ```

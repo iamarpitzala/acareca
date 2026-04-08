@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"flag"
 	"fmt"
 	"log"
 	"time"
@@ -22,34 +23,61 @@ type SeedConfig struct {
 }
 
 func main() {
+	// Command line flags
+	numClinics := flag.Int("clinics", 10, "Number of clinics to create")
+	numForms := flag.Int("forms", 5, "Number of forms per clinic")
+	practitionerIDStr := flag.String("practitioner-id", "", "Specific practitioner UUID (optional)")
+	
+	flag.Parse()
+
 	// Load environment variables
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using system environment variables")
 	}
 	cfg := config.NewConfig()
 	// Connect to database
-	db, err := db.DBConn(cfg)
+	database, err := db.DBConn(cfg)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer db.Close()
+	defer database.Close()
 
 	// Seed configuration
-	config := SeedConfig{
-		NumClinics: 10,
-		NumForms:   5,
+	seedConfig := SeedConfig{
+		NumClinics: *numClinics,
+		NumForms:   *numForms,
 	}
 
 	// Get or create a practitioner for seeding
-	practitionerID, err := getOrCreatePractitioner(db)
-	if err != nil {
-		log.Fatalf("Failed to get/create practitioner: %v", err)
+	var practitionerID uuid.UUID
+	if *practitionerIDStr != "" {
+		practitionerID, err = uuid.Parse(*practitionerIDStr)
+		if err != nil {
+			log.Fatalf("Invalid practitioner ID: %v", err)
+		}
+		
+		// Verify practitioner exists
+		var exists bool
+		err = database.Get(&exists, "SELECT EXISTS(SELECT 1 FROM tbl_practitioner WHERE id = $1)", practitionerID)
+		if err != nil {
+			log.Fatalf("Failed to check practitioner: %v", err)
+		}
+		if !exists {
+			log.Fatalf("Practitioner with ID %s does not exist", practitionerID)
+		}
+		log.Printf("Using specified practitioner ID: %s", practitionerID)
+	} else {
+		practitionerID, err = getOrCreatePractitioner(database)
+		if err != nil {
+			log.Fatalf("Failed to get/create practitioner: %v", err)
+		}
+		log.Printf("Using default practitioner ID: %s", practitionerID)
 	}
 
-	log.Printf("Starting seed with practitioner ID: %s", practitionerID)
+	log.Printf("Starting seed with %d clinics and %d forms per clinic", seedConfig.NumClinics, seedConfig.NumForms)
 
 	// Seed clinics and forms
-	if err := seedClinicsAndForms(db, practitionerID, config); err != nil {
+	if err := seedClinicsAndForms(database, practitionerID, seedConfig); err != nil {
 		log.Fatalf("Failed to seed data: %v", err)
 	}
 

@@ -33,6 +33,7 @@ func main() {
 	numFields := flag.Int("fields", 6, "Number of fields per form")
 	createPractitioner := flag.Bool("create-practitioner", false, "Create a new practitioner instead of using existing")
 	practitionerEmail := flag.String("practitioner-email", "", "Email for new practitioner (if creating)")
+	practitionerIDStr := flag.String("practitioner-id", "", "Specific practitioner UUID (optional)")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 	
 	flag.Parse()
@@ -62,9 +63,28 @@ func main() {
 	}
 
 	// Get or create a practitioner for seeding
-	practitionerID, err := getOrCreatePractitionerAdvanced(db, config)
-	if err != nil {
-		log.Fatalf("Failed to get/create practitioner: %v", err)
+	var practitionerID uuid.UUID
+	if *practitionerIDStr != "" {
+		practitionerID, err = uuid.Parse(*practitionerIDStr)
+		if err != nil {
+			log.Fatalf("Invalid practitioner ID: %v", err)
+		}
+		
+		// Verify practitioner exists
+		var exists bool
+		err = db.Get(&exists, "SELECT EXISTS(SELECT 1 FROM tbl_practitioner WHERE id = $1)", practitionerID)
+		if err != nil {
+			log.Fatalf("Failed to check practitioner: %v", err)
+		}
+		if !exists {
+			log.Fatalf("Practitioner with ID %s does not exist", practitionerID)
+		}
+		log.Printf("Using specified practitioner ID: %s", practitionerID)
+	} else {
+		practitionerID, err = getOrCreatePractitionerAdvanced(db, config)
+		if err != nil {
+			log.Fatalf("Failed to get/create practitioner: %v", err)
+		}
 	}
 
 	log.Printf("Starting seed with practitioner ID: %s", practitionerID)
