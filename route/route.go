@@ -204,9 +204,11 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) (audit.Service, *sharedno
 
 	entry.RegisterRoutes(entryGroup, entriesHandler)
 
+	calculationGroup := v1.Group("")
+	calculationGroup.Use(middleware.Auth(cfg))
 	calculationSvc := calculation.NewServiceWithFormula(formSvc, versionSvc, fieldSvc, entriesSvc, formulaSvc)
 	calculationHandler := calculation.NewHandler(calculationSvc)
-	calculation.RegisterRoutes(v1, calculationHandler)
+	calculation.RegisterRoutes(calculationGroup, calculationHandler)
 
 	// P&L reporting — engine/pl module
 	plRepo := pl.NewRepository(dbConn)
