@@ -495,28 +495,14 @@ func (r *repository) GetPractitionerOverview(ctx context.Context) (*RsPractition
 
 // GetResourceAnalytics retrieves resource analytics grouped by entity type
 func (r *repository) GetResourceAnalytics(ctx context.Context, filter *ResourceAnalyticsFilter) (*RsResourceAnalytics, error) {
-	from := "2026-01-01"
-	to := time.Now().Format("2006-01-02")
+	from, to := parseDateRange(filter.From, filter.To, 30)
 	groupBy := "entity_type"
-
-	if filter != nil {
-		if filter.From != nil {
-			from = *filter.From
-		}
-		if filter.To != nil {
-			to = *filter.To
-		}
-		if filter.GroupBy != nil {
-			groupBy = *filter.GroupBy
-		}
+	if filter.GroupBy != nil {
+		groupBy = *filter.GroupBy
 	}
 
 	result := RsResourceAnalytics{
-		Meta: ResourceAnalyticsMeta{
-			From:    from,
-			To:      to,
-			GroupBy: groupBy,
-		},
+		Meta: ResourceAnalyticsMeta{From: from, To: to, GroupBy: groupBy},
 	}
 
 	query := `
@@ -604,83 +590,31 @@ func (r *repository) GetAccountantOverview(ctx context.Context) (*RsAccountantOv
 
 // GetResourceAccessTimeseries retrieves accountant resource access over time
 func (r *repository) GetResourceAccessTimeseries(ctx context.Context, filter *DateRangeFilter) (*RsResourceAccessTimeseries, error) {
-	from := "2026-01-01"
-	to := time.Now().Format("2006-01-02")
-	bucket := "day"
+	from, to := parseDateRange(filter.From, filter.To, 30)
+	bucket := parseBucket(filter.Bucket, "day")
+	dateTrunc, dateFormat := getBucketConfig(bucket)
 
-	if filter != nil {
-		if filter.From != nil {
-			from = *filter.From
-		}
-		if filter.To != nil {
-			to = *filter.To
-		}
-		if filter.Bucket != nil {
-			bucket = *filter.Bucket
-		}
-	}
-
-	result := RsResourceAccessTimeseries{
-		Meta: TimeseriesMeta{
-			From:   from,
-			To:     to,
-			Bucket: bucket,
-		},
-	}
-
-	// Determine date truncation based on bucket
-	dateTrunc := "day"
-	dateFormat := "2006-01-02"
-	switch bucket {
-	case "month":
-		dateTrunc = "month"
-		dateFormat = "2006-01"
-	case "week":
-		dateTrunc = "week"
-		dateFormat = "2006-01-02"
-	}
-
-	query := `
-		SELECT 
-			entity_type as resource_type,
-			DATE_TRUNC($1, created_at) as ts,
-			COUNT(*) as count
-		FROM tbl_audit_log
-		WHERE created_at BETWEEN $2 AND $3
-			AND entity_type IN ('CLINIC', 'INVOICE', 'PATIENT', 'FORM')
-		GROUP BY entity_type, DATE_TRUNC($1, created_at)
-		ORDER BY entity_type, ts
-	`
+	query := buildTimeseriesQuery("tbl_audit_log", "entity_type", "created_at", "AND entity_type IN ('CLINIC', 'INVOICE', 'PATIENT', 'FORM')")
 	rows, err := r.db.QueryxContext(ctx, query, dateTrunc, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("get resource access timeseries: %w", err)
 	}
 	defer rows.Close()
 
-	seriesMap := make(map[string]*ResourceSeries)
-	for rows.Next() {
-		var resourceType string
-		var ts time.Time
-		var count int
-		if err := rows.Scan(&resourceType, &ts, &count); err != nil {
-			return nil, fmt.Errorf("scan timeseries: %w", err)
-		}
-
-		if seriesMap[resourceType] == nil {
-			seriesMap[resourceType] = &ResourceSeries{
-				ResourceType: resourceType,
-				Points:       []TimePoint{},
-			}
-		}
-
-		seriesMap[resourceType].Points = append(seriesMap[resourceType].Points, TimePoint{
-			Timestamp: ts.Format(dateFormat),
-			Count:     count,
-		})
+	seriesMap, err := scanTimeseries(rows, dateFormat)
+	if err != nil {
+		return nil, fmt.Errorf("scan timeseries: %w", err)
 	}
 
-	for _, series := range seriesMap {
-		result.Series = append(result.Series, *series)
+	result := RsResourceAccessTimeseries{
+		Meta: TimeseriesMeta{From: from, To: to, Bucket: bucket},
+	}
+
+	for resourceType, points := range seriesMap {
+		result.Series = append(result.Series, ResourceSeries{
+			ResourceType: resourceType,
+			Points:       points,
+		})
 	}
 
 	return &result, nil
@@ -688,95 +622,31 @@ func (r *repository) GetResourceAccessTimeseries(ctx context.Context, filter *Da
 
 // GetPlatformRevenue retrieves platform revenue over time
 func (r *repository) GetPlatformRevenue(ctx context.Context, filter *DateRangeFilter) (*RsPlatformRevenue, error) {
-	from := "2026-01-01"
-	to := time.Now().Format("2006-01-02")
-	bucket := "month"
+	from, to := parseDateRange(filter.From, filter.To, 365)
+	bucket := parseBucket(filter.Bucket, "month")
+	dateTrunc, dateFormat := getBucketConfig(bucket)
 
-	if filter != nil {
-		if filter.From != nil {
-			from = *filter.From
-		}
-		if filter.To != nil {
-			to = *filter.To
-		}
-		if filter.Bucket != nil {
-			bucket = *filter.Bucket
-		}
-	}
-
-	result := RsPlatformRevenue{
-		Meta: RevenueMeta{
-			From:     from,
-			To:       to,
-			Bucket:   bucket,
-			Currency: "AUD",
-		},
-	}
-
-	dateTrunc := "month"
-	dateFormat := "2006-01"
-	switch bucket {
-	case "day":
-		dateTrunc = "day"
-		dateFormat = "2006-01-02"
-	case "week":
-		dateTrunc = "week"
-		dateFormat = "2006-01-02"
-	}
-
-	query := `
-		SELECT 
-			DATE_TRUNC($1, ps.created_at) as ts,
-			SUM(s.price) as revenue
-		FROM tbl_practitioner_subscription ps
-		JOIN tbl_subscription s ON ps.subscription_id = s.id
-		WHERE ps.created_at BETWEEN $2 AND $3
-			AND ps.deleted_at IS NULL
-		GROUP BY DATE_TRUNC($1, ps.created_at)
-		ORDER BY ts
-	`
-	rows, err := r.db.QueryxContext(ctx, query, dateTrunc, from, to)
+	rows, err := r.db.QueryxContext(ctx, buildRevenueQuery(), dateTrunc, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("get platform revenue: %w", err)
 	}
 	defer rows.Close()
 
-	for rows.Next() {
-		var ts time.Time
-		var revenue float64
-		if err := rows.Scan(&ts, &revenue); err != nil {
-			return nil, fmt.Errorf("scan revenue: %w", err)
-		}
-		result.Series = append(result.Series, RevenuePoint{
-			Timestamp: ts.Format(dateFormat),
-			Revenue:   revenue,
-		})
+	series, err := scanRevenue(rows, dateFormat)
+	if err != nil {
+		return nil, fmt.Errorf("scan revenue: %w", err)
 	}
 
-	return &result, nil
+	return &RsPlatformRevenue{
+		Meta:   RevenueMeta{From: from, To: to, Bucket: bucket, Currency: "AUD"},
+		Series: series,
+	}, nil
 }
 
 // ListSubscriptionRecords retrieves filtered subscription records
 func (r *repository) ListSubscriptionRecords(ctx context.Context, filter *SubscriptionRecordFilter) ([]*RsSubscriptionRecord, int, error) {
-	limit := 20
-	offset := 0
-	sortBy := "created_at"
-	orderBy := "DESC"
-
-	if filter != nil {
-		if filter.Limit != nil && *filter.Limit > 0 && *filter.Limit <= 100 {
-			limit = *filter.Limit
-		}
-		if filter.Offset != nil && *filter.Offset >= 0 {
-			offset = *filter.Offset
-		}
-		if filter.SortBy != nil {
-			sortBy = *filter.SortBy
-		}
-		if filter.OrderBy != nil {
-			orderBy = *filter.OrderBy
-		}
-	}
+	limit, offset := parsePaginationParams(filter.Limit, filter.Offset)
+	sortBy, orderBy := parseSortParams(filter.SortBy, filter.OrderBy, "created_at", "DESC")
 
 	baseQuery := `
 		FROM tbl_practitioner_subscription ps
@@ -786,37 +656,7 @@ func (r *repository) ListSubscriptionRecords(ctx context.Context, filter *Subscr
 		WHERE ps.deleted_at IS NULL
 	`
 
-	var conditions []string
-	var args []interface{}
-	argCount := 1
-
-	if filter != nil {
-		if filter.Search != nil && *filter.Search != "" {
-			conditions = append(conditions, fmt.Sprintf("(u.email ILIKE $%d OR CONCAT(u.first_name, ' ', u.last_name) ILIKE $%d)", argCount, argCount))
-			args = append(args, "%"+*filter.Search+"%")
-			argCount++
-		}
-		if filter.PlanName != nil && *filter.PlanName != "" {
-			conditions = append(conditions, fmt.Sprintf("s.name ILIKE $%d", argCount))
-			args = append(args, "%"+*filter.PlanName+"%")
-			argCount++
-		}
-		if filter.Status != nil && *filter.Status != "" {
-			conditions = append(conditions, fmt.Sprintf("ps.status = $%d", argCount))
-			args = append(args, *filter.Status)
-			argCount++
-		}
-		if filter.From != nil && *filter.From != "" {
-			conditions = append(conditions, fmt.Sprintf("ps.created_at >= $%d", argCount))
-			args = append(args, *filter.From)
-			argCount++
-		}
-		if filter.To != nil && *filter.To != "" {
-			conditions = append(conditions, fmt.Sprintf("ps.created_at <= $%d", argCount))
-			args = append(args, *filter.To)
-			argCount++
-		}
-	}
+	conditions, args, argCount := buildFilterConditions(filter)
 
 	if len(conditions) > 0 {
 		baseQuery += " AND " + strings.Join(conditions, " AND ")
@@ -883,40 +723,12 @@ func (r *repository) ListSubscriptionRecords(ctx context.Context, filter *Subscr
 
 // GetPlanDistribution retrieves plan distribution with historical data
 func (r *repository) GetPlanDistribution(ctx context.Context, filter *DateRangeFilter) (*RsPlanDistribution, error) {
-	from := "2026-01-01"
-	to := time.Now().Format("2006-01-02")
-	bucket := "month"
-
-	if filter != nil {
-		if filter.From != nil {
-			from = *filter.From
-		}
-		if filter.To != nil {
-			to = *filter.To
-		}
-		if filter.Bucket != nil {
-			bucket = *filter.Bucket
-		}
-	}
+	from, to := parseDateRange(filter.From, filter.To, 365)
+	bucket := parseBucket(filter.Bucket, "month")
+	dateTrunc, dateFormat := getBucketConfig(bucket)
 
 	result := RsPlanDistribution{
-		Meta: RevenueMeta{
-			From:     from,
-			To:       to,
-			Bucket:   bucket,
-			Currency: "AUD",
-		},
-	}
-
-	dateTrunc := "month"
-	dateFormat := "2006-01"
-	switch bucket {
-	case "day":
-		dateTrunc = "day"
-		dateFormat = "2006-01-02"
-	case "week":
-		dateTrunc = "week"
-		dateFormat = "2006-01-02"
+		Meta: RevenueMeta{From: from, To: to, Bucket: bucket, Currency: "AUD"},
 	}
 
 	// Get plans with counts
@@ -951,11 +763,8 @@ func (r *repository) GetPlanDistribution(ctx context.Context, filter *DateRangeF
 		planMap[planID] = &PlanDistribution{
 			PlanID:   fmt.Sprintf("%d", planID),
 			PlanName: planName,
-			Counts: PlanCounts{
-				TotalSubscriptions:  total,
-				ActiveSubscriptions: active,
-			},
-			Series: []PlanDistributionPoint{},
+			Counts:   PlanCounts{TotalSubscriptions: total, ActiveSubscriptions: active},
+			Series:   []PlanDistributionPoint{},
 		}
 	}
 
