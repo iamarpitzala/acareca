@@ -1,0 +1,152 @@
+package analytics
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/shared/response"
+)
+
+type Handler struct {
+	svc Service
+}
+
+func NewHandler(svc Service) *Handler {
+	return &Handler{svc: svc}
+}
+
+// @Summary Get user growth and retention metrics
+// @Description Returns user growth statistics including total users, new users, active users, growth rate, and retention rate with timeline
+// @Tags admin-analytics
+// @Produce json
+// @Param start_date query string false "Start date (YYYY-MM-DD)"
+// @Param end_date query string false "End date (YYYY-MM-DD)"
+// @Success 200 {object} RsUserGrowth
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /admin/analytics/user-growth [get]
+func (h *Handler) GetUserGrowth(c *gin.Context) {
+	var filter Filter
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	result, err := h.svc.GetUserGrowth(c.Request.Context(), &filter)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, result, "User growth metrics fetched successfully")
+}
+
+// @Summary Get subscription distribution and MRR
+// @Description Returns subscription metrics including MRR, ARR, ARPU, churn rate, and distribution by plan
+// @Tags admin-analytics
+// @Produce json
+// @Success 200 {object} RsSubscriptionMetrics
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /admin/analytics/subscriptions [get]
+func (h *Handler) GetSubscriptionMetrics(c *gin.Context) {
+	result, err := h.svc.GetSubscriptionMetrics(c.Request.Context())
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, result, "Subscription metrics fetched successfully")
+}
+
+// @Summary Get daily/weekly/monthly active users
+// @Description Returns DAU, WAU, MAU metrics with DAU/MAU ratio and timeline
+// @Tags admin-analytics
+// @Produce json
+// @Param start_date query string false "Start date (YYYY-MM-DD)"
+// @Param end_date query string false "End date (YYYY-MM-DD)"
+// @Success 200 {object} RsActiveUsers
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /admin/analytics/active-users [get]
+func (h *Handler) GetActiveUsers(c *gin.Context) {
+	var filter Filter
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	result, err := h.svc.GetActiveUsers(c.Request.Context(), &filter)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, result, "Active users metrics fetched successfully")
+}
+
+// @Summary Get practitioner details with clinics and accountants
+// @Description Returns detailed practitioner information including subscription, clinics, and associated accountants
+// @Tags admin-analytics
+// @Produce json
+// @Param id path string true "Practitioner ID"
+// @Success 200 {object} RsPractitionerDetail
+// @Failure 400 {object} response.RsError
+// @Failure 404 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /admin/analytics/practitioners/{id} [get]
+func (h *Handler) GetPractitionerDetails(c *gin.Context) {
+	idParam := c.Param("id")
+	practitionerID, err := uuid.Parse(idParam)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	result, err := h.svc.GetPractitionerDetails(c.Request.Context(), practitionerID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, result, "Practitioner details fetched successfully")
+}
+
+// @Summary List all practitioners with clinics and accountants
+// @Description Returns paginated and filtered list of practitioners with their clinics and associated accountants
+// @Tags admin-analytics
+// @Produce json
+// @Param email query string false "Filter by exact email"
+// @Param name query string false "Filter by name (partial match)"
+// @Param phone query string false "Filter by phone (partial match)"
+// @Param has_active_subscription query bool false "Filter by active subscription"
+// @Param subscription_name query string false "Filter by subscription plan name"
+// @Param search query string false "Search across name and email"
+// @Param limit query int false "Records per page (default: 10, max: 100)"
+// @Param offset query int false "Records to skip (default: 0)"
+// @Param sort_by query string false "Sort field: created_at, email, first_name, last_name (default: created_at)"
+// @Param order_by query string false "Sort order: ASC or DESC (default: DESC)"
+// @Success 200 {object} util.RsList
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /admin/analytics/practitioners [get]
+func (h *Handler) ListPractitionersWithDetails(c *gin.Context) {
+	var filter PractitionerFilter
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	result, err := h.svc.ListPractitionersWithDetails(c.Request.Context(), &filter)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, result, "Practitioners list fetched successfully")
+}
