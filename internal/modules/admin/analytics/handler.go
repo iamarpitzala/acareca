@@ -150,3 +150,187 @@ func (h *Handler) ListPractitionersWithDetails(c *gin.Context) {
 
 	response.JSON(c, http.StatusOK, result, "Practitioners list fetched successfully")
 }
+
+// Dashboard Handler Methods
+
+// @Summary Get practitioner dashboard overview
+// @Description Returns practitioner KPIs and user bifurcation
+// @Tags admin-dashboard
+// @Produce json
+// @Success 200 {object} RsPractitionerOverview
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /admin/dashboard/practitioner/overview [get]
+func (h *Handler) GetPractitionerOverview(c *gin.Context) {
+	result, err := h.svc.GetPractitionerOverview(c.Request.Context())
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, result, "Practitioner dashboard overview fetched")
+}
+
+// @Summary Get resource analytics
+// @Description Returns resource analytics grouped by entity type with action counts
+// @Tags admin-dashboard
+// @Produce json
+// @Param from query string false "Start date (YYYY-MM-DD)"
+// @Param to query string false "End date (YYYY-MM-DD)"
+// @Param group_by query string false "Group by: entity_type, action"
+// @Success 200 {object} RsResourceAnalytics
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /admin/dashboard/practitioner/resource-analytics [get]
+func (h *Handler) GetResourceAnalytics(c *gin.Context) {
+	var filter ResourceAnalyticsFilter
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	result, err := h.svc.GetResourceAnalytics(c.Request.Context(), &filter)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, result, "Practitioner resource analytics fetched")
+}
+
+// @Summary Get accountant dashboard overview
+// @Description Returns accountant KPIs and invite status distribution
+// @Tags admin-dashboard
+// @Produce json
+// @Success 200 {object} RsAccountantOverview
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /admin/dashboard/accountant/overview [get]
+func (h *Handler) GetAccountantOverview(c *gin.Context) {
+	result, err := h.svc.GetAccountantOverview(c.Request.Context())
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, result, "Accountant dashboard overview fetched")
+}
+
+// @Summary Get resource access timeseries
+// @Description Returns accountant resource access over time by resource type
+// @Tags admin-dashboard
+// @Produce json
+// @Param from query string false "Start date (YYYY-MM-DD)"
+// @Param to query string false "End date (YYYY-MM-DD)"
+// @Param bucket query string false "Time bucket: day, week, month"
+// @Success 200 {object} RsResourceAccessTimeseries
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /admin/dashboard/accountant/resource-access-timeseries [get]
+func (h *Handler) GetResourceAccessTimeseries(c *gin.Context) {
+	var filter DateRangeFilter
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	result, err := h.svc.GetResourceAccessTimeseries(c.Request.Context(), &filter)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, result, "Accountant resource access timeseries fetched")
+}
+
+// @Summary Get platform revenue
+// @Description Returns platform revenue over time
+// @Tags admin-dashboard
+// @Produce json
+// @Param from query string false "Start date (YYYY-MM-DD)"
+// @Param to query string false "End date (YYYY-MM-DD)"
+// @Param bucket query string false "Time bucket: day, week, month"
+// @Success 200 {object} RsPlatformRevenue
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /admin/dashboard/billing/platform-revenue [get]
+func (h *Handler) GetPlatformRevenue(c *gin.Context) {
+	var filter DateRangeFilter
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	result, err := h.svc.GetPlatformRevenue(c.Request.Context(), &filter)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, result, "Platform revenue fetched")
+}
+
+// @Summary List subscription records
+// @Description Returns paginated and filtered list of subscription records
+// @Tags admin-dashboard
+// @Produce json
+// @Param search query string false "Search by practitioner name or email"
+// @Param plan_name query string false "Filter by plan name"
+// @Param status query string false "Filter by status"
+// @Param from query string false "Filter by start date (YYYY-MM-DD)"
+// @Param to query string false "Filter by end date (YYYY-MM-DD)"
+// @Param limit query int false "Records per page (default: 20, max: 100)"
+// @Param offset query int false "Records to skip (default: 0)"
+// @Param sort_by query string false "Sort field: created_at, start_date, end_date (default: created_at)"
+// @Param order_by query string false "Sort order: ASC or DESC (default: DESC)"
+// @Success 200 {object} util.RsList
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /admin/billing/subscriptions [get]
+func (h *Handler) ListSubscriptionRecords(c *gin.Context) {
+	var filter SubscriptionRecordFilter
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	result, err := h.svc.ListSubscriptionRecords(c.Request.Context(), &filter)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, result, "Subscription records fetched")
+}
+
+// @Summary Get plan distribution
+// @Description Returns plan distribution with historical revenue and subscription counts
+// @Tags admin-dashboard
+// @Produce json
+// @Param from query string false "Start date (YYYY-MM-DD)"
+// @Param to query string false "End date (YYYY-MM-DD)"
+// @Param bucket query string false "Time bucket: day, week, month"
+// @Success 200 {object} RsPlanDistribution
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /admin/billing/plan-distribution [get]
+func (h *Handler) GetPlanDistribution(c *gin.Context) {
+	var filter DateRangeFilter
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	result, err := h.svc.GetPlanDistribution(c.Request.Context(), &filter)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, result, "Plan distribution fetched")
+}

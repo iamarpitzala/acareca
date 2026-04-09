@@ -156,3 +156,180 @@ func (f *PractitionerFilter) MapToFilter() common.Filter {
 
 	return common.NewFilter(f.Search, filters, operators, f.Limit, f.Offset, f.SortBy, f.OrderBy)
 }
+
+// Practitioner Dashboard Models
+
+type RsPractitionerOverview struct {
+	KPIs            PractitionerKPIs `json:"kpis"`
+	UserBifurcation UserBifurcation  `json:"user_bifurcation"`
+}
+
+type PractitionerKPIs struct {
+	TotalPractitioners  int `json:"total_practitioners"`
+	ActiveSubscriptions int `json:"active_subscriptions"`
+	NoActivePlan        int `json:"no_active_plan"`
+	TotalInvites        int `json:"total_invites"`
+}
+
+type UserBifurcation struct {
+	Total  int         `json:"total"`
+	ByRole []RoleCount `json:"by_role"`
+}
+
+type RoleCount struct {
+	Role  string `json:"role"`
+	Count int    `json:"count"`
+}
+
+type RsResourceAnalytics struct {
+	Meta ResourceAnalyticsMeta `json:"meta"`
+	Rows []ResourceRow         `json:"rows"`
+}
+
+type ResourceAnalyticsMeta struct {
+	From    string `json:"from"`
+	To      string `json:"to"`
+	GroupBy string `json:"group_by"`
+}
+
+type ResourceRow struct {
+	EntityType string       `json:"entity_type"`
+	Actions    ActionCounts `json:"actions"`
+	Total      int          `json:"total"`
+}
+
+type ActionCounts struct {
+	Create int `json:"create"`
+	Read   int `json:"read"`
+	Update int `json:"update"`
+	Delete int `json:"delete"`
+}
+
+// Accountant Dashboard Models
+
+type RsAccountantOverview struct {
+	KPIs             AccountantKPIs   `json:"kpis"`
+	InvitesStatusPie InvitesStatusPie `json:"invites_status_pie"`
+}
+
+type AccountantKPIs struct {
+	TotalPractitioners int `json:"total_practitioners"`
+	TotalAccountants   int `json:"total_accountants"`
+	TotalInvites       int `json:"total_invites"`
+	TotalPermissions   int `json:"total_permissions"`
+}
+
+type InvitesStatusPie struct {
+	Total    int           `json:"total"`
+	ByStatus []StatusCount `json:"by_status"`
+}
+
+type StatusCount struct {
+	Status string `json:"status"`
+	Count  int    `json:"count"`
+}
+
+type RsResourceAccessTimeseries struct {
+	Meta   TimeseriesMeta   `json:"meta"`
+	Series []ResourceSeries `json:"series"`
+}
+
+type TimeseriesMeta struct {
+	From   string `json:"from"`
+	To     string `json:"to"`
+	Bucket string `json:"bucket"`
+}
+
+type ResourceSeries struct {
+	ResourceType string      `json:"resource_type"`
+	Points       []TimePoint `json:"points"`
+}
+
+type TimePoint struct {
+	Timestamp string `json:"ts"`
+	Count     int    `json:"count"`
+}
+
+// Billing Dashboard Models
+
+type RsPlatformRevenue struct {
+	Meta   RevenueMeta    `json:"meta"`
+	Series []RevenuePoint `json:"series"`
+}
+
+type RevenueMeta struct {
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Bucket   string `json:"bucket"`
+	Currency string `json:"currency"`
+}
+
+type RevenuePoint struct {
+	Timestamp string  `json:"ts"`
+	Revenue   float64 `json:"revenue"`
+}
+
+type RsSubscriptionRecord struct {
+	SubscriptionID    string    `json:"subscription_id"`
+	PractitionerID    string    `json:"practitioner_id"`
+	PractitionerName  string    `json:"practitioner_name"`
+	PractitionerEmail string    `json:"practitioner_email"`
+	PlanID            string    `json:"plan_id"`
+	PlanName          string    `json:"plan_name"`
+	Status            string    `json:"status"`
+	Amount            float64   `json:"amount"`
+	Currency          string    `json:"currency"`
+	StartDate         time.Time `json:"start_date"`
+	EndDate           time.Time `json:"end_date"`
+	CreatedAt         time.Time `json:"created_at"`
+}
+
+type RsPlanDistribution struct {
+	Meta  RevenueMeta        `json:"meta"`
+	Plans []PlanDistribution `json:"plans"`
+}
+
+type PlanDistribution struct {
+	PlanID   string                  `json:"plan_id"`
+	PlanName string                  `json:"plan_name"`
+	Counts   PlanCounts              `json:"counts"`
+	Series   []PlanDistributionPoint `json:"series"`
+}
+
+type PlanCounts struct {
+	TotalSubscriptions  int `json:"total_subscriptions"`
+	ActiveSubscriptions int `json:"active_subscriptions"`
+}
+
+type PlanDistributionPoint struct {
+	Timestamp           string  `json:"ts"`
+	Revenue             float64 `json:"revenue"`
+	NewSubscriptions    int     `json:"new_subscriptions"`
+	ActiveSubscriptions int     `json:"active_subscriptions"`
+}
+
+// Dashboard Filter Models
+
+type DateRangeFilter struct {
+	From   *string `form:"from"`
+	To     *string `form:"to"`
+	Bucket *string `form:"bucket"` // day, week, month
+}
+
+type ResourceAnalyticsFilter struct {
+	From    *string `form:"from"`
+	To      *string `form:"to"`
+	GroupBy *string `form:"group_by"` // entity_type, action
+}
+
+type SubscriptionRecordFilter struct {
+	Search   *string `form:"search"`
+	PlanName *string `form:"plan_name"`
+	Status   *string `form:"status"`
+	From     *string `form:"from"`
+	To       *string `form:"to"`
+	Limit    *int    `form:"limit"`
+	Offset   *int    `form:"offset"`
+	SortBy   *string `form:"sort_by"`
+	OrderBy  *string `form:"order_by"`
+}

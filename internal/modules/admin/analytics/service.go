@@ -14,6 +14,15 @@ type Service interface {
 	GetActiveUsers(ctx context.Context, filter *Filter) (*RsActiveUsers, error)
 	GetPractitionerDetails(ctx context.Context, practitionerID uuid.UUID) (*RsPractitionerDetail, error)
 	ListPractitionersWithDetails(ctx context.Context, filter *PractitionerFilter) (*util.RsList, error)
+	
+	// Dashboard APIs
+	GetPractitionerOverview(ctx context.Context) (*RsPractitionerOverview, error)
+	GetResourceAnalytics(ctx context.Context, filter *ResourceAnalyticsFilter) (*RsResourceAnalytics, error)
+	GetAccountantOverview(ctx context.Context) (*RsAccountantOverview, error)
+	GetResourceAccessTimeseries(ctx context.Context, filter *DateRangeFilter) (*RsResourceAccessTimeseries, error)
+	GetPlatformRevenue(ctx context.Context, filter *DateRangeFilter) (*RsPlatformRevenue, error)
+	ListSubscriptionRecords(ctx context.Context, filter *SubscriptionRecordFilter) (*util.RsList, error)
+	GetPlanDistribution(ctx context.Context, filter *DateRangeFilter) (*RsPlanDistribution, error)
 }
 
 type service struct {
@@ -77,4 +86,52 @@ func (s *service) getDateRange(filter *Filter) (time.Time, time.Time) {
 	}
 
 	return startDate, endDate
+}
+
+// Dashboard Service Methods
+
+func (s *service) GetPractitionerOverview(ctx context.Context) (*RsPractitionerOverview, error) {
+	return s.repo.GetPractitionerOverview(ctx)
+}
+
+func (s *service) GetResourceAnalytics(ctx context.Context, filter *ResourceAnalyticsFilter) (*RsResourceAnalytics, error) {
+	return s.repo.GetResourceAnalytics(ctx, filter)
+}
+
+func (s *service) GetAccountantOverview(ctx context.Context) (*RsAccountantOverview, error) {
+	return s.repo.GetAccountantOverview(ctx)
+}
+
+func (s *service) GetResourceAccessTimeseries(ctx context.Context, filter *DateRangeFilter) (*RsResourceAccessTimeseries, error) {
+	return s.repo.GetResourceAccessTimeseries(ctx, filter)
+}
+
+func (s *service) GetPlatformRevenue(ctx context.Context, filter *DateRangeFilter) (*RsPlatformRevenue, error) {
+	return s.repo.GetPlatformRevenue(ctx, filter)
+}
+
+func (s *service) ListSubscriptionRecords(ctx context.Context, filter *SubscriptionRecordFilter) (*util.RsList, error) {
+	results, total, err := s.repo.ListSubscriptionRecords(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	offset := 0
+	limit := 20
+	if filter != nil {
+		if filter.Offset != nil {
+			offset = *filter.Offset
+		}
+		if filter.Limit != nil {
+			limit = *filter.Limit
+		}
+	}
+
+	var rsList util.RsList
+	rsList.MapToList(results, total, offset, limit)
+	return &rsList, nil
+}
+
+func (s *service) GetPlanDistribution(ctx context.Context, filter *DateRangeFilter) (*RsPlanDistribution, error) {
+	return s.repo.GetPlanDistribution(ctx, filter)
 }

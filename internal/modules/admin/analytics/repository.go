@@ -3,6 +3,7 @@ package analytics
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +17,15 @@ type Repository interface {
 	GetActiveUsers(ctx context.Context, startDate, endDate time.Time) (*RsActiveUsers, error)
 	GetPractitionerDetails(ctx context.Context, practitionerID uuid.UUID) (*RsPractitionerDetail, error)
 	ListPractitionersWithDetails(ctx context.Context, filter *PractitionerFilter) ([]*RsPractitionerDetail, int, error)
+
+	// Dashboard APIs
+	GetPractitionerOverview(ctx context.Context) (*RsPractitionerOverview, error)
+	GetResourceAnalytics(ctx context.Context, filter *ResourceAnalyticsFilter) (*RsResourceAnalytics, error)
+	GetAccountantOverview(ctx context.Context) (*RsAccountantOverview, error)
+	GetResourceAccessTimeseries(ctx context.Context, filter *DateRangeFilter) (*RsResourceAccessTimeseries, error)
+	GetPlatformRevenue(ctx context.Context, filter *DateRangeFilter) (*RsPlatformRevenue, error)
+	ListSubscriptionRecords(ctx context.Context, filter *SubscriptionRecordFilter) ([]*RsSubscriptionRecord, int, error)
+	GetPlanDistribution(ctx context.Context, filter *DateRangeFilter) (*RsPlanDistribution, error)
 }
 
 type repository struct {
@@ -405,7 +415,7 @@ func (r *repository) ListPractitionersWithDetails(ctx context.Context, filter *P
 	// Get practitioner IDs with sorting and pagination
 	selectQuery := "SELECT DISTINCT p.id " + baseQuery
 	listQuery, listArgs := common.BuildQuery(selectQuery, cf, practitionerColumns, practitionerSearchCols, false)
-	
+
 	rows, err := r.db.QueryxContext(ctx, r.db.Rebind(listQuery), listArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("get practitioner ids: %w", err)
@@ -427,4 +437,571 @@ func (r *repository) ListPractitionersWithDetails(ctx context.Context, filter *P
 	}
 
 	return results, total, nil
+}
+
+// Dashboard Repository Methods
+
+// GetPractitionerOverview retrieves practitioner dashboard overview
+func (r *repository) GetPractitionerOverview(ctx context.Context) (*RsPractitionerOverview, error) {
+	var result RsPractitionerOverview
+
+	// Get KPIs
+	kpiQuery := `
+		SELECT 
+			COUNT(DISTINCT p.id) as total_practitioners,
+			COUNT(DISTINCT CASE WHEN ps.status = 'ACTIVE' THEN ps.id END) as active_subscriptions,
+			COUNT(DISTINCT CASE WHEN ps.id IS NULL THEN p.id END) as no_active_plan,
+			(SELECT COUNT(*) FROM tbl_invite_permissions WHERE deleted_at IS NULL) as total_invites
+		FROM tbl_practitioner p
+		LEFT JOIN tbl_practitioner_subscription ps ON ps.practitioner_id = p.id AND ps.status = 'ACTIVE' AND ps.deleted_at IS NULL
+		WHERE p.deleted_at IS NULL
+	`
+	err := r.db.QueryRowContext(ctx, kpiQuery).Scan(
+		&result.KPIs.TotalPractitioners,
+		&result.KPIs.ActiveSubscriptions,
+		&result.KPIs.NoActivePlan,
+		&result.KPIs.TotalInvites,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get practitioner KPIs: %w", err)
+	}
+
+	// Get user bifurcation
+	bifurcationQuery := `
+		SELECT role, COUNT(*) as count
+		FROM tbl_user
+		WHERE deleted_at IS NULL
+		GROUP BY role
+	`
+	rows, err := r.db.QueryxContext(ctx, bifurcationQuery)
+	if err != nil {
+		return nil, fmt.Errorf("get user bifurcation: %w", err)
+	}
+	defer rows.Close()
+
+	var total int
+	for rows.Next() {
+		var rc RoleCount
+		if err := rows.Scan(&rc.Role, &rc.Count); err != nil {
+			return nil, fmt.Errorf("scan role count: %w", err)
+		}
+		result.UserBifurcation.ByRole = append(result.UserBifurcation.ByRole, rc)
+		total += rc.Count
+	}
+	result.UserBifurcation.Total = total
+
+	return &result, nil
+}
+
+// GetResourceAnalytics retrieves resource analytics grouped by entity type
+func (r *repository) GetResourceAnalytics(ctx context.Context, filter *ResourceAnalyticsFilter) (*RsResourceAnalytics, error) {
+	from := "2026-01-01"
+	to := time.Now().Format("2006-01-02")
+	groupBy := "entity_type"
+
+	if filter != nil {
+		if filter.From != nil {
+			from = *filter.From
+		}
+		if filter.To != nil {
+			to = *filter.To
+		}
+		if filter.GroupBy != nil {
+			groupBy = *filter.GroupBy
+		}
+	}
+
+	result := RsResourceAnalytics{
+		Meta: ResourceAnalyticsMeta{
+			From:    from,
+			To:      to,
+			GroupBy: groupBy,
+		},
+	}
+
+	query := `
+		SELECT 
+			entity_type,
+			COUNT(CASE WHEN action = 'CREATE' THEN 1 END) as create_count,
+			COUNT(CASE WHEN action = 'READ' THEN 1 END) as read_count,
+			COUNT(CASE WHEN action = 'UPDATE' THEN 1 END) as update_count,
+			COUNT(CASE WHEN action = 'DELETE' THEN 1 END) as delete_count,
+			COUNT(*) as total
+		FROM tbl_audit_log
+		WHERE created_at BETWEEN $1 AND $2
+			AND entity_type IN ('CLINIC', 'FORM', 'ENTRY')
+		GROUP BY entity_type
+		ORDER BY total DESC
+	`
+	rows, err := r.db.QueryxContext(ctx, query, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("get resource analytics: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var row ResourceRow
+		err := rows.Scan(&row.EntityType, &row.Actions.Create, &row.Actions.Read, &row.Actions.Update, &row.Actions.Delete, &row.Total)
+		if err != nil {
+			return nil, fmt.Errorf("scan resource row: %w", err)
+		}
+		result.Rows = append(result.Rows, row)
+	}
+
+	return &result, nil
+}
+
+// GetAccountantOverview retrieves accountant dashboard overview
+func (r *repository) GetAccountantOverview(ctx context.Context) (*RsAccountantOverview, error) {
+	var result RsAccountantOverview
+
+	// Get KPIs
+	kpiQuery := `
+		SELECT 
+			(SELECT COUNT(*) FROM tbl_practitioner WHERE deleted_at IS NULL) as total_practitioners,
+			(SELECT COUNT(*) FROM tbl_accountant WHERE deleted_at IS NULL) as total_accountants,
+			COUNT(*) as total_invites,
+			COUNT(*) as total_permissions
+		FROM tbl_invite_permissions
+		WHERE deleted_at IS NULL
+	`
+	err := r.db.QueryRowContext(ctx, kpiQuery).Scan(
+		&result.KPIs.TotalPractitioners,
+		&result.KPIs.TotalAccountants,
+		&result.KPIs.TotalInvites,
+		&result.KPIs.TotalPermissions,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get accountant KPIs: %w", err)
+	}
+
+	// Get invites status distribution
+	statusQuery := `
+		SELECT status, COUNT(*) as count
+		FROM tbl_invite_permissions
+		WHERE deleted_at IS NULL
+		GROUP BY status
+	`
+	rows, err := r.db.QueryxContext(ctx, statusQuery)
+	if err != nil {
+		return nil, fmt.Errorf("get invite status: %w", err)
+	}
+	defer rows.Close()
+
+	var total int
+	for rows.Next() {
+		var sc StatusCount
+		if err := rows.Scan(&sc.Status, &sc.Count); err != nil {
+			return nil, fmt.Errorf("scan status count: %w", err)
+		}
+		result.InvitesStatusPie.ByStatus = append(result.InvitesStatusPie.ByStatus, sc)
+		total += sc.Count
+	}
+	result.InvitesStatusPie.Total = total
+
+	return &result, nil
+}
+
+// GetResourceAccessTimeseries retrieves accountant resource access over time
+func (r *repository) GetResourceAccessTimeseries(ctx context.Context, filter *DateRangeFilter) (*RsResourceAccessTimeseries, error) {
+	from := "2026-01-01"
+	to := time.Now().Format("2006-01-02")
+	bucket := "day"
+
+	if filter != nil {
+		if filter.From != nil {
+			from = *filter.From
+		}
+		if filter.To != nil {
+			to = *filter.To
+		}
+		if filter.Bucket != nil {
+			bucket = *filter.Bucket
+		}
+	}
+
+	result := RsResourceAccessTimeseries{
+		Meta: TimeseriesMeta{
+			From:   from,
+			To:     to,
+			Bucket: bucket,
+		},
+	}
+
+	// Determine date truncation based on bucket
+	dateTrunc := "day"
+	dateFormat := "2006-01-02"
+	switch bucket {
+	case "month":
+		dateTrunc = "month"
+		dateFormat = "2006-01"
+	case "week":
+		dateTrunc = "week"
+		dateFormat = "2006-01-02"
+	}
+
+	query := `
+		SELECT 
+			entity_type as resource_type,
+			DATE_TRUNC($1, created_at) as ts,
+			COUNT(*) as count
+		FROM tbl_audit_log
+		WHERE created_at BETWEEN $2 AND $3
+			AND entity_type IN ('CLINIC', 'INVOICE', 'PATIENT', 'FORM')
+		GROUP BY entity_type, DATE_TRUNC($1, created_at)
+		ORDER BY entity_type, ts
+	`
+	rows, err := r.db.QueryxContext(ctx, query, dateTrunc, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("get resource access timeseries: %w", err)
+	}
+	defer rows.Close()
+
+	seriesMap := make(map[string]*ResourceSeries)
+	for rows.Next() {
+		var resourceType string
+		var ts time.Time
+		var count int
+		if err := rows.Scan(&resourceType, &ts, &count); err != nil {
+			return nil, fmt.Errorf("scan timeseries: %w", err)
+		}
+
+		if seriesMap[resourceType] == nil {
+			seriesMap[resourceType] = &ResourceSeries{
+				ResourceType: resourceType,
+				Points:       []TimePoint{},
+			}
+		}
+
+		seriesMap[resourceType].Points = append(seriesMap[resourceType].Points, TimePoint{
+			Timestamp: ts.Format(dateFormat),
+			Count:     count,
+		})
+	}
+
+	for _, series := range seriesMap {
+		result.Series = append(result.Series, *series)
+	}
+
+	return &result, nil
+}
+
+// GetPlatformRevenue retrieves platform revenue over time
+func (r *repository) GetPlatformRevenue(ctx context.Context, filter *DateRangeFilter) (*RsPlatformRevenue, error) {
+	from := "2026-01-01"
+	to := time.Now().Format("2006-01-02")
+	bucket := "month"
+
+	if filter != nil {
+		if filter.From != nil {
+			from = *filter.From
+		}
+		if filter.To != nil {
+			to = *filter.To
+		}
+		if filter.Bucket != nil {
+			bucket = *filter.Bucket
+		}
+	}
+
+	result := RsPlatformRevenue{
+		Meta: RevenueMeta{
+			From:     from,
+			To:       to,
+			Bucket:   bucket,
+			Currency: "AUD",
+		},
+	}
+
+	dateTrunc := "month"
+	dateFormat := "2006-01"
+	switch bucket {
+	case "day":
+		dateTrunc = "day"
+		dateFormat = "2006-01-02"
+	case "week":
+		dateTrunc = "week"
+		dateFormat = "2006-01-02"
+	}
+
+	query := `
+		SELECT 
+			DATE_TRUNC($1, ps.created_at) as ts,
+			SUM(s.price) as revenue
+		FROM tbl_practitioner_subscription ps
+		JOIN tbl_subscription s ON ps.subscription_id = s.id
+		WHERE ps.created_at BETWEEN $2 AND $3
+			AND ps.deleted_at IS NULL
+		GROUP BY DATE_TRUNC($1, ps.created_at)
+		ORDER BY ts
+	`
+	rows, err := r.db.QueryxContext(ctx, query, dateTrunc, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("get platform revenue: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var ts time.Time
+		var revenue float64
+		if err := rows.Scan(&ts, &revenue); err != nil {
+			return nil, fmt.Errorf("scan revenue: %w", err)
+		}
+		result.Series = append(result.Series, RevenuePoint{
+			Timestamp: ts.Format(dateFormat),
+			Revenue:   revenue,
+		})
+	}
+
+	return &result, nil
+}
+
+// ListSubscriptionRecords retrieves filtered subscription records
+func (r *repository) ListSubscriptionRecords(ctx context.Context, filter *SubscriptionRecordFilter) ([]*RsSubscriptionRecord, int, error) {
+	limit := 20
+	offset := 0
+	sortBy := "created_at"
+	orderBy := "DESC"
+
+	if filter != nil {
+		if filter.Limit != nil && *filter.Limit > 0 && *filter.Limit <= 100 {
+			limit = *filter.Limit
+		}
+		if filter.Offset != nil && *filter.Offset >= 0 {
+			offset = *filter.Offset
+		}
+		if filter.SortBy != nil {
+			sortBy = *filter.SortBy
+		}
+		if filter.OrderBy != nil {
+			orderBy = *filter.OrderBy
+		}
+	}
+
+	baseQuery := `
+		FROM tbl_practitioner_subscription ps
+		JOIN tbl_subscription s ON ps.subscription_id = s.id
+		JOIN tbl_practitioner p ON ps.practitioner_id = p.id
+		JOIN tbl_user u ON p.user_id = u.id
+		WHERE ps.deleted_at IS NULL
+	`
+
+	var conditions []string
+	var args []interface{}
+	argCount := 1
+
+	if filter != nil {
+		if filter.Search != nil && *filter.Search != "" {
+			conditions = append(conditions, fmt.Sprintf("(u.email ILIKE $%d OR CONCAT(u.first_name, ' ', u.last_name) ILIKE $%d)", argCount, argCount))
+			args = append(args, "%"+*filter.Search+"%")
+			argCount++
+		}
+		if filter.PlanName != nil && *filter.PlanName != "" {
+			conditions = append(conditions, fmt.Sprintf("s.name ILIKE $%d", argCount))
+			args = append(args, "%"+*filter.PlanName+"%")
+			argCount++
+		}
+		if filter.Status != nil && *filter.Status != "" {
+			conditions = append(conditions, fmt.Sprintf("ps.status = $%d", argCount))
+			args = append(args, *filter.Status)
+			argCount++
+		}
+		if filter.From != nil && *filter.From != "" {
+			conditions = append(conditions, fmt.Sprintf("ps.created_at >= $%d", argCount))
+			args = append(args, *filter.From)
+			argCount++
+		}
+		if filter.To != nil && *filter.To != "" {
+			conditions = append(conditions, fmt.Sprintf("ps.created_at <= $%d", argCount))
+			args = append(args, *filter.To)
+			argCount++
+		}
+	}
+
+	if len(conditions) > 0 {
+		baseQuery += " AND " + strings.Join(conditions, " AND ")
+	}
+
+	// Count query
+	countQuery := "SELECT COUNT(*) " + baseQuery
+	var total int
+	err := r.db.GetContext(ctx, &total, countQuery, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("count subscriptions: %w", err)
+	}
+
+	// List query
+	selectQuery := `
+		SELECT 
+			ps.id as subscription_id,
+			p.id as practitioner_id,
+			CONCAT(u.first_name, ' ', u.last_name) as practitioner_name,
+			u.email as practitioner_email,
+			s.id as plan_id,
+			s.name as plan_name,
+			ps.status,
+			s.price as amount,
+			'AUD' as currency,
+			ps.start_date,
+			ps.end_date,
+			ps.created_at
+	` + baseQuery + fmt.Sprintf(" ORDER BY ps.%s %s LIMIT $%d OFFSET $%d", sortBy, orderBy, argCount, argCount+1)
+
+	args = append(args, limit, offset)
+
+	rows, err := r.db.QueryxContext(ctx, selectQuery, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list subscriptions: %w", err)
+	}
+	defer rows.Close()
+
+	var results []*RsSubscriptionRecord
+	for rows.Next() {
+		var record RsSubscriptionRecord
+		err := rows.Scan(
+			&record.SubscriptionID,
+			&record.PractitionerID,
+			&record.PractitionerName,
+			&record.PractitionerEmail,
+			&record.PlanID,
+			&record.PlanName,
+			&record.Status,
+			&record.Amount,
+			&record.Currency,
+			&record.StartDate,
+			&record.EndDate,
+			&record.CreatedAt,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("scan subscription: %w", err)
+		}
+		results = append(results, &record)
+	}
+
+	return results, total, nil
+}
+
+// GetPlanDistribution retrieves plan distribution with historical data
+func (r *repository) GetPlanDistribution(ctx context.Context, filter *DateRangeFilter) (*RsPlanDistribution, error) {
+	from := "2026-01-01"
+	to := time.Now().Format("2006-01-02")
+	bucket := "month"
+
+	if filter != nil {
+		if filter.From != nil {
+			from = *filter.From
+		}
+		if filter.To != nil {
+			to = *filter.To
+		}
+		if filter.Bucket != nil {
+			bucket = *filter.Bucket
+		}
+	}
+
+	result := RsPlanDistribution{
+		Meta: RevenueMeta{
+			From:     from,
+			To:       to,
+			Bucket:   bucket,
+			Currency: "AUD",
+		},
+	}
+
+	dateTrunc := "month"
+	dateFormat := "2006-01"
+	switch bucket {
+	case "day":
+		dateTrunc = "day"
+		dateFormat = "2006-01-02"
+	case "week":
+		dateTrunc = "week"
+		dateFormat = "2006-01-02"
+	}
+
+	// Get plans with counts
+	plansQuery := `
+		SELECT 
+			s.id,
+			s.name,
+			COUNT(*) as total_subscriptions,
+			COUNT(CASE WHEN ps.status = 'ACTIVE' THEN 1 END) as active_subscriptions
+		FROM tbl_subscription s
+		LEFT JOIN tbl_practitioner_subscription ps ON ps.subscription_id = s.id AND ps.deleted_at IS NULL
+		WHERE s.deleted_at IS NULL
+		GROUP BY s.id, s.name
+		ORDER BY total_subscriptions DESC
+	`
+	rows, err := r.db.QueryxContext(ctx, plansQuery)
+	if err != nil {
+		return nil, fmt.Errorf("get plans: %w", err)
+	}
+	defer rows.Close()
+
+	var planIDs []int
+	planMap := make(map[int]*PlanDistribution)
+	for rows.Next() {
+		var planID int
+		var planName string
+		var total, active int
+		if err := rows.Scan(&planID, &planName, &total, &active); err != nil {
+			return nil, fmt.Errorf("scan plan: %w", err)
+		}
+		planIDs = append(planIDs, planID)
+		planMap[planID] = &PlanDistribution{
+			PlanID:   fmt.Sprintf("%d", planID),
+			PlanName: planName,
+			Counts: PlanCounts{
+				TotalSubscriptions:  total,
+				ActiveSubscriptions: active,
+			},
+			Series: []PlanDistributionPoint{},
+		}
+	}
+
+	// Get timeseries data for each plan
+	timeseriesQuery := `
+		SELECT 
+			s.id as plan_id,
+			DATE_TRUNC($1, ps.created_at) as ts,
+			SUM(s.price) as revenue,
+			COUNT(CASE WHEN DATE(ps.created_at) = DATE(DATE_TRUNC($1, ps.created_at)) THEN 1 END) as new_subscriptions,
+			COUNT(CASE WHEN ps.status = 'ACTIVE' THEN 1 END) as active_subscriptions
+		FROM tbl_practitioner_subscription ps
+		JOIN tbl_subscription s ON ps.subscription_id = s.id
+		WHERE ps.created_at BETWEEN $2 AND $3
+			AND ps.deleted_at IS NULL
+		GROUP BY s.id, DATE_TRUNC($1, ps.created_at)
+		ORDER BY s.id, ts
+	`
+	tsRows, err := r.db.QueryxContext(ctx, timeseriesQuery, dateTrunc, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("get timeseries: %w", err)
+	}
+	defer tsRows.Close()
+
+	for tsRows.Next() {
+		var planID int
+		var ts time.Time
+		var revenue float64
+		var newSubs, activeSubs int
+		if err := tsRows.Scan(&planID, &ts, &revenue, &newSubs, &activeSubs); err != nil {
+			return nil, fmt.Errorf("scan timeseries: %w", err)
+		}
+
+		if plan, ok := planMap[planID]; ok {
+			plan.Series = append(plan.Series, PlanDistributionPoint{
+				Timestamp:           ts.Format(dateFormat),
+				Revenue:             revenue,
+				NewSubscriptions:    newSubs,
+				ActiveSubscriptions: activeSubs,
+			})
+		}
+	}
+
+	for _, planID := range planIDs {
+		result.Plans = append(result.Plans, *planMap[planID])
+	}
+
+	return &result, nil
 }
