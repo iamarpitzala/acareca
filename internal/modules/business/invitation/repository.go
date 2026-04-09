@@ -464,13 +464,10 @@ func (r *repository) GetPermissionsByEmail(ctx context.Context, pID uuid.UUID, e
 
 	var details []RqPermissionDetail
 	for _, row := range rows {
-		var p Permissions
-		_ = json.Unmarshal(row.Permissions, &p)
-
 		details = append(details, RqPermissionDetail{
 			EntityID:    row.EntityID,
 			EntityType:  row.EntityType,
-			Permissions: p,
+			Permissions: row.Permissions,
 		})
 	}
 	return details, nil

@@ -654,14 +654,6 @@ func (s *service) ListAccountantPermissions(ctx context.Context, aID uuid.UUID, 
 	var resultList []AccountantPermissionRes
 
 	for _, row := range res {
-		// 2. Unmarshal the RawMessage into a temporary map
-		var dbMap map[string]bool
-		if err := json.Unmarshal(row.Permissions, &dbMap); err != nil {
-			return nil, fmt.Errorf("unmarshal permissions: %w", err)
-		}
-
-		// 3. Expand the permissions using your helper
-		expanded := s.expandPermissions(dbMap)
 
 		// 4. Map the row to the response struct
 		resultList = append(resultList, AccountantPermissionRes{
@@ -670,7 +662,7 @@ func (s *service) ListAccountantPermissions(ctx context.Context, aID uuid.UUID, 
 			EntityType:     row.EntityType,
 			PractitionerID: row.PractitionerID,
 			AccountantID:   row.AccountantID,
-			Permissions:    expanded,
+			Permissions:    row.Permissions,
 			CreatedAt:      row.CreatedAt,
 			UpdatedAt:      row.UpdatedAt,
 		})
@@ -757,28 +749,6 @@ func (s *service) processPermissions(perms Permissions) (json.RawMessage, Permis
 	return permJson, finalDisplay
 }
 
-// Helper to convert map into struct for LIST Response
-func (s *service) expandPermissions(dbMap map[string]bool) Permissions {
-	// If "all" is true, everything is true
-	if dbMap["all"] {
-		return Permissions{
-			All:    true,
-			Read:   true,
-			Create: true,
-			Update: true,
-			Delete: true,
-		}
-	}
-
-	// Otherwise, map individual keys
-	return Permissions{
-		Read:   dbMap["read"],
-		Create: dbMap["create"],
-		Update: dbMap["update"],
-		Delete: dbMap["delete"],
-	}
-}
-
 // ListAccountantPermission implements [Service].
 func (s *service) ListAccountantPermission(ctx context.Context, accId uuid.UUID) (*[]Permissions, int, error) {
 	var filter common.Filter
@@ -790,11 +760,7 @@ func (s *service) ListAccountantPermission(ctx context.Context, accId uuid.UUID)
 
 	var perms []Permissions
 	for _, v := range permissionRows {
-		var permission Permissions
-		if err := json.Unmarshal(v.Permissions, &permission); err != nil {
-			return nil, 0, fmt.Errorf("failed to unmarshal permissions: %w", err)
-		}
-		perms = append(perms, permission)
+		perms = append(perms, v.Permissions)
 	}
 	return &perms, 0, nil
 }

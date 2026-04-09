@@ -94,15 +94,15 @@ type RqProcessAction struct {
 
 // AccountantPermissionRow represents the raw database row
 type AccountantPermissionRow struct {
-	ID             uuid.UUID       `db:"id" json:"id"`
-	EntityID       uuid.UUID       `db:"entity_id" json:"entity_id"`
-	EntityType     string          `db:"entity_type" json:"entity_type"`
-	PractitionerID uuid.UUID       `db:"practitioner_id" json:"practitioner_id"`
-	AccountantID   uuid.UUID       `db:"accountant_id" json:"accountant_id"`
-	Permissions    json.RawMessage `db:"permissions" json:"permissions"`
-	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time       `db:"updated_at" json:"updated_at"`
-	DeletedAt      *time.Time      `db:"deleted_at" json:"deleted_at,omitempty"`
+	ID             uuid.UUID   `db:"id" json:"id"`
+	EntityID       uuid.UUID   `db:"entity_id" json:"entity_id"`
+	EntityType     string      `db:"entity_type" json:"entity_type"`
+	PractitionerID uuid.UUID   `db:"practitioner_id" json:"practitioner_id"`
+	AccountantID   uuid.UUID   `db:"accountant_id" json:"accountant_id"`
+	Permissions    Permissions `db:"permissions" json:"permissions"`
+	CreatedAt      time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time   `db:"updated_at" json:"updated_at"`
+	DeletedAt      *time.Time  `db:"deleted_at" json:"deleted_at,omitempty"`
 }
 
 // AccountantPermissionRes represents what the user sees
