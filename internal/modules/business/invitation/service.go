@@ -636,18 +636,53 @@ func (s *service) ListAccountantPermissions(ctx context.Context, aID uuid.UUID, 
 
 	ft := f.MapToFilterAccountant()
 
-	res, err := s.repo.ListAccountantPermissions(ctx, aID, ft)
+	// Add the mandatory filters to the filter object
+	ft.Where = append(ft.Where, common.Condition{
+		Field:    "accountant_id",
+		Operator: common.OpEq,
+		Value:    aID,
+	}, common.Condition{
+		Field:    "deleted_at",
+		Operator: common.OpIsNull,
+	})
+
+	res, err := s.repo.ListAccountantPermissions(ctx, ft)
 	if err != nil {
 		return nil, fmt.Errorf("list accountant permissions: %w", err)
 	}
 
-	total, err := s.repo.CountAccountantPermissions(ctx, aID, ft)
+	var resultList []AccountantPermissionRes
+
+	for _, row := range res {
+		// 2. Unmarshal the RawMessage into a temporary map
+		var dbMap map[string]bool
+		if err := json.Unmarshal(row.Permissions, &dbMap); err != nil {
+			return nil, fmt.Errorf("unmarshal permissions: %w", err)
+		}
+
+		// 3. Expand the permissions using your helper
+		expanded := s.expandPermissions(dbMap)
+
+		// 4. Map the row to the response struct
+		resultList = append(resultList, AccountantPermissionRes{
+			ID:             row.ID,
+			EntityID:       row.EntityID,
+			EntityType:     row.EntityType,
+			PractitionerID: row.PractitionerID,
+			AccountantID:   row.AccountantID,
+			Permissions:    expanded,
+			CreatedAt:      row.CreatedAt,
+			UpdatedAt:      row.UpdatedAt,
+		})
+	}
+
+	total, err := s.repo.CountAccountantPermissions(ctx, ft)
 	if err != nil {
 		return nil, fmt.Errorf("count accountant permissions: %w", err)
 	}
 
 	var rsList util.RsList
-	rsList.MapToList(res, total, *ft.Offset, *ft.Limit)
+	rsList.MapToList(resultList, total, *ft.Offset, *ft.Limit)
 	return &rsList, nil
 
 }
@@ -722,11 +757,33 @@ func (s *service) processPermissions(perms Permissions) (json.RawMessage, Permis
 	return permJson, finalDisplay
 }
 
+// Helper to convert map into struct for LIST Response
+func (s *service) expandPermissions(dbMap map[string]bool) Permissions {
+	// If "all" is true, everything is true
+	if dbMap["all"] {
+		return Permissions{
+			All:    true,
+			Read:   true,
+			Create: true,
+			Update: true,
+			Delete: true,
+		}
+	}
+
+	// Otherwise, map individual keys
+	return Permissions{
+		Read:   dbMap["read"],
+		Create: dbMap["create"],
+		Update: dbMap["update"],
+		Delete: dbMap["delete"],
+	}
+}
+
 // ListAccountantPermission implements [Service].
 func (s *service) ListAccountantPermission(ctx context.Context, accId uuid.UUID) (*[]Permissions, int, error) {
 	var filter common.Filter
 
-	permissionRows, err := s.repo.ListAccountantPermissions(ctx, accId, filter)
+	permissionRows, err := s.repo.ListAccountantPermissions(ctx, filter)
 	if err != nil {
 		return nil, 0, err
 	}

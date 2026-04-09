@@ -90,6 +90,7 @@ type RqProcessAction struct {
 	Action  string    `json:"action" validate:"required,oneof=ACCEPT REJECT"`
 }
 
+// AccountantPermissionRow represents the raw database row
 type AccountantPermissionRow struct {
 	ID             uuid.UUID       `db:"id" json:"id"`
 	EntityID       uuid.UUID       `db:"entity_id" json:"entity_id"`
@@ -102,6 +103,18 @@ type AccountantPermissionRow struct {
 	DeletedAt      *time.Time      `db:"deleted_at" json:"deleted_at,omitempty"`
 }
 
+// AccountantPermissionRes represents what the user sees
+type AccountantPermissionRes struct {
+	ID             uuid.UUID   `json:"id"`
+	EntityID       uuid.UUID   `json:"entity_id"`
+	EntityType     string      `json:"entity_type"`
+	PractitionerID uuid.UUID   `json:"practitioner_id"`
+	AccountantID   uuid.UUID   `json:"accountant_id"`
+	Permissions    Permissions `json:"permissions"`
+	CreatedAt      time.Time   `json:"created_at"`
+	UpdatedAt      time.Time   `json:"updated_at"`
+}
+
 // FILTERS
 var invitationColumns = map[string]string{
 	"email":           "email",
@@ -109,6 +122,8 @@ var invitationColumns = map[string]string{
 	"created_at":      "created_at",
 	"practitioner_id": "practitioner_id",
 	"entity_id":       "entity_id",
+	"accountant_id":   "accountant_id",
+	"deleted_at":      "deleted_at",
 }
 
 var invitationSearchCols = []string{"email"}
