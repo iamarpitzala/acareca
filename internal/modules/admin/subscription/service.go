@@ -73,6 +73,13 @@ func (s *service) CreateSubscription(ctx context.Context, req *RqCreateSubscript
 		created.StripePriceID = &priceID
 	}
 
+	// Seed permissions if provided in the request
+	if len(req.Permissions) > 0 {
+		if err := s.repo.BulkInsertPermissions(ctx, created.ID, req.Permissions); err != nil {
+			return nil, fmt.Errorf("seed permissions: %w", err)
+		}
+	}
+
 	// Audit log: subscription created
 	meta := auditctx.GetMetadata(ctx)
 	idStr := intToStr(created.ID)
@@ -189,6 +196,13 @@ func (s *service) UpdateSubscription(ctx context.Context, id int, req *RqUpdateS
 		return nil, err
 	}
 
+	// Upsert permissions if provided
+	if len(req.Permissions) > 0 {
+		if err := s.repo.BulkInsertPermissions(ctx, updated.ID, req.Permissions); err != nil {
+			return nil, fmt.Errorf("update permissions: %w", err)
+		}
+	}
+
 	// Audit log: subscription updated
 	meta := auditctx.GetMetadata(ctx)
 	idStr := intToStr(updated.ID)
@@ -244,6 +258,11 @@ func (s *service) DeleteSubscription(ctx context.Context, id int) error {
 	err = s.repo.Delete(ctx, id)
 	if err != nil {
 		return err
+	}
+
+	// Soft-delete associated permissions
+	if err := s.repo.DeletePermissions(ctx, id); err != nil {
+		return fmt.Errorf("delete permissions: %w", err)
 	}
 
 	// Audit log: subscription deleted
