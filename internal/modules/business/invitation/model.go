@@ -249,3 +249,26 @@ func (p *Permissions) Scan(value interface{}) error {
 func (p Permissions) Value() (driver.Value, error) {
 	return json.Marshal(p)
 }
+
+// MarshalJSON ensures that if All is true, all individual flags appear as true in the API response.
+func (p Permissions) MarshalJSON() ([]byte, error) {
+	type Alias Permissions
+	if p.All {
+		return json.Marshal(&struct {
+			Read   bool `json:"read"`
+			Create bool `json:"create"`
+			Update bool `json:"update"`
+			Delete bool `json:"delete"`
+			All    bool `json:"all"`
+			Alias
+		}{
+			Read:   true,
+			Create: true,
+			Update: true,
+			Delete: true,
+			All:    true,
+			Alias:  (Alias)(p),
+		})
+	}
+	return json.Marshal((Alias)(p))
+}
