@@ -317,11 +317,17 @@ func (h *Handler) HandlePermissions(c *gin.Context) {
 		// Normalize EntityType
 		p.EntityType = strings.ToUpper(p.EntityType)
 
+		targetAID := uuid.Nil
+		if req.AccountantID != nil {
+			targetAID = *req.AccountantID
+		}
+
 		resPerms, err := h.svc.GrantEntityPermission(
 			c.Request.Context(),
 			practID,
-			req.AccountantID,
+			targetAID,
 			p.EntityID,
+			req.Email,
 			p.EntityType,
 			p.Permissions,
 		)

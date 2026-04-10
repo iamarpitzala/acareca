@@ -37,7 +37,7 @@ type Service interface {
 	GrantEntityPermissionTx(ctx context.Context, tx *sqlx.Tx, pID, aID, eID uuid.UUID, eType string, perms Permissions) error
 	DeletePermissionsByEntityTx(ctx context.Context, tx *sqlx.Tx, entityID uuid.UUID) error
 	GetPractitionerLinkedToAccountant(ctx context.Context, accountantID uuid.UUID) (uuid.UUID, error)
-	GrantEntityPermission(ctx context.Context, pID, aID, eID uuid.UUID, eType string, perms Permissions) (*Permissions, error)
+	GrantEntityPermission(ctx context.Context, pID, aID, eID uuid.UUID, email string, eType string, perms Permissions) (*Permissions, error)
 	ListAccountantPermissions(ctx context.Context, accountantID uuid.UUID, f *Filter) (*util.RsList, error)
 
 	ListAccountantPermission(ctx context.Context, accId uuid.UUID) (*[]Permissions, int, error)
@@ -282,10 +282,13 @@ func (s *service) GetInvitationDetails(ctx context.Context, inviteID uuid.UUID) 
 	}
 
 	// Fetch Permissions associated with this email
-	dbPerms, err := s.repo.GetPermissionsByEmail(ctx, inv.PractitionerID, inv.Email)
+	dbPerms, err := s.repo.GetAllAccountantPermissions(ctx, inv.PractitionerID, inv.Email, accountantID)
 	if err != nil {
-		// Log error but don't fail the whole request
-		fmt.Printf("[ERROR] failed to fetch permissions for invite: %v\n", err)
+		dbPerms = []RqPermissionDetail{} // Ensure it's not nil
+		return nil, fmt.Errorf("failed to fetch permissions: %w", err)
+	}
+	if dbPerms == nil {
+		dbPerms = []RqPermissionDetail{} // Initialize to empty slice for JSON []
 	}
 
 	return &RsInviteDetails{
@@ -679,20 +682,44 @@ func (s *service) ListAccountantPermissions(ctx context.Context, aID uuid.UUID, 
 
 }
 
-func (s *service) GrantEntityPermission(ctx context.Context, pID, aID, eID uuid.UUID, eType string, perms Permissions) (*Permissions, error) {
-	linkedPracID, err := s.repo.GetPractitionerLinkedToAccountant(ctx, aID)
-	if err != nil || linkedPracID != pID {
-		return nil, ErrUnauthorizedAssociation
+func (s *service) GrantEntityPermission(ctx context.Context, pID, aID, eID uuid.UUID, email string, eType string, perms Permissions) (*Permissions, error) {
+	if aID == uuid.Nil {
+		// If AccountantID is missing, check the invitation by Email instead
+		inv, err := s.repo.GetByEmail(ctx, email)
+		if err != nil || inv == nil || inv.PractitionerID != pID {
+			return nil, ErrUnauthorizedAssociation
+		}
+	} else {
+		// Standard check for registered users
+		linkedPracID, err := s.repo.GetPractitionerLinkedToAccountant(ctx, aID)
+		if err != nil || linkedPracID != pID {
+			return nil, ErrUnauthorizedAssociation
+		}
 	}
 
 	// Capture state BEFORE update for Audit Logs
-	oldPerms, _ := s.repo.GetPermissions(ctx, aID, eID)
+	var oldPerms *Permissions
+
+	if aID != uuid.Nil {
+		// Registered user: Get by ID
+		oldPerms, _ = s.repo.GetPermissions(ctx, aID, eID)
+	} else if email != "" {
+		// Invited user: Get one permission by email/entity
+		oldPerms, _ = s.repo.GetPermissionsByEmailAndEntity(ctx, pID, email, eID)
+	}
+
+	// Check if this is an "Empty" permission set
+	if !perms.All && !perms.Read && !perms.Create && !perms.Update && !perms.Delete {
+		// We return nil for the *Permissions and the error from the repo
+		err := s.repo.DeletePermission(ctx, pID, eID, &aID, email)
+		return nil, err
+	}
 
 	// Process Permissions
 	finalDisplay := s.processPermissions(perms)
 
 	// Save to DB and return finalDisplay
-	if err := s.repo.GrantEntityPermission(ctx, pID, &aID, nil, eID, eType, finalDisplay); err != nil {
+	if err := s.repo.GrantEntityPermission(ctx, pID, &aID, &email, eID, eType, finalDisplay); err != nil {
 		return nil, err
 	}
 

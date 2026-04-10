@@ -42,6 +42,9 @@ type Repository interface {
 	ListAccountantPermissions(ctx context.Context, f common.Filter) ([]AccountantPermissionRow, error)
 	CountAccountantPermissions(ctx context.Context, f common.Filter) (int, error)
 	LinkPermissionsToAccountantTx(ctx context.Context, tx *sqlx.Tx, email string, accountantID uuid.UUID) error
+	DeletePermission(ctx context.Context, pID uuid.UUID, entityID uuid.UUID, accID *uuid.UUID, email string) error
+	GetPermissionsByEmailAndEntity(ctx context.Context, pID uuid.UUID, email string, eID uuid.UUID) (*Permissions, error)
+	GetAllAccountantPermissions(ctx context.Context, pID uuid.UUID, email string, accID *uuid.UUID) ([]RqPermissionDetail, error)
 }
 
 type repository struct {
@@ -452,10 +455,13 @@ func (r *repository) LinkPermissionsToAccountantTx(ctx context.Context, tx *sqlx
 
 func (r *repository) GetPermissionsByEmail(ctx context.Context, pID uuid.UUID, email string) ([]RqPermissionDetail, error) {
 	var rows []AccountantPermissionRow
+
 	query := `
-		SELECT entity_id, entity_type, permissions 
-		FROM tbl_invite_permissions 
-		WHERE practitioner_id = $1 AND email = $2 AND deleted_at IS NULL`
+    SELECT entity_id, entity_type, permissions 
+    FROM tbl_invite_permissions 
+    WHERE practitioner_id = $1 
+    AND (email = $2 OR accountant_id = (SELECT id FROM tbl_accountant WHERE email = $2))
+    AND deleted_at IS NULL`
 
 	err := r.db.SelectContext(ctx, &rows, query, pID, email)
 	if err != nil {
@@ -470,5 +476,79 @@ func (r *repository) GetPermissionsByEmail(ctx context.Context, pID uuid.UUID, e
 			Permissions: row.Permissions,
 		})
 	}
+	return details, nil
+}
+
+func (r *repository) DeletePermission(ctx context.Context, pID uuid.UUID, entityID uuid.UUID, accID *uuid.UUID, email string) error {
+	query := `
+		UPDATE tbl_invite_permissions 
+		SET deleted_at = NOW() 
+		WHERE practitioner_id = $1 
+		AND entity_id = $2 
+		AND (
+			(accountant_id IS NOT NULL AND accountant_id = $3) 
+			OR 
+			(email IS NOT NULL AND email = $4)
+		)
+		AND deleted_at IS NULL`
+
+	_, err := r.db.ExecContext(ctx, query, pID, entityID, accID, email)
+	return err
+}
+
+func (r *repository) GetPermissionsByEmailAndEntity(ctx context.Context, pID uuid.UUID, email string, eID uuid.UUID) (*Permissions, error) {
+	var p Permissions
+	query := `
+        SELECT permissions 
+        FROM tbl_invite_permissions 
+        WHERE practitioner_id = $1 AND email = $2 AND entity_id = $3 
+        AND deleted_at IS NULL LIMIT 1`
+
+	err := r.db.GetContext(ctx, &p, query, pID, email, eID)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+func (r *repository) GetAllAccountantPermissions(ctx context.Context, pID uuid.UUID, email string, accID *uuid.UUID) ([]RqPermissionDetail, error) {
+	var rows []AccountantPermissionRow
+
+	query := `
+		SELECT 
+			entity_id, 
+			entity_type, 
+			permissions 
+		FROM tbl_invite_permissions 
+		WHERE practitioner_id = $1 
+		AND (
+			(email <> '' AND email = $2) 
+			OR 
+			(accountant_id IS NOT NULL AND accountant_id = $3)
+		)
+		AND deleted_at IS NULL
+		ORDER BY entity_type, created_at DESC`
+
+	// Use a zero UUID for the parameter if accID is nil to avoid driver errors
+	targetID := uuid.Nil
+	if accID != nil {
+		targetID = *accID
+	}
+
+	err := r.db.SelectContext(ctx, &rows, query, pID, email, targetID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Initialize to empty slice so the JSON response is [] instead of null
+	details := make([]RqPermissionDetail, 0)
+	for _, row := range rows {
+		details = append(details, RqPermissionDetail{
+			EntityID:    row.EntityID,
+			EntityType:  row.EntityType,
+			Permissions: row.Permissions,
+		})
+	}
+
 	return details, nil
 }

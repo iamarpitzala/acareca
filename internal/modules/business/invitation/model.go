@@ -179,6 +179,10 @@ type Permissions struct {
 
 // Helper to check a specific action
 func (p *Permissions) HasAccess(action string) bool {
+	if p == nil {
+		return false // prevents nil pointer dereference if Permissions is null in the database
+	}
+
 	if p.All {
 		return true
 	}
@@ -198,7 +202,8 @@ func (p *Permissions) HasAccess(action string) bool {
 
 // RqGrantPermission is the input for granting/updating permissions
 type RqGrantPermission struct {
-	AccountantID uuid.UUID            `json:"accountant_id" validate:"required"`
+	AccountantID *uuid.UUID           `json:"accountant_id,omitempty"`
+	Email        string               `json:"email" validate:"omitempty,email"`
 	Permissions  []RqPermissionDetail `json:"permissions" validate:"required,dive"`
 }
 
