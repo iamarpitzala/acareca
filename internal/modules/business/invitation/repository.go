@@ -348,7 +348,7 @@ func (r *repository) DeletePermissionsByEntityTx(ctx context.Context, tx *sqlx.T
 
 func (r *repository) GetPractitionerLinkedToAccountant(ctx context.Context, accountantID uuid.UUID) (uuid.UUID, error) {
 	var practitionerID uuid.UUID
-	query := `SELECT practitioner_id FROM tbl_invitation WHERE entity_id = $1 AND status = 'COMPLETED' LIMIT 1`
+	query := `SELECT practitioner_id FROM tbl_invitation WHERE entity_id = $1 AND status IN ('SENT', 'ACCEPTED', 'COMPLETED') LIMIT 1`
 	err := r.db.GetContext(ctx, &practitionerID, query, accountantID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

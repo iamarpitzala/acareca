@@ -57,7 +57,7 @@ func (a *permissionAdapter) ListAccountantPermission(ctx context.Context, accId 
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Convert []invitation.Permissions to []middleware.PermissionItem
 	result := make([]middleware.PermissionItem, 0, len(*perms))
 	for i := range *perms {
@@ -145,22 +145,19 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) (audit.Service, *sharedno
 	authHandler := auth.NewHandler(authSvc)
 	auth.RegisterRoutes(v1, authHandler, middleware.Auth(cfg))
 
-
 	adminGroup := v1.Group("/admin")
 	subscriptionGroup := adminGroup.Group("/subscription")
-	
+
 	subscriptionHandler := subscription.NewHandler(subscriptionSvc)
 	subscription.RegisterRoutes(subscriptionGroup, subscriptionHandler)
 
 	// Audit routes
 	auditGroup := adminGroup.Group("/audit")
-	// auditGroup.Use(middleware.Auth(cfg), middleware.RequireSuperadmin(func(ctx context.Context, userID string) (bool, error) {
-	// 	id, err := util.ParseUUID(userID)
-	// 	if err != nil {
-	// 		return false, err
-	// 	}
-	// 	return superadminCheck(ctx, id)
-	// }))
+
+	auditGroup.Use(
+		middleware.Auth(cfg),
+		middleware.RequireRole("ADMIN"),
+	)
 	auditHandler := audit.NewHandler(auditSvc)
 	audit.RegisterRoutes(auditGroup, auditHandler)
 
@@ -216,13 +213,13 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) (audit.Service, *sharedno
 	formulaSvc := formula.NewService(formulaRepo)
 	formSvc := form.NewService(dbConn, detailSvc, versionSvc, fieldSvc, formulaSvc, entryRepo, coaSvc, auditSvc, eventsSvc, accountantRepo, authRepo, clinicSvc, invitationSvc)
 	formHandler := form.NewHandler(formSvc)
-	
+
 	// Apply method-based permission middleware (GET=read, POST=create, PUT/PATCH=update, DELETE=delete)
 	permChecker := &permissionAdapter{invSvc: invitationSvc}
 	formGroup.Use(middleware.MethodBasedPermission(permChecker))
 	form.RegisterRoutes(formGroup, formHandler)
 
-	entryGroup := v1.Group("/entry",middleware.Auth(cfg), middleware.AuditContext())
+	entryGroup := v1.Group("/entry", middleware.Auth(cfg), middleware.AuditContext())
 	entriesRepo := entry.NewRepository(dbConn)
 	entriesSvc := entry.NewService(dbConn, entriesRepo, fieldRepo, method.NewService(), detailSvc, versionSvc, auditSvc, eventsSvc, accountantRepo, authRepo, clinicRepo, clinicSvc, formulaSvc, fieldSvc, invitationSvc)
 	entriesHandler := entry.NewHandler(entriesSvc)
@@ -261,7 +258,7 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) (audit.Service, *sharedno
 
 	userSubscriptionHandler := userSubscription.NewHandler(userSubscriptionSvc, dbConn)
 
-	userSubscriptionGroup := v1.Group("/practitioner/subscription",middleware.Auth(cfg))
+	userSubscriptionGroup := v1.Group("/practitioner/subscription", middleware.Auth(cfg))
 
 	userSubscription.RegisterRoutes(userSubscriptionGroup, userSubscriptionHandler)
 
