@@ -41,11 +41,12 @@ type RqCreatePractitioner struct {
 }
 
 type RsUserInfo struct {
-	ID        uuid.UUID `json:"id"`
-	Email     string    `json:"email"`
-	FirstName string    `json:"first_name"`
-	LastName  string    `json:"last_name"`
-	Phone     *string   `json:"phone,omitempty"`
+	ID         uuid.UUID `json:"id"`
+	Email      string    `json:"email"`
+	FirstName  string    `json:"first_name"`
+	LastName   string    `json:"last_name"`
+	Phone      *string   `json:"phone,omitempty"`
+	JoinedDate time.Time `json:"joined_date"`
 }
 
 type RsPractitioner struct {
@@ -69,11 +70,12 @@ func (p *PractitionerWithUser) ToRs() *RsPractitioner {
 		ABN:      p.ABN,
 		Verified: p.Verified,
 		User: &RsUserInfo{
-			ID:        p.UserID,
-			Email:     p.Email,
-			FirstName: p.FirstName,
-			LastName:  p.LastName,
-			Phone:     p.Phone,
+			ID:         p.UserID,
+			Email:      p.Email,
+			FirstName:  p.FirstName,
+			LastName:   p.LastName,
+			Phone:      p.Phone,
+			JoinedDate: p.CreatedAt,
 		},
 	}
 }
