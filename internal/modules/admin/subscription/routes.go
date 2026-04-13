@@ -2,11 +2,9 @@ package subscription
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/iamarpitzala/acareca/internal/shared/middleware"
 )
 
 func RegisterRoutes(rg *gin.RouterGroup, h IHandler) {
-	rg.Use(middleware.RequireRole("ADMIN"))
 	rg.POST("", h.CreateSubscription)
 	rg.GET("", h.ListSubscriptions)
 	rg.GET("/:id", h.GetSubscription)
