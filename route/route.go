@@ -147,7 +147,6 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) (audit.Service, *sharedno
 
 	adminGroup := v1.Group("/admin")
 	subscriptionGroup := adminGroup.Group("/subscription")
-
 	subscriptionHandler := subscription.NewHandler(subscriptionSvc)
 	subscription.RegisterRoutes(subscriptionGroup, subscriptionHandler)
 
