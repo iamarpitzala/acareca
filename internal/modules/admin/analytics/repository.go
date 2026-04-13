@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	sharedAnalytics "github.com/iamarpitzala/acareca/internal/shared/analytics"
+	"github.com/iamarpitzala/acareca/internal/shared/audit"
 	"github.com/iamarpitzala/acareca/internal/shared/common"
 	"github.com/jmoiron/sqlx"
 )
@@ -664,7 +665,7 @@ func (r *repository) GetPractitionerOverview(ctx context.Context) (*RsPractition
 			COUNT(DISTINCT p.id) as total_practitioners,
 			COUNT(DISTINCT CASE WHEN ps.status = 'ACTIVE' THEN ps.id END) as active_subscriptions,
 			COUNT(DISTINCT CASE WHEN ps.id IS NULL THEN p.id END) as no_active_plan,
-			(SELECT COUNT(*) FROM tbl_invite_permissions WHERE deleted_at IS NULL) as total_invites
+			(SELECT COUNT(*) FROM tbl_invitation) as total_invites
 		FROM tbl_practitioner p
 		LEFT JOIN tbl_practitioner_subscription ps ON ps.practitioner_id = p.id AND ps.status = 'ACTIVE' AND ps.deleted_at IS NULL
 		WHERE p.deleted_at IS NULL
@@ -721,14 +722,16 @@ func (r *repository) GetResourceAnalytics(ctx context.Context, filter *ResourceA
 	query := `
 		SELECT 
 			entity_type,
-			COUNT(CASE WHEN action = 'CREATE' THEN 1 END) as create_count,
-			COUNT(CASE WHEN action = 'READ' THEN 1 END) as read_count,
-			COUNT(CASE WHEN action = 'UPDATE' THEN 1 END) as update_count,
-			COUNT(CASE WHEN action = 'DELETE' THEN 1 END) as delete_count,
+        COUNT(CASE WHEN action LIKE '%.created' THEN 1 END) as create_count,
+        0 as read_count, 
+        COUNT(CASE WHEN action LIKE '%.updated' THEN 1 END) as update_count,
+        
+   
+        COUNT(CASE WHEN action LIKE '%.deleted' THEN 1 END) as delete_count,
 			COUNT(*) as total
 		FROM tbl_audit_log
 		WHERE created_at BETWEEN $1 AND $2
-			AND entity_type IN ('CLINIC', 'FORM', 'ENTRY')
+			AND entity_type IN ('tbl_clinic', 'tbl_form', 'tbl_form_field_entry')
 		GROUP BY entity_type
 		ORDER BY total DESC
 	`
@@ -759,7 +762,7 @@ func (r *repository) GetAccountantOverview(ctx context.Context) (*RsAccountantOv
 		SELECT 
 			(SELECT COUNT(*) FROM tbl_practitioner WHERE deleted_at IS NULL) as total_practitioners,
 			(SELECT COUNT(*) FROM tbl_accountant WHERE deleted_at IS NULL) as total_accountants,
-			COUNT(*) as total_invites,
+			(SELECT COUNT(*) FROM tbl_invitation) as total_invites,
 			COUNT(*) as total_permissions
 		FROM tbl_invite_permissions
 		WHERE deleted_at IS NULL
@@ -806,7 +809,18 @@ func (r *repository) GetResourceAccessTimeseries(ctx context.Context, filter *Da
 	bucket := sharedAnalytics.ParseBucket(filter.Bucket, sharedAnalytics.BucketDay)
 	dateTrunc, dateFormat := sharedAnalytics.GetBucketConfig(bucket)
 
-	query := buildTimeseriesQuery("tbl_audit_log", "entity_type", "created_at", "AND entity_type IN ('CLINIC', 'INVOICE', 'PATIENT', 'FORM')")
+	//query := buildTimeseriesQuery("tbl_audit_log", "entity_type", "created_at", "AND entity_type IN ('CLINIC', 'INVOICE', 'PATIENT', 'FORM')")
+
+	entityList := []string{
+		audit.EntityClinic,
+		audit.EntityForm,
+		audit.EntityUser,
+		audit.EntityInvitation,
+	}
+
+	inClause := fmt.Sprintf("AND entity_type IN ('%s')", strings.Join(entityList, "','"))
+
+	query := buildTimeseriesQuery("tbl_audit_log", "entity_type", "created_at", inClause)
 	rows, err := r.db.QueryxContext(ctx, query, dateTrunc, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("get resource access timeseries: %w", err)
@@ -819,7 +833,8 @@ func (r *repository) GetResourceAccessTimeseries(ctx context.Context, filter *Da
 	}
 
 	result := RsResourceAccessTimeseries{
-		Meta: TimeseriesMeta{From: from, To: to, Bucket: bucket},
+		Meta:   TimeseriesMeta{From: from, To: to, Bucket: bucket},
+		Series: make([]ResourceSeries, 0),
 	}
 
 	for resourceType, points := range seriesMap {
