@@ -723,7 +723,6 @@ func (r *repository) GetResourceAnalytics(ctx context.Context, filter *ResourceA
 		SELECT 
 			entity_type,
         COUNT(CASE WHEN action LIKE '%.created' THEN 1 END) as create_count,
-        0 as read_count, 
         COUNT(CASE WHEN action LIKE '%.updated' THEN 1 END) as update_count,
         
    
@@ -743,7 +742,7 @@ func (r *repository) GetResourceAnalytics(ctx context.Context, filter *ResourceA
 
 	for rows.Next() {
 		var row ResourceRow
-		err := rows.Scan(&row.EntityType, &row.Actions.Create, &row.Actions.Read, &row.Actions.Update, &row.Actions.Delete, &row.Total)
+		err := rows.Scan(&row.EntityType, &row.Actions.Create, &row.Actions.Update, &row.Actions.Delete, &row.Total)
 		if err != nil {
 			return nil, fmt.Errorf("scan resource row: %w", err)
 		}
@@ -814,6 +813,7 @@ func (r *repository) GetResourceAccessTimeseries(ctx context.Context, filter *Da
 	entityList := []string{
 		audit.EntityClinic,
 		audit.EntityForm,
+		audit.EntityFormFieldEntry,
 		audit.EntityUser,
 		audit.EntityInvitation,
 	}

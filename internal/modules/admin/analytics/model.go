@@ -200,7 +200,6 @@ type ResourceRow struct {
 
 type ActionCounts struct {
 	Create int `json:"create"`
-	Read   int `json:"read"`
 	Update int `json:"update"`
 	Delete int `json:"delete"`
 }
