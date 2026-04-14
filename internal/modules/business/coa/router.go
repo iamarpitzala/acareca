@@ -12,25 +12,16 @@ func RegisterRoutes(rg *gin.RouterGroup, h IHandler, cfg *config.Config, permChe
 	rg.GET("/account-taxes", h.ListAccountTaxes)
 	rg.GET("/account-taxes/:id", h.GetAccountTax)
 
-	listGroup := rg.Group("")
-	listGroup.Use(middleware.Auth(cfg), middleware.AuditContext())
-	listGroup.Use(middleware.MethodBasedPermission(permChecker))
-	{
-		listGroup.GET("/chart-of-account", h.ListChartOfAccount)
-		// Alternative route for GetChartOfAccountByKey without practitioner_id in path
-		listGroup.GET("/chart-of-account/by-key/:key", h.GetChartOfAccountByKey)
-	}
-
-	// Chart of Accounts CRUD — scoped by practitioner_id
-	// Format: /coa/:practitioner_id/chart-of-account
-	accounts := rg.Group("/:practitioner_id/chart-of-account")
+	// Chart of Accounts group - all routes consolidated under /chart-of-account
+	accounts := rg.Group("/chart-of-account")
 	accounts.Use(middleware.Auth(cfg), middleware.AuditContext())
-	accounts.Use(middleware.MethodBasedPermission(permChecker))
-	// accounts.GET("", h.ListChartOfAccount)
-	accounts.POST("/check-code", h.CheckCodeUnique)
-	accounts.GET("/by-key/:key", h.GetChartOfAccountByKey)
-	accounts.GET("/:id", h.GetChartOfAccount)
-	accounts.POST("", h.CreateChartOfAccount)
-	accounts.PUT("/:id", h.UpdateCharOfAccount)
-	accounts.DELETE("/:id", h.DeleteChartOfAccount)
+	{
+		accounts.GET("", h.ListChartOfAccount)
+		accounts.GET("/by-key/:key", h.GetChartOfAccountByKey)
+		accounts.POST("/check-code", h.CheckCodeUnique)
+		accounts.GET("/:id", h.GetChartOfAccount)
+		accounts.POST("", h.CreateChartOfAccount)
+		accounts.PUT("/:id", h.UpdateCharOfAccount)
+		accounts.DELETE("/:id", h.DeleteChartOfAccount)
+	}
 }

@@ -3692,9 +3692,7 @@ const docTemplate = `{
                         }
                     }
                 }
-            }
-        },
-        "/coa/{practitioner_id}/chart-of-account": {
+            },
             "post": {
                 "security": [
                     {
@@ -3712,13 +3710,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a new chart of account",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Practitioner UUID",
-                        "name": "practitioner_id",
-                        "in": "path",
-                        "required": true
-                    },
                     {
                         "description": "COA Data",
                         "name": "request",
@@ -3757,7 +3748,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/coa/{practitioner_id}/chart-of-account/by-key/{key}": {
+        "/coa/chart-of-account/by-key/{key}": {
             "get": {
                 "security": [
                     {
@@ -3774,9 +3765,9 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Practitioner UUID",
+                        "description": "Practitioner UUID (for Accountants)",
                         "name": "practitioner_id",
-                        "in": "path"
+                        "in": "query"
                     },
                     {
                         "type": "string",
@@ -3814,7 +3805,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/coa/{practitioner_id}/chart-of-account/check-code": {
+        "/coa/chart-of-account/check-code": {
             "post": {
                 "security": [
                     {
@@ -3832,13 +3823,6 @@ const docTemplate = `{
                 ],
                 "summary": "Check if a chart of account code is unique for the practitioner",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Practitioner UUID",
-                        "name": "practitioner_id",
-                        "in": "path",
-                        "required": true
-                    },
                     {
                         "description": "Code to check",
                         "name": "request",
@@ -3871,7 +3855,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/coa/{practitioner_id}/chart-of-account/{id}": {
+        "/coa/chart-of-account/{id}": {
             "get": {
                 "security": [
                     {
@@ -3890,7 +3874,7 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Practitioner UUID",
                         "name": "practitioner_id",
-                        "in": "path",
+                        "in": "query",
                         "required": true
                     },
                     {
@@ -3945,13 +3929,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update an existing chart of account",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Practitioner UUID",
-                        "name": "practitioner_id",
-                        "in": "path",
-                        "required": true
-                    },
                     {
                         "type": "string",
                         "description": "Chart of Account UUID",
@@ -4024,10 +4001,9 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Practitioner UUID",
+                        "description": "Practitioner UUID (required for Accountants)",
                         "name": "practitioner_id",
-                        "in": "path",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "string",
@@ -8264,6 +8240,9 @@ const docTemplate = `{
                 },
                 "exclude_id": {
                     "type": "string"
+                },
+                "practitioner_id": {
+                    "type": "string"
                 }
             }
         },
@@ -8295,6 +8274,9 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "maxLength": 255
+                },
+                "practitioner_id": {
+                    "type": "string"
                 }
             }
         },
@@ -8317,6 +8299,9 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "maxLength": 255
+                },
+                "practitioner_id": {
+                    "type": "string"
                 }
             }
         },
