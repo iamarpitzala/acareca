@@ -437,17 +437,7 @@ func (h *Handler) GetBillingDashboard(c *gin.Context) {
 		return
 	}
 
-	var recordFilter SubscriptionRecordFilter
-	if err := c.ShouldBindQuery(&recordFilter); err != nil {
-		response.Error(c, http.StatusBadRequest, err)
-		return
-	}
-	if err := validateSubscriptionRecordFilter(&recordFilter); err != nil {
-		response.Error(c, http.StatusBadRequest, err)
-		return
-	}
-
-	result, err := h.svc.GetBillingDashboard(c.Request.Context(), &dateFilter, &recordFilter)
+	result, err := h.svc.GetBillingDashboard(c.Request.Context(), &dateFilter)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
