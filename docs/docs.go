@@ -4462,9 +4462,13 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "string",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
                         "description": "Filter by clinic ID (UUID)",
-                        "name": "clinic_id",
+                        "name": "clinic_ids",
                         "in": "query"
                     },
                     {

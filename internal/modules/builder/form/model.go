@@ -111,10 +111,10 @@ type RsFormWithFields struct {
 }
 
 type Filter struct {
-	PractitionerID *string `form:"practitioner_id"`
-	ClinicID       *string `form:"clinic_id"`
-	FormName       *string `form:"form_name"`
-	Method         *string `form:"method"`
-	Status         *string `form:"status"`
+	PractitionerID *string      `form:"practitioner_id"`
+	ClinicID       []*uuid.UUID `form:"clinic_ids"`
+	FormName       *string      `form:"form_name"`
+	Method         *string      `form:"method"`
+	Status         *string      `form:"status"`
 	common.Filter
 }

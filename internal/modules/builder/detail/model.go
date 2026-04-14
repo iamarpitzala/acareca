@@ -11,11 +11,11 @@ const (
 )
 
 type Filter struct {
-	PractitionerID *string `form:"practitioner_id"`
-	ClinicID       *string `form:"clinic_id"`
-	FormName       *string `form:"name"`
-	Method         *string `form:"method"`
-	Status         *string `form:"status"`
+	PractitionerID *string      `form:"practitioner_id"`
+	ClinicID       []*uuid.UUID `form:"clinic_ids"`
+	FormName       *string      `form:"name"`
+	Method         *string      `form:"method"`
+	Status         *string      `form:"status"`
 	common.Filter
 }
 
@@ -27,10 +27,15 @@ func (filter *Filter) MapToFilter() common.Filter {
 			filters["practitioner_id"] = id // Pass as uuid.UUID type to common.Filter
 		}
 	}
-	if filter.ClinicID != nil {
-		id, err := uuid.Parse(*filter.ClinicID)
-		if err == nil {
-			filters["clinic_id"] = id // Pass as uuid.UUID type to common.Filter
+	if len(filter.ClinicID) > 0 {
+		ids := make([]uuid.UUID, 0, len(filter.ClinicID))
+		for _, cid := range filter.ClinicID {
+			if cid != nil {
+				ids = append(ids, *cid)
+			}
+		}
+		if len(ids) > 0 {
+			filters["clinicIds"] = ids
 		}
 	}
 	if filter.Status != nil {
