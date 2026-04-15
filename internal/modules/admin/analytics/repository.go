@@ -954,58 +954,80 @@ func (r *repository) ListSubscriptionRecords(ctx context.Context, filter *Subscr
 
 // GetPlanDistribution retrieves plan distribution with historical data
 func (r *repository) GetPlanDistribution(ctx context.Context, filter *DateRangeFilter) (*RsPlanDistribution, error) {
+	// Handle nil filter
+	if filter == nil {
+		filter = &DateRangeFilter{}
+	}
+
 	from, to := sharedAnalytics.ParseDateRange(filter.From, filter.To, sharedAnalytics.DefaultDaysLong)
 	bucket := sharedAnalytics.ParseBucket(filter.Bucket, sharedAnalytics.BucketMonth)
 	dateTrunc, dateFormat := sharedAnalytics.GetBucketConfig(bucket)
 
 	result := RsPlanDistribution{
-		Meta: RevenueMeta{From: from, To: to, Bucket: bucket, Currency: sharedAnalytics.DefaultCurrency},
+		Meta:  RevenueMeta{From: from, To: to, Bucket: bucket, Currency: sharedAnalytics.DefaultCurrency},
+		Plans: []PlanDistribution{}, // Initialize empty slice to avoid null in JSON
 	}
 
 	// Single query: plan counts + timeseries in one pass
 	query := `
-		SELECT
-			s.id AS plan_id,
-			s.name AS plan_name,
-			COUNT(*) OVER (PARTITION BY s.id) AS total_subscriptions,
-			COUNT(*) FILTER (WHERE ps.status = 'ACTIVE') OVER (PARTITION BY s.id) AS active_subscriptions,
-			DATE_TRUNC($1, ps.created_at) AS ts,
-			SUM(s.price) OVER (PARTITION BY s.id, DATE_TRUNC($1, ps.created_at)) AS revenue,
-			COUNT(*) OVER (PARTITION BY s.id, DATE_TRUNC($1, ps.created_at)) AS new_subscriptions,
-			COUNT(*) FILTER (WHERE ps.status = 'ACTIVE') OVER (PARTITION BY s.id, DATE_TRUNC($1, ps.created_at)) AS active_in_bucket
-		FROM tbl_practitioner_subscription ps
-		JOIN tbl_subscription s ON ps.subscription_id = s.id
-		WHERE ps.created_at BETWEEN $2 AND $3
-		  AND ps.deleted_at IS NULL
-		  AND s.deleted_at IS NULL
-		ORDER BY s.id, ts
+		WITH plan_totals AS (
+			SELECT 
+				s.id AS plan_id,
+				s.name AS plan_name,
+				COUNT(*) AS total_subscriptions,
+				COUNT(*) FILTER (WHERE ps.status = 'ACTIVE') AS active_subscriptions
+			FROM tbl_subscription s
+			LEFT JOIN tbl_practitioner_subscription ps 
+				ON ps.subscription_id = s.id 
+				AND ps.deleted_at IS NULL
+			WHERE s.deleted_at IS NULL
+			GROUP BY s.id, s.name
+		),
+		time_series AS (
+			SELECT
+				s.id AS plan_id,
+				DATE_TRUNC($1, ps.created_at) AS ts,
+				SUM(s.price / NULLIF(s.duration_days, 0) * 30) AS revenue,
+				COUNT(*) AS new_subscriptions,
+				COUNT(*) FILTER (WHERE ps.status = 'ACTIVE') AS active_in_bucket
+			FROM tbl_practitioner_subscription ps
+			JOIN tbl_subscription s ON ps.subscription_id = s.id
+			WHERE ps.created_at BETWEEN $2 AND $3
+			  AND ps.created_at IS NOT NULL
+			  AND ps.deleted_at IS NULL
+			  AND s.deleted_at IS NULL
+			GROUP BY s.id, DATE_TRUNC($1, ps.created_at)
+		)
+		SELECT 
+			pt.plan_id,
+			pt.plan_name,
+			pt.total_subscriptions,
+			pt.active_subscriptions,
+			COALESCE(ts.ts, NULL) AS ts,
+			COALESCE(ts.revenue, 0) AS revenue,
+			COALESCE(ts.new_subscriptions, 0) AS new_subscriptions,
+			COALESCE(ts.active_in_bucket, 0) AS active_in_bucket
+		FROM plan_totals pt
+		LEFT JOIN time_series ts ON ts.plan_id = pt.plan_id
+		WHERE ts.ts IS NOT NULL OR pt.total_subscriptions > 0
+		ORDER BY pt.plan_id, ts.ts
 	`
+
 	rows, err := r.db.QueryxContext(ctx, query, dateTrunc, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("get plan distribution: %w", err)
 	}
 	defer rows.Close()
 
-	type planKey struct {
-		id   int
-		name string
-	}
-	type bucketKey struct {
-		planID int
-		ts     string
-	}
-
-	planOrder := []planKey{}
-	planSeen := map[int]bool{}
-	planCounts := map[int]PlanCounts{}
-	bucketSeen := map[bucketKey]bool{}
-	planSeries := map[int][]PlanDistributionPoint{}
+	// Track plans and their data
+	planMap := make(map[int]*PlanDistribution)
+	planOrder := []int{}
 
 	for rows.Next() {
 		var planID int
 		var planName string
 		var total, active int
-		var ts time.Time
+		var ts *time.Time
 		var revenue float64
 		var newSubs, activeBucket int
 
@@ -1013,16 +1035,23 @@ func (r *repository) GetPlanDistribution(ctx context.Context, filter *DateRangeF
 			return nil, fmt.Errorf("scan plan distribution: %w", err)
 		}
 
-		if !planSeen[planID] {
-			planSeen[planID] = true
-			planOrder = append(planOrder, planKey{planID, planName})
-			planCounts[planID] = PlanCounts{TotalSubscriptions: total, ActiveSubscriptions: active}
+		// Initialize plan if not seen before
+		if _, exists := planMap[planID]; !exists {
+			planMap[planID] = &PlanDistribution{
+				PlanID:   fmt.Sprintf("%d", planID),
+				PlanName: planName,
+				Counts: PlanCounts{
+					TotalSubscriptions:  total,
+					ActiveSubscriptions: active,
+				},
+				Series: []PlanDistributionPoint{},
+			}
+			planOrder = append(planOrder, planID)
 		}
 
-		bk := bucketKey{planID, ts.Format(dateFormat)}
-		if !bucketSeen[bk] {
-			bucketSeen[bk] = true
-			planSeries[planID] = append(planSeries[planID], PlanDistributionPoint{
+		// Add time-series point if timestamp exists
+		if ts != nil {
+			planMap[planID].Series = append(planMap[planID].Series, PlanDistributionPoint{
 				Timestamp:           ts.Format(dateFormat),
 				Revenue:             revenue,
 				NewSubscriptions:    newSubs,
@@ -1031,17 +1060,14 @@ func (r *repository) GetPlanDistribution(ctx context.Context, filter *DateRangeF
 		}
 	}
 
-	for _, pk := range planOrder {
-		series := planSeries[pk.id]
-		if series == nil {
-			series = []PlanDistributionPoint{}
-		}
-		result.Plans = append(result.Plans, PlanDistribution{
-			PlanID:   fmt.Sprintf("%d", pk.id),
-			PlanName: pk.name,
-			Counts:   planCounts[pk.id],
-			Series:   series,
-		})
+	// Check for iteration errors
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate plan distribution rows: %w", err)
+	}
+
+	// Build final result in order
+	for _, planID := range planOrder {
+		result.Plans = append(result.Plans, *planMap[planID])
 	}
 
 	return &result, nil
