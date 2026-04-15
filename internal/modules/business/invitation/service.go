@@ -187,6 +187,23 @@ func (s *service) SendInvite(ctx context.Context, practitionerID uuid.UUID, req 
 		UserAgent:   meta.UserAgent,
 	})
 
+	// Audit Log: Combined Permissions Assigned
+	if len(processedPermissions) > 0 {
+		permEntityType := auditctx.EntityPermission
+		s.auditSvc.LogAsync(&audit.LogEntry{
+			PracticeID:  &pIDStr,
+			UserID:      meta.UserID,
+			Module:      auditctx.ModuleBusiness,
+			Action:      auditctx.ActionPermissionAssigned,
+			EntityType:  &permEntityType,
+			EntityID:    &entityID,
+			BeforeState: nil,
+			AfterState:  processedPermissions,
+			IPAddress:   meta.IPAddress,
+			UserAgent:   meta.UserAgent,
+		})
+	}
+
 	return &RsInvitation{
 		ID:           invite.ID,
 		Email:        invite.Email,
