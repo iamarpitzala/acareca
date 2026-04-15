@@ -133,6 +133,11 @@ func (r *repository) MarkRead(ctx context.Context, id uuid.UUID, recipientID uui
 
 // MarkDismissed transitions READ → DISMISSED.
 func (r *repository) MarkDismissed(ctx context.Context, id uuid.UUID, recipientID uuid.UUID) error {
+	err := r.MarkRead(ctx, id, recipientID)
+	if err != nil {
+		return err
+	}
+
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE tbl_notification
 		 SET status = 'DISMISSED'
