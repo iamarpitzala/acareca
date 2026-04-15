@@ -333,7 +333,7 @@ func (h *Handler) ListSubscriptionRecords(c *gin.Context) {
 }
 
 // @Summary Get plan distribution
-// @Description Returns plan distribution with historical revenue and subscription counts
+// @Description Returns plan distribution with historical MRR (Monthly Recurring Revenue), subscription counts, and time-series data. Total/active counts reflect all-time data, while time-series shows data within the specified date range.
 // @Tags admin-dashboard
 // @Produce json
 // @Param from query string false "Start date (YYYY-MM-DD)"

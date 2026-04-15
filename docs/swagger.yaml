@@ -2317,8 +2317,9 @@ paths:
       - admin-dashboard
   /admin/analytics/billing/plan-distribution:
     get:
-      description: Returns plan distribution with historical revenue and subscription
-        counts
+      description: Returns plan distribution with historical MRR (Monthly Recurring
+        Revenue), subscription counts, and time-series data. Total/active counts reflect
+        all-time data, while time-series shows data within the specified date range.
       parameters:
       - description: Start date (YYYY-MM-DD)
         in: query
