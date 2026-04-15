@@ -12,7 +12,7 @@ const (
 
 type Filter struct {
 	PractitionerID *string      `form:"practitioner_id"`
-	ClinicID       []*uuid.UUID `form:"clinic_ids"`
+	ClinicIDs      []*uuid.UUID `form:"clinic_ids"`
 	FormName       *string      `form:"name"`
 	Method         *string      `form:"method"`
 	Status         *string      `form:"status"`
@@ -27,15 +27,15 @@ func (filter *Filter) MapToFilter() common.Filter {
 			filters["practitioner_id"] = id // Pass as uuid.UUID type to common.Filter
 		}
 	}
-	if len(filter.ClinicID) > 0 {
-		ids := make([]uuid.UUID, 0, len(filter.ClinicID))
-		for _, cid := range filter.ClinicID {
+	if filter.ClinicIDs != nil {
+		ids := make([]uuid.UUID, 0, len(filter.ClinicIDs))
+		for _, cid := range filter.ClinicIDs {
 			if cid != nil {
 				ids = append(ids, *cid)
 			}
 		}
 		if len(ids) > 0 {
-			filters["clinicIds"] = ids
+			filters["clinic_ids"] = ids
 		}
 	}
 	if filter.Status != nil {
