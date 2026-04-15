@@ -542,6 +542,7 @@ func (s *service) DeleteClinic(ctx context.Context, actorID uuid.UUID, id uuid.U
 }
 
 func (s *service) UpdateClinic(ctx context.Context, actorID uuid.UUID, id uuid.UUID, req *RqUpdateClinic) (*RsClinic, error) {
+
 	ownerID, err := s.CheckPermission(ctx, actorID, id)
 	if err != nil {
 		return nil, err
@@ -691,7 +692,7 @@ func (s *service) UpdateClinic(ctx context.Context, actorID uuid.UUID, id uuid.U
 		result = updatedClinic
 
 		// --- TRIGGER SHARED EVENT RECORD (ACCOUNTANTS ONLY) ---
-		meta := auditctx.GetMetadata(ctx)
+		//meta := auditctx.GetMetadata(ctx)
 		if meta.UserType != nil && strings.EqualFold(*meta.UserType, util.RoleAccountant) && meta.UserID != nil {
 			actorUserID, err := uuid.Parse(*meta.UserID)
 			if err == nil {
@@ -1117,8 +1118,17 @@ func (s *service) CheckPermission(ctx context.Context, actorID uuid.UUID, clinic
 		// Return the Practitioner who owns the data
 		return permission.PractitionerID, nil
 	}
+
+	// 2. Practitioner Flow
+	pracIDPtr, err := s.repo.GetPractitionerIDByUserID(ctx, actorID.String())
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("practitioner profile not found: %w", err)
+	}
+
+	ownerID := *pracIDPtr
+
 	// 2. Practitioner Flow - check if they own the clinic
-	exists, err := s.repo.IsClinicOwner(ctx, actorID, clinicID)
+	exists, err := s.repo.IsClinicOwner(ctx, ownerID, clinicID)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("database error checking ownership: %w", err)
 	}
@@ -1126,8 +1136,7 @@ func (s *service) CheckPermission(ctx context.Context, actorID uuid.UUID, clinic
 		return uuid.Nil, fmt.Errorf("practitioner %s does not own clinic %s", actorID, clinicID)
 	}
 
-	// Since they are the owner, the actorID IS the ownerID
-	return actorID, nil
+	return ownerID, nil
 }
 
 func (s *service) ListClinicsForAccountant(ctx context.Context, accountantID uuid.UUID, filter Filter) (*util.RsList, error) {
