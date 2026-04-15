@@ -414,7 +414,7 @@ func (s *service) mapToBASColumn(rows []*BASLineItemRow) BASColumn {
 		{Name: "Management Fee (Gross Up)", Amounts: mgtFee},
 		{Name: "Laboratory Work (GST Free)", Amounts: labWork},
 		{Name: "Other Expenses (GST)", Amounts: otherExp},
-		{Name: "Subtotal (non capital purchase)", Amounts: subtotalExpenses},
+		// {Name: "Subtotal (non capital purchase)", Amounts: subtotalExpenses},
 		// {
 		// 	Name: "G11/1B GST on Purchases",
 		// 	Amounts: BASAmount{
