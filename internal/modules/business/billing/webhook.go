@@ -73,12 +73,19 @@ func (s *service) handleCheckoutCompleted(ctx context.Context, event stripe.Even
 		return fmt.Errorf("retrieve stripe subscription: %w", err)
 	}
 
+	var invoiceIDPtr *string
+	if stripeSub.LatestInvoice != nil && stripeSub.LatestInvoice.ID != "" {
+		id := stripeSub.LatestInvoice.ID
+		invoiceIDPtr = &id
+	}
+
 	endDate := periodEnd(stripeSub)
 
 	upsert := &subscription.WebhookUpsert{
 		PractitionerID:       practitionerID,
 		SubscriptionID:       subscriptionID,
 		StripeSubscriptionID: stripeSub.ID,
+		StripeInvoiceID:      invoiceIDPtr,
 		Status:               subscription.StatusActive,
 		StartDate:            time.Now(),
 		EndDate:              endDate,
@@ -122,7 +129,13 @@ func (s *service) handleSubscriptionUpdated(ctx context.Context, event stripe.Ev
 	status := mapStripeStatus(string(stripeSub.Status))
 	endDate := periodEnd(&stripeSub)
 
-	return s.subRepo.UpdateStripeFields(ctx, stripeSub.ID, nil, status, endDate)
+	var invoiceIDPtr *string
+	if stripeSub.LatestInvoice != nil && stripeSub.LatestInvoice.ID != "" {
+		id := stripeSub.LatestInvoice.ID
+		invoiceIDPtr = &id
+	}
+
+	return s.subRepo.UpdateStripeFields(ctx, stripeSub.ID, invoiceIDPtr, status, endDate)
 }
 
 // periodEnd extracts the current period end from the first subscription item.
