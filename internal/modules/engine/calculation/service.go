@@ -300,7 +300,7 @@ func (s *service) FormulaCalculate(ctx context.Context, formID uuid.UUID, req *R
 		}
 	}
 
-	// Compute section totals from keyValues (which contain NET amounts)
+	// Compute section totals from keyValues (which contain GROSS amounts for MANUAL, NET for others)
 	sectionTotals := make(map[string]float64)
 	for _, f := range fieldMap {
 		if f.IsComputed || f.SectionType == nil || *f.SectionType == "" {
@@ -445,12 +445,10 @@ func (s *service) LiveCalculate(ctx context.Context, req *RqLiveCalculate) (*RsL
 				// User entered NET amount, use as-is
 
 			case method.TaxTreatmentManual:
-				if (f.SectionType) != nil && *f.SectionType == "COLLECTION" {
-					if entry.GstAmount != nil {
-						actualNetAmount = entry.NetAmount - *entry.GstAmount
-					}
+				// For MANUAL tax type, use GROSS amount (net + gst)
+				if entry.GstAmount != nil {
+					actualNetAmount = entry.NetAmount + *entry.GstAmount
 				} else {
-					// For MANUAL tax type, use GROSS amount if provided, otherwise use net
 					actualNetAmount = entry.NetAmount
 				}
 			}
@@ -508,6 +506,11 @@ func (s *service) LiveCalculate(ctx context.Context, req *RqLiveCalculate) (*RsL
 				taxResult, err := s.methodSvc.Calculate(ctx, taxType, &method.Input{Amount: entry.NetAmount})
 				if err == nil {
 					actualNetAmount = taxResult.Amount
+				}
+			case method.TaxTreatmentManual:
+				// For MANUAL tax type, use GROSS amount (net + gst)
+				if entry.GstAmount != nil {
+					actualNetAmount = entry.NetAmount + *entry.GstAmount
 				}
 			}
 		}
