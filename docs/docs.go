@@ -3050,6 +3050,57 @@ const docTemplate = `{
                 }
             }
         },
+        "/calculate/preview": {
+            "post": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
+                "description": "Provides a complete preview of form entry including all fields (manual + computed) and calculation summary.\nReturns all field values with net/gst/gross breakdown and method-specific summary (SERVICE_FEE or INDEPENDENT_CONTRACTOR).\nPass form_version_id, clinic_id, and field entries with net_amount for each field.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "calculation"
+                ],
+                "summary": "Form preview with complete calculation",
+                "parameters": [
+                    {
+                        "description": "Form version ID, clinic ID, and field entries",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/calculation.RqFormPreview"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/calculation.RsFormPreview"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    }
+                }
+            }
+        },
         "/calculate/{id}": {
             "get": {
                 "security": [
@@ -4171,6 +4222,193 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    }
+                }
+            }
+        },
+        "/entry/coa-entries": {
+            "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
+                "description": "Returns one row per COA with aggregated amounts and entry counts",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "entry"
+                ],
+                "summary": "List grouped COA entries (parent grid)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Zero-based page index",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 10, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by practitioner ID",
+                        "name": "practitioner_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by clinic ID",
+                        "name": "clinic_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by form ID",
+                        "name": "form_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by COA ID",
+                        "name": "coa_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by tax type ID",
+                        "name": "tax_type_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by start date (YYYY-MM-DD)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by end date (YYYY-MM-DD)",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/util.RsList"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.RsError"
+                        }
+                    }
+                }
+            }
+        },
+        "/entry/coa-entries/{coa_id}/entries": {
+            "get": {
+                "security": [
+                    {
+                        "BearerToken": []
+                    }
+                ],
+                "description": "Returns detailed entry rows for the expanded COA",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "entry"
+                ],
+                "summary": "List entries for a specific COA (child grid)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "COA ID",
+                        "name": "coa_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Zero-based page index",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 10, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by practitioner ID",
+                        "name": "practitioner_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by clinic ID",
+                        "name": "clinic_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by form ID",
+                        "name": "form_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by tax type ID",
+                        "name": "tax_type_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by start date (YYYY-MM-DD)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by end date (YYYY-MM-DD)",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/util.RsList"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/response.RsError"
                         }
@@ -8081,6 +8319,60 @@ const docTemplate = `{
                 }
             }
         },
+        "calculation.PreviewSummary": {
+            "type": "object",
+            "properties": {
+                "base_remuneration": {
+                    "type": "number"
+                },
+                "clinic_expense_gst": {
+                    "type": "number"
+                },
+                "commission": {
+                    "description": "IC-specific fields (from attachICCalculation)",
+                    "type": "number"
+                },
+                "gst_on_commission": {
+                    "type": "number"
+                },
+                "gst_on_remuneration": {
+                    "type": "number"
+                },
+                "gst_service_fee": {
+                    "type": "number"
+                },
+                "invoice_total": {
+                    "type": "number"
+                },
+                "net_amount": {
+                    "description": "Common fields",
+                    "type": "number"
+                },
+                "other_cost_deduction": {
+                    "type": "number"
+                },
+                "payment_received": {
+                    "type": "number"
+                },
+                "remitted_amount": {
+                    "type": "number"
+                },
+                "service_fee": {
+                    "description": "SERVICE_FEE method fields",
+                    "type": "number"
+                },
+                "super_component": {
+                    "type": "number"
+                },
+                "total_remuneration": {
+                    "description": "INDEPENDENT_CONTRACTOR method fields",
+                    "type": "number"
+                },
+                "total_service_fee": {
+                    "type": "number"
+                }
+            }
+        },
         "calculation.RqCalculateFromEntries": {
             "type": "object",
             "required": [
@@ -8096,6 +8388,34 @@ const docTemplate = `{
                     }
                 },
                 "form_id": {
+                    "type": "string"
+                },
+                "super_component": {
+                    "type": "number",
+                    "maximum": 100,
+                    "minimum": 0
+                }
+            }
+        },
+        "calculation.RqFormPreview": {
+            "type": "object",
+            "required": [
+                "clinic_id",
+                "entries",
+                "form_version_id"
+            ],
+            "properties": {
+                "clinic_id": {
+                    "type": "string"
+                },
+                "entries": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/calculation.RqPreviewEntry"
+                    }
+                },
+                "form_version_id": {
                     "type": "string"
                 },
                 "super_component": {
@@ -8125,6 +8445,26 @@ const docTemplate = `{
             }
         },
         "calculation.RqLiveCalculateEntry": {
+            "type": "object",
+            "required": [
+                "form_field_id"
+            ],
+            "properties": {
+                "form_field_id": {
+                    "type": "string"
+                },
+                "gross_amount": {
+                    "type": "number"
+                },
+                "gst_amount": {
+                    "type": "number"
+                },
+                "net_amount": {
+                    "type": "number"
+                }
+            }
+        },
+        "calculation.RqPreviewEntry": {
             "type": "object",
             "required": [
                 "form_field_id"
@@ -8195,6 +8535,35 @@ const docTemplate = `{
                 }
             }
         },
+        "calculation.RsFormPreview": {
+            "type": "object",
+            "properties": {
+                "all_fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/calculation.RsPreviewFieldValue"
+                    }
+                },
+                "clinic_id": {
+                    "type": "string"
+                },
+                "clinic_name": {
+                    "type": "string"
+                },
+                "form_name": {
+                    "type": "string"
+                },
+                "form_version_id": {
+                    "type": "string"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "summary": {
+                    "$ref": "#/definitions/calculation.PreviewSummary"
+                }
+            }
+        },
         "calculation.RsFormulaCalculate": {
             "type": "object",
             "properties": {
@@ -8219,6 +8588,47 @@ const docTemplate = `{
                     }
                 },
                 "form_version_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "calculation.RsPreviewFieldValue": {
+            "type": "object",
+            "properties": {
+                "coa_id": {
+                    "type": "string"
+                },
+                "field_key": {
+                    "type": "string"
+                },
+                "form_field_id": {
+                    "type": "string"
+                },
+                "gross_amount": {
+                    "type": "number"
+                },
+                "gst_amount": {
+                    "type": "number"
+                },
+                "is_computed": {
+                    "type": "boolean"
+                },
+                "is_highlighted": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "net_amount": {
+                    "type": "number"
+                },
+                "section_type": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "tax_type": {
                     "type": "string"
                 }
             }
