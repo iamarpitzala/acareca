@@ -354,7 +354,7 @@ func (h *handler) ListCoaEntries(c *gin.Context) {
 
 	filter.Role = role
 
-	result, err := h.svc.ListCoaEntries(c.Request.Context(), filter, actorID)
+	result, err := h.svc.ListCoaEntries(c.Request.Context(), filter, *actorID, role)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
@@ -401,7 +401,7 @@ func (h *handler) ListCoaEntryDetails(c *gin.Context) {
 	}
 	filter.Role = role
 
-	result, err := h.svc.ListCoaEntryDetails(c.Request.Context(), coaID, filter, actorID)
+	result, err := h.svc.ListCoaEntryDetails(c.Request.Context(), coaID, filter, *actorID, role)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return

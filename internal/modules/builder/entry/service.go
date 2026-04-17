@@ -36,8 +36,8 @@ type IService interface {
 	ListTransactions(ctx context.Context, filter TransactionFilter, actorID uuid.UUID, role string) (*util.RsList, error)
 
 	// COA-grouped endpoints
-	ListCoaEntries(ctx context.Context, filter TransactionFilter, actorID *uuid.UUID) (*util.RsList, error)
-	ListCoaEntryDetails(ctx context.Context, coaID string, filter TransactionFilter, actorID *uuid.UUID) (*util.RsList, error)
+	ListCoaEntries(ctx context.Context, filter TransactionFilter, actorID uuid.UUID, role string) (*util.RsList, error)
+	ListCoaEntryDetails(ctx context.Context, coaID string, filter TransactionFilter, actorID uuid.UUID, role string) (*util.RsList, error)
 }
 
 type Service struct {
@@ -828,14 +828,14 @@ func (s *Service) recordSharedEvent(ctx context.Context, clinicID uuid.UUID, for
 }
 
 // ListCoaEntries implements [IService] - returns grouped COA rows for parent grid
-func (s *Service) ListCoaEntries(ctx context.Context, filter TransactionFilter, actorID *uuid.UUID) (*util.RsList, error) {
+func (s *Service) ListCoaEntries(ctx context.Context, filter TransactionFilter, actorID uuid.UUID, role string) (*util.RsList, error) {
 	f := filter.ToCommonFilter()
 
-	items, err := s.repo.ListCoaEntries(ctx, f, actorID, filter.Role)
+	items, err := s.repo.ListCoaEntries(ctx, f, actorID, role)
 	if err != nil {
 		return nil, err
 	}
-	total, err := s.repo.CountCoaEntries(ctx, f, actorID, filter.Role)
+	total, err := s.repo.CountCoaEntries(ctx, f, actorID, role)
 	if err != nil {
 		return nil, err
 	}
@@ -846,7 +846,7 @@ func (s *Service) ListCoaEntries(ctx context.Context, filter TransactionFilter, 
 }
 
 // ListCoaEntryDetails implements [IService] - returns entry details for a specific COA (child grid)
-func (s *Service) ListCoaEntryDetails(ctx context.Context, coaID string, filter TransactionFilter, actorID *uuid.UUID) (*util.RsList, error) {
+func (s *Service) ListCoaEntryDetails(ctx context.Context, coaID string, filter TransactionFilter, actorID uuid.UUID, role string) (*util.RsList, error) {
 	coaUUID, err := uuid.Parse(coaID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid coa_id: %w", err)
@@ -854,11 +854,11 @@ func (s *Service) ListCoaEntryDetails(ctx context.Context, coaID string, filter 
 
 	f := filter.ToCommonFilter()
 
-	items, err := s.repo.ListCoaEntryDetails(ctx, coaUUID, f, actorID, filter.Role)
+	items, err := s.repo.ListCoaEntryDetails(ctx, coaUUID, f, actorID, role)
 	if err != nil {
 		return nil, err
 	}
-	total, err := s.repo.CountCoaEntryDetails(ctx, coaUUID, f, actorID, filter.Role)
+	total, err := s.repo.CountCoaEntryDetails(ctx, coaUUID, f, actorID, role)
 	if err != nil {
 		return nil, err
 	}
