@@ -687,6 +687,10 @@ func (r *Repository) CountCoaEntries(ctx context.Context, f common.Filter, actor
 	searchCols := []string{"coa.name"}
 	q, qArgs := common.BuildQuery(base, f, allowedColumns, searchCols, true)
 	args := []any{actorID}
+	if strings.Contains(q, "COUNT(*)") {
+		q = strings.Replace(q, "COUNT(*)", "COUNT(DISTINCT coa.id)", 1)
+	}
+
 	args = append(args, qArgs...)
 	q = r.db.Rebind(q)
 
@@ -741,7 +745,7 @@ func (r *Repository) ListCoaEntryDetails(ctx context.Context, coaID uuid.UUID, f
 			ev.net_amount,
 			ev.gst_amount,
 			ev.gross_amount,
-			ev.created_at,
+			COALESCE(e.date, ev.created_at) AS created_at,
 			ev.updated_at
 		FROM tbl_form_entry_value ev
 		INNER JOIN tbl_form_entry              e   ON e.id   = ev.entry_id          AND e.deleted_at  IS NULL
