@@ -2,9 +2,11 @@ package version
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/iamarpitzala/acareca/internal/modules/business/clinic"
+	"github.com/jmoiron/sqlx"
 )
 
 type IService interface {
@@ -14,6 +16,9 @@ type IService interface {
 	Update(ctx context.Context, id, clinicID uuid.UUID, req *RqUpdateFormVersion) (*RsFormVersion, error)
 	Delete(ctx context.Context, id, clinicID uuid.UUID) error
 	List(ctx context.Context, formID, clinicID uuid.UUID) ([]*RsFormVersion, error)
+	ListTx(ctx context.Context, tx *sqlx.Tx, formID, clinicID uuid.UUID) ([]*RsFormVersion, error)
+	GetVersionByFormID(ctx context.Context, formID uuid.UUID) (RsFormVersion, error)
+	CreateTx(ctx context.Context, tx *sqlx.Tx, formID, clinicID uuid.UUID, req *RqFormVersion, practitionerID uuid.UUID) (*RsFormVersion, error)
 }
 
 type service struct {
@@ -21,7 +26,7 @@ type service struct {
 	formClinic clinic.Service
 }
 
-func NewService(repo IRepository, clinicSvc clinic.Service) IService {
+func NewService(db *sqlx.DB, repo IRepository, clinicSvc clinic.Service) IService {
 	return &service{repo: repo, formClinic: clinicSvc}
 }
 
@@ -31,7 +36,6 @@ func (s *service) Create(ctx context.Context, formID, clinicID uuid.UUID, req *R
 	if err != nil {
 		return nil, err
 	}
-
 	if clinic.ID != clinicID {
 		return nil, ErrForbidden
 	}
@@ -58,7 +62,7 @@ func (s *service) Get(ctx context.Context, id, clinicID uuid.UUID) (*RsFormVersi
 	return v.ToRs(), nil
 }
 
-// GetByID returns the version by ID without clinic check. Used when resolving form from version (e.g. form status check).
+// GetByID returns the version by ID without clinic check.
 func (s *service) GetByID(ctx context.Context, id uuid.UUID) (*RsFormVersion, error) {
 	v, err := s.repo.Get(ctx, id)
 	if err != nil {
@@ -80,7 +84,6 @@ func (s *service) Update(ctx context.Context, id, clinicID uuid.UUID, req *RqUpd
 	if clinic.ID != clinicID {
 		return nil, ErrForbidden
 	}
-
 	if req.Version != nil {
 		existing.Version = *req.Version
 	}
@@ -91,7 +94,6 @@ func (s *service) Update(ctx context.Context, id, clinicID uuid.UUID, req *RqUpd
 	if err != nil {
 		return nil, err
 	}
-
 	return updated.ToRs(), nil
 }
 
@@ -104,19 +106,19 @@ func (s *service) Delete(ctx context.Context, id, clinicID uuid.UUID) error {
 	if clinic.ID != clinicID {
 		return ErrForbidden
 	}
-
 	return s.repo.Delete(ctx, id)
 }
 
 // List implements [IService].
 func (s *service) List(ctx context.Context, formID, clinicID uuid.UUID) ([]*RsFormVersion, error) {
-	clinic, err := s.formClinic.GetClinicByIDInternal(ctx, clinicID)
+	/*clinic, err := s.formClinic.GetClinicByIDInternal(ctx, clinicID)
 	if err != nil {
 		return nil, err
 	}
 	if clinic.ID != clinicID {
 		return nil, ErrForbidden
-	}
+	}*/
+
 	list, err := s.repo.ListByFormID(ctx, formID)
 	if err != nil {
 		return nil, err
@@ -126,4 +128,55 @@ func (s *service) List(ctx context.Context, formID, clinicID uuid.UUID) ([]*RsFo
 		rs = append(rs, v.ToRs())
 	}
 	return rs, nil
+}
+
+func (s *service) ListTx(ctx context.Context, tx *sqlx.Tx, formID, clinicID uuid.UUID) ([]*RsFormVersion, error) {
+	var list []*FormVersion
+	var err error
+
+	// If tx is provided, query through the transaction to see uncommitted records
+	if tx != nil {
+		list, err = s.repo.ListByFormIDTx(ctx, tx, formID)
+	} else {
+		list, err = s.repo.ListByFormID(ctx, formID)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	rs := make([]*RsFormVersion, 0, len(list))
+	for _, v := range list {
+		rs = append(rs, v.ToRs())
+	}
+	return rs, nil
+}
+
+// GetVersionByFormID implements [IService].
+func (s *service) GetVersionByFormID(ctx context.Context, formID uuid.UUID) (RsFormVersion, error) {
+	v, err := s.repo.ListVersionByFormID(ctx, formID)
+	if err != nil {
+		return RsFormVersion{}, err
+	}
+	return *v.ToRs(), nil
+}
+
+// CreateTx creates a form version within a transaction.
+func (s *service) CreateTx(ctx context.Context, tx *sqlx.Tx, formID, clinicID uuid.UUID, req *RqFormVersion, userID uuid.UUID) (*RsFormVersion, error) {
+	fmt.Printf(">>> DEBUG [VersionSvc.CreateTx] Searching for Clinic: %s using userID: %s\n", clinicID, userID)
+	/*clinic, err := s.formClinic.GetClinicByIDInternal(ctx, clinicID)
+	if err != nil {
+		fmt.Printf(">>> DEBUG [!] GetClinicByIDInternal returned error: %v\n", err)
+		return nil, err
+	}
+	if clinic.ID != clinicID {
+		fmt.Printf(">>> DEBUG [!] ID Mismatch: Found %s, Expected %s\n", clinic.ID, clinicID)
+		return nil, ErrForbidden
+	}*/
+
+	v := req.ToDB(formID, userID)
+	if err := s.repo.CreateTx(ctx, tx, v); err != nil {
+		return nil, err
+	}
+	return v.ToRs(), nil
 }

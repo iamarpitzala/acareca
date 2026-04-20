@@ -3,77 +3,190 @@ package detail
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/iamarpitzala/acareca/internal/modules/builder/version"
+	"github.com/iamarpitzala/acareca/internal/modules/business/clinic"
+	"github.com/iamarpitzala/acareca/internal/modules/business/invitation"
+	auditctx "github.com/iamarpitzala/acareca/internal/shared/audit"
+	"github.com/iamarpitzala/acareca/internal/shared/limits"
+	"github.com/iamarpitzala/acareca/internal/shared/util"
+	"github.com/jmoiron/sqlx"
 )
 
 type IService interface {
 	Create(ctx context.Context, d *RqFormDetail, clinicID uuid.UUID, practitionerID uuid.UUID) (*RsFormDetail, error)
-	GetByID(ctx context.Context, formID uuid.UUID) (*RsFormDetail, error)
+	CreateTx(ctx context.Context, tx *sqlx.Tx, d *RqFormDetail, clinicID uuid.UUID, practitionerID uuid.UUID) (*RsFormDetail, error)
+	GetByID(ctx context.Context, formID uuid.UUID, actorID uuid.UUID, role string) (*RsFormDetail, error)
 	Update(ctx context.Context, d *RqUpdateFormDetail, practitionerID uuid.UUID) (*RsFormDetail, error)
 	UpdateMetadata(ctx context.Context, d *RqUpdateFormDetail) (*RsFormDetail, error)
-	Delete(ctx context.Context, formID uuid.UUID) error
-	ListForm(ctx context.Context, filter Filter) ([]*RsFormDetail, error)
+	Delete(ctx context.Context, tx *sqlx.Tx, formID uuid.UUID) error
+	List(ctx context.Context, filter Filter, actorID uuid.UUID, role string) (*util.RsList, error)
+	UpdateFormStatus(ctx context.Context, d *RqUpdateFormStatus) error
 }
 
 type Service struct {
-	repo       IRepository
-	versionSvc version.IService
+	db            *sqlx.DB
+	repo          IRepository
+	versionSvc    version.IService
+	limitsSvc     limits.Service
+	clinicRepo    clinic.Repository
+	invitationSvc invitation.Service
 }
 
-func NewService(repo IRepository, versionSvc version.IService) IService {
-	return &Service{repo: repo, versionSvc: versionSvc}
+func NewService(db *sqlx.DB, repo IRepository, versionSvc version.IService, clinicRepo clinic.Repository, invitationSvc invitation.Service) IService {
+	return &Service{db: db, repo: repo, versionSvc: versionSvc, limitsSvc: limits.NewService(db), clinicRepo: clinicRepo, invitationSvc: invitationSvc}
 }
 
 // Create implements [IService].
 func (s *Service) Create(ctx context.Context, d *RqFormDetail, clinicID uuid.UUID, practitionerID uuid.UUID) (*RsFormDetail, error) {
+	meta := auditctx.GetMetadata(ctx)
+
+	isAccountant := meta.UserType != nil && strings.EqualFold(*meta.UserType, util.RoleAccountant)
+
+	if isAccountant || practitionerID == uuid.Nil {
+
+		clinic, err := s.clinicRepo.GetClinicByID(ctx, clinicID)
+		if err != nil {
+
+			return nil, fmt.Errorf("failed to resolve clinic owner: %w", err)
+		}
+
+		// Overwrite the ID so we check the OWNER'S subscription, not the accountant's
+		practitionerID = clinic.PractitionerID
+
+	}
+
+	// 3. Now the limit check runs against the correct person (The Subscriber)
+
+	if err := s.limitsSvc.Check(ctx, practitionerID, limits.KeyFormCreate); err != nil {
+
+		return nil, err
+	}
+
 	formDetail := d.ToDB(clinicID)
-	if err := s.repo.Create(ctx, formDetail); err != nil {
-		return nil, err
-	}
-	_, err := s.versionSvc.Create(ctx, formDetail.ID, clinicID, &version.RqFormVersion{
-		Version:  1,
-		IsActive: true,
-	}, practitionerID)
+	var result *RsFormDetail
+	err := util.RunInTransaction(ctx, s.db, func(ctx context.Context, tx *sqlx.Tx) error {
+
+		if err := s.repo.CreateTx(ctx, tx, formDetail); err != nil {
+
+			return err
+		}
+
+		_, err := s.versionSvc.CreateTx(ctx, tx, formDetail.ID, clinicID, &version.RqFormVersion{
+			Version:  1,
+			IsActive: true,
+		}, practitionerID)
+		if err != nil {
+
+			return err
+		}
+		result = formDetail.ToRs()
+		return nil
+	})
 	if err != nil {
+
 		return nil, err
 	}
+	return result, nil
+}
+
+func (s *Service) CreateTx(ctx context.Context, tx *sqlx.Tx, d *RqFormDetail, clinicID uuid.UUID, practitionerID uuid.UUID) (*RsFormDetail, error) {
+	meta := auditctx.GetMetadata(ctx)
+	isAccountant := meta.UserType != nil && strings.EqualFold(*meta.UserType, util.RoleAccountant)
+
+	if isAccountant || practitionerID == uuid.Nil {
+		clinic, err := s.clinicRepo.GetClinicByID(ctx, clinicID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve clinic owner: %w", err)
+		}
+		practitionerID = clinic.PractitionerID
+	}
+
+	// Subscription limit check
+	if err := s.limitsSvc.Check(ctx, practitionerID, limits.KeyFormCreate); err != nil {
+		return nil, err
+	}
+
+	formDetail := d.ToDB(clinicID)
+
+	// Internal function to execute logic
+	execLogic := func(ctx context.Context, tx *sqlx.Tx) error {
+		if err := s.repo.CreateTx(ctx, tx, formDetail); err != nil {
+			return err
+		}
+
+		_, err := s.versionSvc.CreateTx(ctx, tx, formDetail.ID, clinicID, &version.RqFormVersion{
+			Version:  1,
+			IsActive: true,
+		}, practitionerID)
+		return err
+	}
+
+	// If tx is provided by the caller (CreateWithFields), use it.
+	// Otherwise, start a new one (original Create behavior).
+	if tx != nil {
+		if err := execLogic(ctx, tx); err != nil {
+			return nil, err
+		}
+	} else {
+		err := util.RunInTransaction(ctx, s.db, func(ctx context.Context, tx *sqlx.Tx) error {
+			return execLogic(ctx, tx)
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return formDetail.ToRs(), nil
 }
 
 // Delete implements [IService].
-func (s *Service) Delete(ctx context.Context, formID uuid.UUID) error {
-	return s.repo.Delete(ctx, formID)
+func (s *Service) Delete(ctx context.Context, tx *sqlx.Tx, formID uuid.UUID) error {
+	return s.repo.DeleteTx(ctx, tx, formID)
 }
 
 // ListForm implements [IService].
-func (s *Service) ListForm(ctx context.Context, filter Filter) ([]*RsFormDetail, error) {
-	formDetails, err := s.repo.ListForm(ctx, filter)
+func (s *Service) List(ctx context.Context, filter Filter, actorID uuid.UUID, role string) (*util.RsList, error) {
+	ft := filter.MapToFilter()
+	formDetails, err := s.repo.ListForm(ctx, ft, actorID, role)
 	if err != nil {
 		return nil, err
 	}
-	rs := make([]*RsFormDetail, 0, len(formDetails))
-	for _, d := range formDetails {
-		rs = append(rs, d.ToRs())
+
+	total, err := s.repo.CountForm(ctx, ft, actorID, role)
+	if err != nil {
+		return nil, err
 	}
-	return rs, nil
+
+	items := make([]*RsFormDetail, 0, len(formDetails))
+	for _, item := range formDetails {
+		items = append(items, item.ToRs())
+	}
+
+	var rsList util.RsList
+	rsList.MapToList(items, total, *ft.Offset, *ft.Limit)
+
+	return &rsList, nil
 }
 
 func applyFormUpdatePatch(existing *FormDetail, d *RqUpdateFormDetail) error {
-	if existing.Status == StatusArchived {
-		return errors.New("form is archived")
-	}
-	if existing.Status == StatusPublished {
-		if d.Status != nil || d.Method != nil || d.OwnerShare != nil || d.ClinicShare != nil {
-			return errors.New("form is published and cannot be updated")
-		}
-	}
 	if d.Name != nil {
 		existing.Name = *d.Name
 	}
 	if d.Description != nil {
 		existing.Description = d.Description
+	}
+	if d.OwnerShare != nil {
+		existing.OwnerShare = *d.OwnerShare
+	}
+	if d.ClinicShare != nil {
+		existing.ClinicShare = *d.ClinicShare
+	}
+	if d.SuperComponent != nil {
+		existing.SuperComponent = d.SuperComponent
 	}
 	if existing.Status != StatusPublished {
 		if d.Status != nil {
@@ -82,16 +195,11 @@ func applyFormUpdatePatch(existing *FormDetail, d *RqUpdateFormDetail) error {
 		if d.Method != nil {
 			existing.Method = *d.Method
 		}
-		if d.OwnerShare != nil {
-			existing.OwnerShare = *d.OwnerShare
-		}
-		if d.ClinicShare != nil {
-			existing.ClinicShare = *d.ClinicShare
-		}
 	}
 	return nil
 }
 
+// Update updates form metadata and creates a new active version, deactivating the previous one.
 func (s *Service) Update(ctx context.Context, d *RqUpdateFormDetail, practitionerID uuid.UUID) (*RsFormDetail, error) {
 	existing, err := s.repo.GetByID(ctx, d.ID)
 	if err != nil {
@@ -100,40 +208,36 @@ func (s *Service) Update(ctx context.Context, d *RqUpdateFormDetail, practitione
 	if err := applyFormUpdatePatch(existing, d); err != nil {
 		return nil, err
 	}
-	updated, err := s.repo.Update(ctx, existing)
+	allVersions, err := s.versionSvc.List(ctx, existing.ID, existing.ClinicID)
 	if err != nil {
 		return nil, err
-	}
-	activeVersions, err := s.versionSvc.List(ctx, updated.ID, updated.ClinicID)
-	if err != nil {
-		return nil, err
-	}
-	for _, v := range activeVersions {
-		if v.IsActive {
-			isActive := false
-			_, err := s.versionSvc.Update(ctx, v.Id, updated.ClinicID, &version.RqUpdateFormVersion{
-				Version:  &v.Version,
-				IsActive: &isActive,
-			})
-			if err != nil {
-				return nil, err
-			}
-		}
 	}
 	versionNum := 1
-	for _, v := range activeVersions {
+	for _, v := range allVersions {
 		if v.Version >= versionNum {
 			versionNum = v.Version + 1
 		}
 	}
-	_, err = s.versionSvc.Create(ctx, updated.ID, updated.ClinicID, &version.RqFormVersion{
-		Version:  versionNum,
-		IsActive: true,
-	}, practitionerID)
+	var updated *RsFormDetail
+	err = util.RunInTransaction(ctx, s.db, func(ctx context.Context, tx *sqlx.Tx) error {
+		upd, err := s.repo.UpdateTx(ctx, tx, existing)
+		if err != nil {
+			return err
+		}
+		_, err = s.versionSvc.CreateTx(ctx, tx, existing.ID, existing.ClinicID, &version.RqFormVersion{
+			Version:  versionNum,
+			IsActive: true,
+		}, practitionerID)
+		if err != nil {
+			return err
+		}
+		updated = upd.ToRs()
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	return updated.ToRs(), nil
+	return updated, nil
 }
 
 // UpdateMetadata updates only the form row; no version creation. Used by update-with-fields flow.
@@ -153,10 +257,44 @@ func (s *Service) UpdateMetadata(ctx context.Context, d *RqUpdateFormDetail) (*R
 }
 
 // GetByID implements [IService].
-func (s *Service) GetByID(ctx context.Context, formID uuid.UUID) (*RsFormDetail, error) {
+func (s *Service) GetByID(ctx context.Context, formID uuid.UUID, actorID uuid.UUID, role string) (*RsFormDetail, error) {
 	formDetail, err := s.repo.GetByID(ctx, formID)
 	if err != nil {
 		return nil, err
 	}
+
+	// PERMISSION CHECK (Accountant Only)
+	if strings.EqualFold(role, util.RoleAccountant) {
+		// We call the invitation service to check for a DIRECT mapping to this FORM ID
+		perms, err := s.invitationSvc.GetPermissionsForAccountant(ctx, actorID, formID)
+		if err != nil {
+			return nil, fmt.Errorf("Authentication failed: %w", err)
+		}
+
+		// Deny if no record exists OR if the JSON permissions don't allow 'read' or 'all'
+		if perms == nil || (!perms.HasAccess("read") && !perms.HasAccess("all")) {
+			return nil, errors.New("Access denied: you do not have permission to view this form")
+		}
+	}
+
 	return formDetail.ToRs(), nil
+}
+
+// UpdateFormStatus toggles the form status between DRAFT and PUBLISHED.
+func (s *Service) UpdateFormStatus(ctx context.Context, d *RqUpdateFormStatus) error {
+	// Fetch existing to check current state
+	existing, err := s.repo.GetByID(ctx, d.ID)
+	if err != nil {
+		return err
+	}
+
+	// If the status is the same, just return
+	if existing.Status == d.Status {
+		return nil
+	}
+
+	// Execute update in a transaction
+	return util.RunInTransaction(ctx, s.db, func(ctx context.Context, tx *sqlx.Tx) error {
+		return s.repo.UpdateFormStatusTx(ctx, tx, d.ID, d.Status)
+	})
 }

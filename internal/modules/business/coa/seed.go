@@ -2,7 +2,6 @@ package coa
 
 import (
 	"context"
-	"log"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -39,7 +38,7 @@ func DefaultChartOfAccounts() []DefaultChartRow {
 		{Code: 410, Name: "M/V Registration", AccountTypeID: 5, AccountTaxID: 3, IsSystem: false},
 		{Code: 411, Name: "M/V Fuel", AccountTypeID: 5, AccountTaxID: 2, IsSystem: false},
 		{Code: 412, Name: "M/V Repairs/Maintenance", AccountTypeID: 5, AccountTaxID: 2, IsSystem: false},
-		{Code: 413, Name: "Management Fee (Gross Up)", AccountTypeID: 5, AccountTaxID: 4, IsSystem: false},
+		{Code: 413, Name: "Management Fee (Gross Up)", AccountTypeID: 5, AccountTaxID: 2, IsSystem: false},
 		{Code: 414, Name: "Materials/Dental Supplies", AccountTypeID: 5, AccountTaxID: 2, IsSystem: false},
 		{Code: 415, Name: "Office Supplies", AccountTypeID: 5, AccountTaxID: 2, IsSystem: false},
 		{Code: 416, Name: "Postage", AccountTypeID: 5, AccountTaxID: 2, IsSystem: false},
@@ -85,23 +84,20 @@ func DefaultChartOfAccounts() []DefaultChartRow {
 	}
 }
 
-// SeedDefaultsForPractitioner creates default chart-of-account rows for a practitioner.
-// practitioner_id = practitionerID; is_system is taken from each DefaultChartRow (true only for owner fund side).
+// SeedDefaultsForPractitioner creates default chart-of-account rows for a practitioner in a single bulk insert.
 func SeedDefaultsForPractitioner(ctx context.Context, repo Repository, practitionerID uuid.UUID, tx *sqlx.Tx) error {
-	for _, row := range DefaultChartOfAccounts() {
-		chart := &ChartOfAccount{
+	defaults := DefaultChartOfAccounts()
+	rows := make([]*ChartOfAccount, len(defaults))
+	for i, row := range defaults {
+		rows[i] = &ChartOfAccount{
 			PractitionerID: practitionerID,
 			AccountTypeID:  row.AccountTypeID,
 			AccountTaxID:   row.AccountTaxID,
 			Code:           row.Code,
 			Name:           row.Name,
+			Key:            GenerateKeyFromName(row.Name),
 			IsSystem:       row.IsSystem,
 		}
-		_, err := repo.CreateChartOfAccount(ctx, chart, tx)
-		if err != nil {
-			log.Printf("coa: seed default %d for practitioner %s: %v", row.Code, practitionerID, err)
-			return err
-		}
 	}
-	return nil
+	return repo.BulkCreateChartOfAccounts(ctx, rows, tx)
 }

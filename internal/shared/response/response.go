@@ -13,22 +13,23 @@ type RsError struct {
 	Detail  string `json:"detail,omitempty"`
 }
 
-type envelope struct {
+type RsBase struct {
 	Status  int      `json:"status,omitempty"`
 	Data    any      `json:"data,omitempty"`
 	Message string   `json:"message,omitempty"`
 	Error   *RsError `json:"error,omitempty"`
 }
 
-func JSON(c *gin.Context, status int, data any) {
-	c.JSON(status, envelope{
-		Status: status,
-		Data:   data,
+func JSON(c *gin.Context, status int, data any, message string) {
+	c.JSON(status, RsBase{
+		Status:  status,
+		Data:    data,
+		Message: message,
 	})
 }
 
 func Message(c *gin.Context, status int, message string) {
-	c.JSON(status, envelope{
+	c.JSON(status, RsBase{
 		Status:  status,
 		Message: message,
 	})
@@ -36,9 +37,20 @@ func Message(c *gin.Context, status int, message string) {
 
 func Error(c *gin.Context, status int, err error) {
 	var msg string
-	if status >= http.StatusInternalServerError {
+	switch {
+	case status >= http.StatusInternalServerError:
 		msg = "internal server error"
-	} else {
+	case status == http.StatusUnprocessableEntity:
+		msg = "unprocessable entity"
+	case status == http.StatusBadRequest:
+		msg = "bad request"
+	case status == http.StatusNotFound:
+		msg = "not found"
+	case status == http.StatusForbidden:
+		msg = "forbidden"
+	case status == http.StatusUnauthorized:
+		msg = "unauthorized"
+	default:
 		msg = "unknown error"
 	}
 
@@ -47,7 +59,7 @@ func Error(c *gin.Context, status int, err error) {
 		details = err.Error()
 	}
 
-	c.AbortWithStatusJSON(status, envelope{
+	c.AbortWithStatusJSON(status, RsBase{
 		Error: &RsError{
 			Code:    status,
 			Message: msg,

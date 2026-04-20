@@ -6,18 +6,22 @@ import (
 	"github.com/iamarpitzala/acareca/pkg/config"
 )
 
-func RegisterRoutes(rg *gin.RouterGroup, h IHandler, cfg *config.Config) {
+func RegisterRoutes(rg *gin.RouterGroup, h IHandler, cfg *config.Config, permChecker middleware.PermissionChecker) {
 	rg.GET("/account-types", h.ListAccountTypes)
 	rg.GET("/account-types/:id", h.GetAccountType)
 	rg.GET("/account-taxes", h.ListAccountTaxes)
 	rg.GET("/account-taxes/:id", h.GetAccountTax)
 
-	// Chart of Accounts CRUD — scoped by practitioner_id
-	accounts := rg.Group("/chat-of-account")
-	accounts.Use(middleware.Auth(cfg))
-	accounts.GET("", h.ListChartOfAccount)
-	accounts.GET("/:id", h.GetChartOfAccount)
-	accounts.POST("", h.CreateChartOfAccount)
-	accounts.PUT("/:id", h.UpdateCharOfAccount)
-	accounts.DELETE("/:id", h.DeleteChartOfAccount)
+	// Chart of Accounts group - all routes consolidated under /chart-of-account
+	accounts := rg.Group("/chart-of-account")
+	accounts.Use(middleware.Auth(cfg), middleware.AuditContext())
+	{
+		accounts.GET("", h.ListChartOfAccount)
+		accounts.GET("/by-key/:key", h.GetChartOfAccountByKey)
+		accounts.POST("/check-code", h.CheckCodeUnique)
+		accounts.GET("/:id", h.GetChartOfAccount)
+		accounts.POST("", h.CreateChartOfAccount)
+		accounts.PUT("/:id", h.UpdateCharOfAccount)
+		accounts.DELETE("/:id", h.DeleteChartOfAccount)
+	}
 }

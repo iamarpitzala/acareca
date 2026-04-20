@@ -1,11 +1,17 @@
 package subscription
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+)
 
 func RegisterRoutes(rg *gin.RouterGroup, h IHandler) {
-	rg.POST("/", h.CreateSubscription)
-	rg.GET("/", h.ListSubscriptions)
+	rg.POST("", h.CreateSubscription)
+	rg.GET("", h.ListSubscriptions)
 	rg.GET("/:id", h.GetSubscription)
 	rg.PATCH("/:id", h.UpdateSubscription)
 	rg.DELETE("/:id", h.DeleteSubscription)
+
+	// Permission management
+	rg.GET("/:id/permissions", h.ListPermissions)
+	rg.PUT("/:id/permissions/:key", h.UpdatePermission)
 }

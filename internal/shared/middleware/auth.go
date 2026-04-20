@@ -8,7 +8,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 	"github.com/iamarpitzala/acareca/pkg/config"
@@ -48,15 +47,17 @@ func RequireSuperadmin(check SuperadminChecker) gin.HandlerFunc {
 
 func Auth(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-
+		var tokenStr string
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			tokenStr = strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+		} else if q := c.Query("token"); q != "" {
+			tokenStr = q
+		} else {
 			response.Error(c, http.StatusUnauthorized, errUnauthorized)
 			c.Abort()
 			return
 		}
-
-		tokenStr := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 
 		claims := &util.CustomClaims{}
 
@@ -73,21 +74,47 @@ func Auth(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		if claims.Subject == "" || claims.PractitionerID == "" {
+		if claims.Subject == "" || claims.ID == "" || claims.Role == "" {
 			response.Error(c, http.StatusUnauthorized, errUnauthorized)
 			c.Abort()
 			return
 		}
 
-		practitionerUUID, err := uuid.Parse(claims.PractitionerID)
+		entityUUID, err := util.ParseUUID(claims.ID)
+
 		if err != nil {
 			response.Error(c, http.StatusUnauthorized, errUnauthorized)
+			c.Abort()
 			return
 		}
 
 		c.Set(util.UserIDKey, claims.Subject)
-		c.Set(util.PractitionerIDKey, practitionerUUID)
+		c.Set(util.EntityIDKey, entityUUID)
+		c.Set("role", claims.Role)
 
 		c.Next()
+	}
+}
+
+func RequireRole(allowedRoles ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Get role from context
+		role, exists := c.Get("role")
+		if !exists {
+			response.Error(c, http.StatusUnauthorized, nil)
+			c.Abort()
+			return
+		}
+
+		userRole := role.(string)
+		for _, r := range allowedRoles {
+			if r == userRole {
+				c.Next()
+				return
+			}
+		}
+
+		response.Error(c, http.StatusForbidden, nil)
+		c.Abort()
 	}
 }

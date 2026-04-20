@@ -1,14 +1,18 @@
 package main
 
 import (
+	"context"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
-	_ "github.com/iamarpitzala/acareca/docs"
+	"github.com/iamarpitzala/acareca/docs"
+	"github.com/iamarpitzala/acareca/internal/modules/notification"
 	"github.com/iamarpitzala/acareca/internal/shared/db"
 	"github.com/iamarpitzala/acareca/internal/shared/middleware"
 	"github.com/iamarpitzala/acareca/pkg/config"
@@ -20,9 +24,14 @@ import (
 // @version 1.0.0
 // @description Backend API for acareca
 // @contact.name API Support
-// @host localhost:8080
+
+// @securityDefinitions.apikey BearerToken
+// @in header
+// @name Authorization
+// @description Type "Bearer <your_token>" to authenticate
+
 // @BasePath /api/v1
-// @schemes http
+// @schemes http https
 // @consumes application/json
 // @produces application/json
 func main() {
@@ -31,6 +40,19 @@ func main() {
 	}
 
 	cfg := config.NewConfig()
+
+	// --- DYNAMIC SWAGGER CONFIGURATION ---
+	// This overrides the static comments based on the environment
+	docs.SwaggerInfo.BasePath = "/api/v1"
+	if os.Getenv("GIN_MODE") == "release" {
+		docs.SwaggerInfo.Host = "acareca-bam8.onrender.com"
+		docs.SwaggerInfo.Schemes = []string{"https"}
+	} else {
+		// Use server port from config or default 8080
+		docs.SwaggerInfo.Host = "localhost:" + cfg.ServerPort
+		docs.SwaggerInfo.Schemes = []string{"http"}
+	}
+	// -------------------------------------
 
 	dbConn, err := db.DBConn(cfg)
 	if err != nil {
@@ -59,20 +81,42 @@ func main() {
 		log.Print(" - using env:   export GIN_MODE=release\n")
 		log.Print(" - using code:  gin.SetMode(gin.ReleaseMode)\n\n")
 	}
-	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
-		ExposeHeaders:    []string{"Authorization", "token"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
-	}))
 
+	r.Use(middleware.CORS(cfg))
 	r.Use(middleware.ClientInfo())
-	route.RegisterRoutes(r, cfg)
+	r.Use(middleware.RateLimitMiddleware(10,10))
+	auditSvc, notifier, notificationRepo := route.RegisterRoutes(r, cfg)
 
-	log.Printf("server starting on :%s", cfg.ServerPort)
-	if err := r.Run(":" + cfg.ServerPort); err != nil {
-		log.Fatalf("server error: %v", err)
+	// Start the in_app delivery retry worker
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	defer workerCancel()
+	go notification.StartRetryWorker(workerCtx, notificationRepo, notifier)
+
+	srv := &http.Server{
+		Addr:    ":" + cfg.ServerPort,
+		Handler: r,
 	}
+
+	// Graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		log.Printf("server starting on :%s", cfg.ServerPort)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("server error: %v", err)
+		}
+	}()
+
+	<-quit
+	log.Println("shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("server forced to shutdown: %v", err)
+	}
+
+	auditSvc.Shutdown()
+	log.Println("server exited")
 }

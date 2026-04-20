@@ -4,21 +4,24 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	auditctx "github.com/iamarpitzala/acareca/internal/shared/audit"
+	"github.com/iamarpitzala/acareca/internal/shared/limits"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
 
 type IHandler interface {
-	CreateClinic(c *gin.Context)
-	GetClinics(c *gin.Context)
-	GetClinicByID(c *gin.Context)
-	UpdateClinic(c *gin.Context)
-	BulkUpdateClinics(c *gin.Context)
-	DeleteClinic(c *gin.Context)
-	BulkDeleteClinics(c *gin.Context)
+	Create(c *gin.Context)
+	List(c *gin.Context)
+	GetByID(c *gin.Context)
+	Update(c *gin.Context)
+	BulkUpdate(c *gin.Context)
+	Delete(c *gin.Context)
+	BulkDelete(c *gin.Context)
 }
 
 type handler struct {
@@ -34,12 +37,13 @@ func NewHandler(svc Service) IHandler {
 // @Accept json
 // @Produce json
 // @Param request body RqCreateClinic true "Clinic Data"
-// @Success 201 {object} RsClinic
+// @Success 201 {object} response.RsBase
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /clinic [post]
-func (h *handler) CreateClinic(c *gin.Context) {
-	PractID, ok := util.GetPractitionerID(c)
+func (h *handler) Create(c *gin.Context) {
+	actorID, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
@@ -49,37 +53,83 @@ func (h *handler) CreateClinic(c *gin.Context) {
 		return
 	}
 
-	clinic, err := h.svc.CreateClinic(c.Request.Context(), PractID, &req)
+	targetPractitionerID := actorID
+
+	// Check role from metadata/context
+	meta := auditctx.GetMetadata(c.Request.Context())
+	if meta.UserType != nil && *meta.UserType == util.RoleAccountant {
+
+		if req.PractitionerID == uuid.Nil {
+			response.Error(c, http.StatusBadRequest, errors.New("practitioner_id is required in body for accountants"))
+			return
+		}
+		targetPractitionerID = req.PractitionerID
+	}
+
+	clinic, err := h.svc.CreateClinic(c.Request.Context(), targetPractitionerID, &req)
 	if err != nil {
-		// Log the detailed error for debugging
+		if errors.Is(err, limits.ErrLimitReached) {
+			response.Error(c, http.StatusForbidden, err)
+			return
+		}
 		fmt.Printf("CreateClinic error: %v\n", err)
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
 
-	response.JSON(c, http.StatusCreated, clinic)
+	response.JSON(c, http.StatusCreated, clinic, "Clinic created successfully")
 }
 
-// @Summary Get all clinics for practitioner
+// @Summary Get all clinics for the logged-in user (Practitioner or Accountant)
 // @Tags clinic
 // @Produce json
-// @Success 200 {array} RsClinic
+// @Param name query string false "Filter by clinic name"
+// @Param id query string false "Filter by clinic ID"
+// @Param is_active query boolean false "Filter by active status"
+// @Param search query string false "Search across name, abn, description"
+// @Param sort_by query string false "Sort field (name, is_active, created_at)"
+// @Param order_by query string false "Sort direction (ASC, DESC)"
+// @Param limit query int false "Page size (default 10, max 100)"
+// @Param offset query int false "Page offset"
+// @Success 200 {object} util.RsList
+// @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /clinic [get]
-func (h *handler) GetClinics(c *gin.Context) {
+func (h *handler) List(c *gin.Context) {
 	// Get user ID from JWT token context
-	PractID, ok := util.GetPractitionerID(c)
+	var actorID uuid.UUID
+	var ok bool
+	actorID, ok = util.GetPractitionerID(c)
 	if !ok {
 		return
 	}
 
-	clinics, err := h.svc.GetClinics(c.Request.Context(), PractID)
+	var filter Filter
+	if err := util.BindAndValidate(c, &filter); err != nil {
+		response.Error(c, http.StatusBadRequest, err)
+		return
+	}
+
+	meta := auditctx.GetMetadata(c.Request.Context())
+
+	var clinics interface{}
+	var err error
+
+	if meta.UserType != nil && *meta.UserType == util.RoleAccountant {
+		actorID, ok = util.GetAccountantID(c)
+		clinics, err = h.svc.ListClinicsForAccountant(c.Request.Context(), actorID, filter)
+	} else {
+
+		clinics, err = h.svc.ListClinic(c.Request.Context(), actorID, filter)
+	}
+
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
 
-	response.JSON(c, http.StatusOK, clinics)
+	response.JSON(c, http.StatusOK, clinics, "Clinics fetched successfully")
 }
 
 // GetClinicByID
@@ -87,17 +137,13 @@ func (h *handler) GetClinics(c *gin.Context) {
 // @Tags clinic
 // @Produce json
 // @Param id path string true "Clinic UUID"
-// @Success 200 {object} RsClinic
+// @Success 200 {object} response.RsBase
 // @Failure 400 {object} response.RsError
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /clinic/{id} [get]
-func (h *handler) GetClinicByID(c *gin.Context) {
-	// Get user ID from JWT token context
-	PractID, ok := util.GetPractitionerID(c)
-	if !ok {
-		return
-	}
+func (h *handler) GetByID(c *gin.Context) {
 
 	idParam := c.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -106,7 +152,22 @@ func (h *handler) GetClinicByID(c *gin.Context) {
 		return
 	}
 
-	clinic, err := h.svc.GetClinicByID(c.Request.Context(), PractID, id)
+	var actorID uuid.UUID
+	var ok bool
+	role := c.GetString("role")
+
+	if strings.EqualFold(role, util.RoleAccountant) {
+		actorID, ok = util.GetAccountantID(c)
+	} else {
+		actorID, ok = util.GetPractitionerID(c)
+	}
+
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, errors.New("profile not found"))
+		return
+	}
+
+	clinic, err := h.svc.GetClinicByID(c.Request.Context(), actorID, id)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
@@ -116,7 +177,7 @@ func (h *handler) GetClinicByID(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusOK, clinic)
+	response.JSON(c, http.StatusOK, clinic, "Clinic fetched successfully")
 }
 
 // @Summary Update clinic details
@@ -125,14 +186,15 @@ func (h *handler) GetClinicByID(c *gin.Context) {
 // @Produce json
 // @Param id path string true "Clinic UUID"
 // @Param request body RqUpdateClinic true "Updated Clinic Data"
-// @Success 200 {object} RsClinic
+// @Success 200 {object} response.RsBase
 // @Failure 400 {object} response.RsError
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /clinic/{id} [put]
-func (h *handler) UpdateClinic(c *gin.Context) {
+func (h *handler) Update(c *gin.Context) {
 	// Get user ID from JWT token context
-	PractID, ok := util.GetPractitionerID(c)
+	actorID, ok := util.GetUserID(c)
 	if !ok {
 		return
 	}
@@ -150,7 +212,7 @@ func (h *handler) UpdateClinic(c *gin.Context) {
 		return
 	}
 
-	clinic, err := h.svc.UpdateClinic(c.Request.Context(), PractID, id, &req)
+	clinic, err := h.svc.UpdateClinic(c.Request.Context(), actorID, id, &req)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
@@ -160,21 +222,23 @@ func (h *handler) UpdateClinic(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusOK, clinic)
+	response.JSON(c, http.StatusOK, clinic, "Clinic updated successfully")
 }
 
 // @Summary Delete a clinic
 // @Tags clinic
 // @Produce json
 // @Param id path string true "Clinic UUID"
+// @Param practitioner_id query string false "Practitioner UUID (Required for Accountants)"
 // @Success 200 {object} map[string]string
 // @Failure 400 {object} response.RsError
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
+// @Security BearerToken
 // @Router /clinic/{id} [delete]
-func (h *handler) DeleteClinic(c *gin.Context) {
-	// Get user ID from JWT token context
-	PractID, ok := util.GetPractitionerID(c)
+func (h *handler) Delete(c *gin.Context) {
+	// 1. Get actor ID from JWT token (could be Accountant or Practitioner)
+	actorID, ok := util.GetUserID(c)
 	if !ok {
 		return
 	}
@@ -186,7 +250,8 @@ func (h *handler) DeleteClinic(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.DeleteClinic(c.Request.Context(), PractID, id); err != nil {
+	// 4. Call Service
+	if err := h.svc.DeleteClinic(c.Request.Context(), actorID, id); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			response.Error(c, http.StatusNotFound, err)
 			return
@@ -195,10 +260,21 @@ func (h *handler) DeleteClinic(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusOK, gin.H{"message": "clinic deleted successfully"})
+	response.JSON(c, http.StatusOK, gin.H{"message": "clinic deleted successfully"}, "Clinic deleted successfully")
 }
-func (h *handler) BulkUpdateClinics(c *gin.Context) {
-	// Get user ID from JWT token context
+
+// @Summary Bulk update clinics
+// @Tags clinic
+// @Accept json
+// @Produce json
+// @Param request body RqBulkUpdateClinic true "Bulk Update Data"
+// @Success 200 {object} response.RsBase
+// @Failure 400 {object} response.RsError
+// @Failure 404 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /clinic/bulk-update [put]
+func (h *handler) BulkUpdate(c *gin.Context) {
 	PractID, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
@@ -220,11 +296,21 @@ func (h *handler) BulkUpdateClinics(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusOK, gin.H{"clinics": clinics})
+	response.JSON(c, http.StatusOK, util.RsList{Items: clinics, Total: len(clinics)}, "Clinics updated successfully")
 }
 
-func (h *handler) BulkDeleteClinics(c *gin.Context) {
-	// Get user ID from JWT token context
+// @Summary Bulk delete clinics
+// @Tags clinic
+// @Accept json
+// @Produce json
+// @Param request body RqBulkDeleteClinic true "Bulk Delete Data"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} response.RsError
+// @Failure 404 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /clinic/bulk-delete [delete]
+func (h *handler) BulkDelete(c *gin.Context) {
 	PractID, ok := util.GetPractitionerID(c)
 	if !ok {
 		return
@@ -245,5 +331,5 @@ func (h *handler) BulkDeleteClinics(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusOK, gin.H{"message": "clinics deleted successfully"})
+	response.JSON(c, http.StatusOK, gin.H{"message": "clinics deleted successfully"}, "Clinics deleted successfully")
 }

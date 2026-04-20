@@ -1,40 +1,56 @@
-# ── Build stage ─────────────────────────────
-FROM golang:1.25-alpine3.21 AS builder
+# ── Build stage ──────────────────────────────────────────────
+FROM golang:1.25.3-alpine AS builder
 
 WORKDIR /app
 
-# install git (needed for some go modules)
+# Install git (needed for module downloads)
 RUN apk add --no-cache git
 
-# cache dependencies
+# Create non-root user for runtime
+RUN adduser -D -u 1001 appuser
+
+# Cache dependencies — layer is reused unless go.mod/go.sum change
 COPY go.mod go.sum ./
 RUN go mod download
 
-# copy source
+# Install swag (pinned for reproducibility)
+RUN go install github.com/swaggo/swag/cmd/swag@v1.8.12
+
+# Copy source
 COPY . .
 
-# build optimized binary
+# Generate swagger docs
+RUN swag init -g cmd/api/main.go
+
+# Build fully static binary — stripped, trimmed, reproducible
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -ldflags="-s -w" -o server ./cmd/api
+    go build \
+      -ldflags="-s -w -buildid=" \
+      -trimpath \
+      -o server \
+      ./cmd/api
 
 
-# ── Runtime stage ───────────────────────────
-FROM alpine:3.21
+# ── Runtime stage ─────────────────────────────────────────────
+FROM scratch
 
-RUN apk --no-cache add ca-certificates tzdata
+WORKDIR /
 
-WORKDIR /app
+# Non-root user (carried from builder)
+COPY --from=builder /etc/passwd /etc/passwd
 
-# copy binary
-COPY --from=builder /app/server .
+# SSL certificates (required for HTTPS outbound calls)
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# copy migrations only if needed
-COPY migrations ./migrations
+# Binary
+COPY --from=builder /app/server /server
 
-# create non-root user
-RUN adduser -D appuser
+# Migrations (goose reads these at startup via db.RunMigrations)
+COPY --from=builder /app/migrations /migrations
+
+# Run as non-root
 USER appuser
 
 EXPOSE 8080
 
-ENTRYPOINT ["./server"]
+ENTRYPOINT ["/server"]

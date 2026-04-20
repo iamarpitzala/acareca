@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/shared/common"
 )
 
 // Practitioner matches tbl_practitioner (spelling from schema).
@@ -103,4 +104,28 @@ func (s *PractitionerSetting) ToRs() *RsPractitionerSetting {
 		CreatedAt:      s.CreatedAt,
 		UpdatedAt:      s.UpdatedAt,
 	}
+}
+
+type Filter struct {
+	ID       *string `form:"id"`
+	ABN      *string `form:"abn"`
+	Verified *bool   `form:"verified"`
+	common.Filter
+}
+
+func (filter *Filter) MapToFilter() common.Filter {
+	filters := map[string]interface{}{}
+
+	if filter.ID != nil {
+		filters["id"] = *filter.ID
+	}
+	if filter.ABN != nil {
+		filters["abn"] = *filter.ABN
+	}
+	if filter.Verified != nil {
+		filters["verified"] = *filter.Verified
+	}
+
+	f := common.NewFilter(filter.Search, filters, nil, filter.Limit, filter.Offset, filter.SortBy, filter.OrderBy)
+	return f
 }

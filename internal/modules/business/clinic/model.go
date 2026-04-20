@@ -1,15 +1,18 @@
 package clinic
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/shared/common"
 )
 
 // Database models
 type Clinic struct {
 	ID             uuid.UUID  `db:"id"`
 	PractitionerID uuid.UUID  `db:"practitioner_id"`
+	EntityID       uuid.UUID  `db:"entity_id"`
 	ProfilePicture *string    `db:"profile_picture"`
 	Name           string     `db:"name"`
 	ABN            *string    `db:"abn"`
@@ -54,6 +57,8 @@ type FinancialSettings struct {
 
 // Request models
 type RqCreateClinic struct {
+	PractitionerID uuid.UUID         `json:"practitioner_id"`
+	EntityID       uuid.UUID         `json:"-"`
 	ProfilePicture *string           `json:"profile_picture"`
 	Name           string            `json:"name" validate:"required"`
 	ABN            *string           `json:"abn" validate:"omitempty,len=11"`
@@ -85,6 +90,8 @@ type RqFinancialSettings struct {
 
 type RqUpdateClinic struct {
 	ID              *uuid.UUID        `json:"id"`
+	PractitionerID  uuid.UUID         `json:"practitioner_id"`
+	EntityID        uuid.UUID         `json:"-"`
 	Name            *string           `json:"name"`
 	ProfilePicture  *string           `json:"profile_picture"`
 	ABN             *string           `json:"abn" validate:"omitempty,len=11"`
@@ -125,6 +132,7 @@ type RqBulkDeleteClinic struct {
 type RsClinic struct {
 	ID                uuid.UUID            `json:"id"`
 	PractitionerID    uuid.UUID            `json:"practitioner_id"`
+	EntityID          uuid.UUID            `json:"-"`
 	ProfilePicture    *string              `json:"profile_picture,omitempty"`
 	Name              string               `json:"name"`
 	ABN               *string              `json:"abn,omitempty"`
@@ -158,4 +166,38 @@ type RsFinancialSettings struct {
 	ID              uuid.UUID  `json:"id"`
 	FinancialYearID uuid.UUID  `json:"financial_year_id"`
 	LockDate        *time.Time `json:"lock_date,omitempty"`
+}
+
+type Filter struct {
+	PractitionerID *uuid.UUID `form:"practitioner_id"`
+	ClinicName     *string    `form:"name"`
+	ClinicId       *string    `form:"id"`
+	IsActive       *bool      `form:"is_active"`
+	common.Filter
+}
+
+func (filter *Filter) MapToFilter() common.Filter {
+	filters := map[string]interface{}{}
+	if filter.ClinicId != nil {
+		id, err := uuid.Parse(*filter.ClinicId)
+		if err != nil {
+			fmt.Println("invalid clinic_id: %w", err)
+		}
+		filters["id"] = uuid.UUID(id)
+	}
+	if filter.ClinicName != nil {
+		filters["name"] = *filter.ClinicName
+	}
+	if filter.IsActive != nil {
+		filters["is_active"] = *filter.IsActive
+	}
+
+	f := common.NewFilter(filter.Search, filters, nil, filter.Limit, filter.Offset, filter.SortBy, filter.OrderBy)
+
+	return f
+}
+
+type AccountantPermission struct {
+	PractitionerID uuid.UUID `db:"practitioner_id"`
+	ClinicID       uuid.UUID `db:"clinic_id"`
 }

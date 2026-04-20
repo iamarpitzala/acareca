@@ -15,6 +15,7 @@ type IHandler interface {
 	UpdateFYLabel(c *gin.Context)
 	GetFinancialYears(c *gin.Context)
 	GetFinancialQuarters(c *gin.Context)
+	ActivateFY(c *gin.Context)
 }
 
 type handler struct {
@@ -30,11 +31,12 @@ func NewHandler(svc Service) IHandler {
 // @Accept json
 // @Produce json
 // @Param request body RqCreateFY true "Financial Year Data"
-// @Success 201 {object} RsFinancialYear
+// @Success 201 {object} response.RsBase
 // @Failure 400 {object} response.RsError
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
-// @Router /fy [post]
+// @Security BearerToken
+// @Router /admin/create-fy [post]
 func (h *handler) CreateFY(c *gin.Context) {
 	var req RqCreateFY
 	if err := util.BindAndValidate(c, &req); err != nil {
@@ -56,7 +58,7 @@ func (h *handler) CreateFY(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusCreated, fy)
+	response.JSON(c, http.StatusCreated, fy, "Financial year created successfully")
 }
 
 // @Summary Update the label of a financial year
@@ -65,11 +67,12 @@ func (h *handler) CreateFY(c *gin.Context) {
 // @Produce json
 // @Param financial_year_id path string true "Financial Year UUID"
 // @Param request body RqUpdateFYLabel true "Updated Label Data"
-// @Success 200 {object} RsFinancialYear
+// @Success 200 {object} response.RsBase
 // @Failure 400 {object} response.RsError
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
-// @Router /fy/{financial_year_id}/label [put]
+// @Security BearerToken
+// @Router /admin/update-fy/{financial_year_id} [put]
 func (h *handler) UpdateFYLabel(c *gin.Context) {
 	idParam := c.Param("financial_year_id")
 	id, err := uuid.Parse(idParam)
@@ -94,15 +97,16 @@ func (h *handler) UpdateFYLabel(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusOK, fy)
+	response.JSON(c, http.StatusOK, fy, "Financial year updated successfully")
 }
 
 // @Summary Get all financial years
 // @Tags fy
 // @Produce json
-// @Success 200 {array} RsFinancialYear
+// @Success 200 {object} util.RsList
 // @Failure 500 {object} response.RsError
-// @Router /fy [get]
+// @Security BearerToken
+// @Router /admin/get-fys [get]
 func (h *handler) GetFinancialYears(c *gin.Context) {
 	years, err := h.svc.GetFinancialYears(c.Request.Context())
 	if err != nil {
@@ -110,18 +114,19 @@ func (h *handler) GetFinancialYears(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusOK, years)
+	response.JSON(c, http.StatusOK, util.RsList{Items: years, Total: len(years)}, "Financial years fetched successfully")
 }
 
 // @Summary Get all quarters for a specific financial year
 // @Tags fy
 // @Produce json
 // @Param financial_year_id path string true "Financial Year UUID"
-// @Success 200 {array} RsFinancialQuarter
+// @Success 200 {object} util.RsList
 // @Failure 400 {object} response.RsError
 // @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
-// @Router /fy/{financial_year_id}/quarters [get]
+// @Security BearerToken
+// @Router /admin/get-quarters/{financial_year_id} [get]
 func (h *handler) GetFinancialQuarters(c *gin.Context) {
 	idParam := c.Param("financial_year_id")
 	id, err := uuid.Parse(idParam)
@@ -140,5 +145,36 @@ func (h *handler) GetFinancialQuarters(c *gin.Context) {
 		return
 	}
 
-	response.JSON(c, http.StatusOK, quarters)
+	response.JSON(c, http.StatusOK, util.RsList{Items: quarters, Total: len(quarters)}, "Financial quarters fetched successfully")
+}
+
+// @Summary Activate a specific financial year
+// @Tags fy
+// @Produce json
+// @Param financial_year_id path string true "Financial Year UUID"
+// @Success 200 {object} response.RsBase
+// @Failure 400 {object} response.RsError
+// @Failure 404 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /admin/activate-fy/{financial_year_id} [patch]
+func (h *handler) ActivateFY(c *gin.Context) {
+	idParam := c.Param("financial_year_id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, errors.New("invalid financial year id"))
+		return
+	}
+
+	fy, err := h.svc.ActivateFY(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			response.Error(c, http.StatusNotFound, err)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, fy, "Financial year activated successfully")
 }

@@ -1,41 +1,81 @@
 package route
 
 import (
+	"context"
 	"log"
 
-	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/iamarpitzala/acareca/internal/modules/admin/subscription"
+	"github.com/iamarpitzala/acareca/internal/modules/admin/audit"
+	adminSubscription "github.com/iamarpitzala/acareca/internal/modules/admin/subscription"
 	"github.com/iamarpitzala/acareca/internal/modules/auth"
-	"github.com/iamarpitzala/acareca/internal/modules/builder/detail"
-	"github.com/iamarpitzala/acareca/internal/modules/builder/entry"
-	"github.com/iamarpitzala/acareca/internal/modules/builder/field"
-	"github.com/iamarpitzala/acareca/internal/modules/builder/form"
-	"github.com/iamarpitzala/acareca/internal/modules/builder/version"
+	"github.com/iamarpitzala/acareca/internal/modules/business/accountant"
+	"github.com/iamarpitzala/acareca/internal/modules/business/admin"
 	"github.com/iamarpitzala/acareca/internal/modules/business/clinic"
 	"github.com/iamarpitzala/acareca/internal/modules/business/coa"
 	"github.com/iamarpitzala/acareca/internal/modules/business/fy"
+	"github.com/iamarpitzala/acareca/internal/modules/business/invitation"
 	"github.com/iamarpitzala/acareca/internal/modules/business/practitioner"
+	"github.com/iamarpitzala/acareca/internal/modules/business/setting"
+	"github.com/iamarpitzala/acareca/internal/modules/business/shared/events"
 	userSubscription "github.com/iamarpitzala/acareca/internal/modules/business/subscription"
-	"github.com/iamarpitzala/acareca/internal/modules/engine/calculation"
-	"github.com/iamarpitzala/acareca/internal/modules/engine/method"
+	"github.com/iamarpitzala/acareca/internal/modules/engine/bas"
+	"github.com/iamarpitzala/acareca/internal/modules/engine/pl"
+	"github.com/iamarpitzala/acareca/internal/modules/notification"
+	"github.com/iamarpitzala/acareca/internal/modules/seed"
 	"github.com/iamarpitzala/acareca/internal/shared/db"
 	"github.com/iamarpitzala/acareca/internal/shared/middleware"
-	"github.com/iamarpitzala/acareca/internal/shared/util"
+	sharednotification "github.com/iamarpitzala/acareca/internal/shared/notification"
+	sharedstripe "github.com/iamarpitzala/acareca/internal/shared/stripe"
 	"github.com/iamarpitzala/acareca/pkg/config"
+	"github.com/stripe/stripe-go/v82"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
+// permissionAdapter adapts invitation.Service to middleware.PermissionChecker
+type permissionAdapter struct {
+	invSvc invitation.Service
+}
+
+func (a *permissionAdapter) ListAccountantPermission(ctx context.Context, accId uuid.UUID) ([]middleware.PermissionItem, error) {
+	perms, _, err := a.invSvc.ListAccountantPermission(ctx, accId)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert []invitation.Permissions to []middleware.PermissionItem
+	result := make([]middleware.PermissionItem, 0, len(*perms))
+	for i := range *perms {
+		result = append(result, &(*perms)[i])
+	}
+	return result, nil
+}
+
+func (a *permissionAdapter) GetPermissionsForAccountant(ctx context.Context, accountantID uuid.UUID, entityID uuid.UUID) (middleware.PermissionItem, error) {
+	perm, err := a.invSvc.GetPermissionsForAccountant(ctx, accountantID, entityID)
+	if err != nil {
+		return nil, err
+	}
+	return perm, nil
+}
+
+func RegisterRoutes(r *gin.Engine, cfg *config.Config) (audit.Service, *sharednotification.Hub, notification.Repository) {
+
+	// Initialize Stripe SDK
+	if cfg.StripeSecretKey == "" {
+		log.Fatal("STRIPE_SECRET_KEY is required but not set")
+	}
+	stripe.Key = cfg.StripeSecretKey
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	stripeClient := sharedstripe.NewStripeClient()
 
 	v1 := r.Group("/api/v1")
 
@@ -43,69 +83,132 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
+
+	// ============ SHARED/CROSS-MODULE SERVICES ============
 	authRepo := auth.NewRepository(dbConn)
-	subscriptionRepo := subscription.NewRepository(dbConn)
-	practitionerRepo := practitioner.NewRepository(dbConn)
-	userSubscriptionRepo := userSubscription.NewRepository(dbConn)
-	coaRepo := coa.NewRepository(dbConn)
-	subscriptionSvc := subscription.NewService(subscriptionRepo)
-	userSubscriptionSvc := userSubscription.NewService(userSubscriptionRepo)
-	practitionerSvc := practitioner.NewService(practitionerRepo, subscriptionSvc, userSubscriptionSvc, coaRepo)
 
-	authSvc := auth.NewService(authRepo, cfg, dbConn, practitionerSvc)
-	authHandler := auth.NewHandler(authSvc)
-	auth.RegisterRoutes(v1, authHandler)
+	// notification (in-app list)
+	notificationRepo := notification.NewRepository(dbConn)
+	notifier := sharednotification.NewNotifier(dbConn)
+	notificationSvc := notification.NewService(notificationRepo, notifier)
 
-	calculationRepo := calculation.NewRepository(dbConn)
-	calculationSvc := calculation.NewService(calculationRepo, method.NewService())
-	calculationHandler := calculation.NewHandler(calculationSvc)
-	calculation.RegisterRoutes(v1, calculationHandler)
+	// Initialize audit service (used across modules)
+	auditRepo := audit.NewRepository(dbConn)
+	auditSvc := audit.NewService(auditRepo, notificationSvc)
 
-	superadminCheck := func(ctx context.Context, userID uuid.UUID) (bool, error) {
-		u, err := authRepo.FindByID(ctx, userID)
-		if err != nil {
-			return false, err
-		}
-		return u.IsSuperadmin != nil && *u.IsSuperadmin, nil
-	}
-	adminGroup := v1.Group("/admin")
-	subscriptionGroup := adminGroup.Group("/subscription")
-	subscriptionGroup.Use(middleware.Auth(cfg), middleware.RequireSuperadmin(func(ctx context.Context, userID string) (bool, error) {
-		id, err := util.ParseUUID(userID)
-		if err != nil {
-			return false, err
-		}
-		return superadminCheck(ctx, id)
-	}))
-	subscriptionHandler := subscription.NewHandler(subscriptionSvc)
-	subscription.RegisterRoutes(subscriptionGroup, subscriptionHandler)
+	// invitation (cross-module dependency)
+	invitationRepo := invitation.NewRepository(dbConn)
+	invitationSvc := invitation.NewService(invitationRepo, cfg, notificationSvc, auditSvc)
+	invitationHandler := invitation.NewHandler(invitationSvc, accountant.NewRepository(dbConn))
 
-	// clinic
+	// invite api
+	invite := v1.Group("/invite")
+	invite.POST("/process", invitationHandler.ProcessInvitation)
+	invite.GET("/:id", invitationHandler.GetInvitation)
+	invite.Use(middleware.Auth(cfg))
+	invitation.RegisterRoutes(invite, invitationHandler)
+
+	// ============ ADMIN AUTH ============
+	adminRepo := admin.NewRepository(dbConn)
+	adminSvc := admin.NewService(adminRepo, dbConn)
+	adminHandler := admin.NewHandler(adminSvc)
+	admin.RegisterRoutes(v1, adminHandler, cfg)
+
+	// Initialize events service first
+	eventsRepo := events.NewRepository(dbConn)
+	eventsSvc := events.NewService(eventsRepo, notificationSvc, auditSvc)
+
+	// ============ CLINIC SERVICE (cross-module dependency) ============
 	clinicRepo := clinic.NewRepository(dbConn)
-	clinicSvc := clinic.NewService(clinicRepo, dbConn)
+	clinicSvc := clinic.NewService(dbConn, clinicRepo, accountant.NewRepository(dbConn), authRepo, auditSvc, eventsSvc)
 	clinicHandler := clinic.NewHandler(clinicSvc)
-	clinic.RegisterRoutes(v1, clinicHandler, cfg)
 
-	coaSvc := coa.NewService(coaRepo, dbConn)
+	// Apply method-based permission middleware (GET=read, POST=create, PUT/PATCH=update, DELETE=delete)
+	permChecker := &permissionAdapter{invSvc: invitationSvc}
+	clinic.RegisterRoutes(v1, clinicHandler, cfg, permChecker)
+
+	// ============ COA SERVICE (cross-module dependency) ============
+	coaRepo := coa.NewRepository(dbConn)
+	coaSvc := coa.NewService(coaRepo, dbConn, auditSvc)
 	coaHandler := coa.NewHandler(coaSvc)
-	coa.RegisterRoutes(v1.Group("/coa"), coaHandler, cfg)
+	coa.RegisterRoutes(v1.Group("/coa"), coaHandler, cfg, permChecker)
+
+	// ============ PRACTITIONER SERVICE (cross-module dependency) ============
+	practitionerRepo := practitioner.NewRepository(dbConn)
+
+	userSubscriptionRepo := userSubscription.NewRepository(dbConn)
+	userSubscriptionSvc := userSubscription.NewService(userSubscriptionRepo)
+
+	// ============ AUTH SERVICE (depends on practitioner, accountant, admin) ============
+	// Initialize practitioner and accountant services for auth
+	accountantRepo := accountant.NewRepository(dbConn)
+	accountantSvc := accountant.NewService(accountantRepo)
+
+	// Temporarily create practitioner service for auth (will be recreated in RegisterPractitionerRoutes)
+	adminSubscriptionRepo := adminSubscription.NewRepository(dbConn)
+	adminSubscriptionSvc := adminSubscription.NewService(dbConn, adminSubscriptionRepo, auditSvc, stripeClient)
+	practitionerSvc := practitioner.NewService(practitionerRepo, adminSubscriptionSvc, userSubscriptionSvc, coaRepo)
+
+	authSvc := auth.NewService(authRepo, cfg, dbConn, practitionerSvc, auditSvc, invitationSvc, practitionerRepo, accountantSvc, adminSvc, invitationRepo)
+	authHandler := auth.NewHandler(authSvc)
+	auth.RegisterRoutes(v1, authHandler, middleware.Auth(cfg))
+
+	// ============ ENGINE MODULES (P&L, BAS) ============
+	plRepo := pl.NewRepository(dbConn)
+	plSvc := pl.NewService(plRepo, clinicRepo, accountantRepo, practitionerSvc)
+	plHandler := pl.NewHandler(plSvc)
+	pl.RegisterRoutes(v1, plHandler, cfg)
+
+	basRepo := bas.NewRepository(dbConn)
+	basSvc := bas.NewService(basRepo, accountantRepo, auditSvc, clinicRepo)
+	basHandler := bas.NewHandler(basSvc, invitationSvc)
+	bas.RegisterRoutes(v1, basHandler, cfg)
+
+	// ============ SETTING MODULE ============
+	settingGroup := v1.Group("/setting")
+	settingRepo := setting.NewRepository(dbConn)
+	settingSvc := setting.NewService(dbConn, settingRepo, auditSvc)
+	settingHandler := setting.NewHandler(settingSvc)
+	setting.RegisterRoutes(settingGroup, settingHandler, cfg)
+
+	// ============ FY MODULE ============
 	fyRepo := fy.NewRepository(dbConn)
-	fySvc := fy.NewService(fyRepo, dbConn)
+	fySvc := fy.NewService(fyRepo, dbConn, auditSvc)
 	fyHandler := fy.NewHandler(fySvc)
-	fy.RegisterRoutes(v1, fyHandler)
+	fyGroup := v1.Group("/", middleware.Auth(cfg))
+	fy.RegisterRoutes(fyGroup, fyHandler)
 
-	formGroup := v1.Group("/form")
-	formGroup.Use(middleware.Auth(cfg))
+	// ============ MODULE-SPECIFIC ROUTES ============
+	// Register admin routes
+	RegisterAdminRoutes(v1, cfg, dbConn, auditSvc, stripeClient)
 
-	detailRepo := detail.NewRepository(dbConn)
-	versionRepo := version.NewRepository(dbConn)
-	fieldRepo := field.NewRepository(dbConn)
-	entryRepo := entry.NewRepository(dbConn)
-	detailSvc := detail.NewService(detailRepo, version.NewService(versionRepo, clinicSvc))
-	fieldSvc := field.NewService(fieldRepo, coaSvc, clinicSvc, practitionerSvc, version.NewService(versionRepo, clinicSvc), entryRepo)
+	// Register practitioner routes
+	RegisterPractitionerRoutes(v1, cfg, practitionerSvc)
 
-	versionSvc := version.NewService(versionRepo, clinicSvc)
-	formSvc := form.NewService(detailSvc, versionSvc, fieldSvc, entryRepo, coaSvc)
-	formHandler := form.NewHandler(formSvc)
-	form.RegisterRoutes(formGroup, formHandler)
+	// Register accountant routes
+	RegisterAccountantRoutes(v1, cfg, accountantSvc)
+
+	RegisterBuilderRoutes(v1, cfg, dbConn, clinicSvc, coaSvc, practitionerSvc, accountantRepo, authRepo, auditSvc, eventsSvc, invitationSvc)
+	// ============ USER SUBSCRIPTION ============
+	userSubscriptionHandler := userSubscription.NewHandler(userSubscriptionSvc, dbConn)
+	userSubscriptionGroup := v1.Group("/practitioner/subscription", middleware.Auth(cfg))
+	userSubscription.RegisterRoutes(userSubscriptionGroup, userSubscriptionHandler)
+
+	// ============ NOTIFICATION ============
+	notificationHandler := notification.NewHandler(notificationSvc)
+	nft := v1.Group("/notification")
+	nft.GET("/ws", notifier.ServeWS(cfg))
+	nft.Use(middleware.Auth(cfg))
+	notification.RegisterRoutes(nft, notificationHandler)
+
+	// ============ BILLING MODULE ============
+	RegisterBillingRoutes(r, v1, cfg, dbConn, practitionerRepo, userSubscriptionRepo, stripeClient, auditSvc)
+
+	// ============ SEED MODULE ============
+	seedSvc := seed.NewService(dbConn)
+	seedHandler := seed.NewHandler(seedSvc)
+	seed.RegisterRoutes(v1, seedHandler)
+
+	return auditSvc, notifier, notificationRepo
+
 }

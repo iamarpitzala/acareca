@@ -1,18 +1,30 @@
 package calculation
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/iamarpitzala/acareca/internal/modules/builder/entry"
+	"github.com/iamarpitzala/acareca/internal/modules/builder/version"
 	"github.com/iamarpitzala/acareca/internal/shared/response"
 	"github.com/iamarpitzala/acareca/internal/shared/util"
 )
 
 type IHandler interface {
-	NetAmount(c *gin.Context)
-	NetResult(c *gin.Context)
-	GrossResult(c *gin.Context)
-	OutWorkResult(c *gin.Context)
+	LiveCalculate(c *gin.Context)
+	FormPreview(c *gin.Context)
+
+	// Legacy Code
+	Calculation(c *gin.Context)
+	CalculateFromEntries(c *gin.Context)
+	FormulaCalculate(c *gin.Context)
+
+	GetFormSummary(c *gin.Context)
 }
 
 type handler struct {
@@ -20,97 +32,297 @@ type handler struct {
 }
 
 func NewHandler(svc Service) IHandler {
-	return &handler{svc: svc}
+	return &handler{
+		svc: svc,
+	}
 }
 
-// @Summary Calculate net amount
+// LiveCalculate godoc
+// @Summary Live calculation based on form version ID
+// @Description Evaluates all is_computed=true fields for a form version using provided field entries.
+// @Description Returns net amount for each computed field; net/gst/gross when the field has a tax_type.
+// @Description Pass form_field_id with net_amount, gst_amount, and gross_amount for each field.
 // @Tags calculation
 // @Accept json
 // @Produce json
-// @Param request body Entry true "Calculation Entry Data"
-// @Success 200 {object} NetAmountResult
+// @Param request body RqLiveCalculate true "Form version ID and field entries"
+// @Success 200 {object} RsLiveCalculate
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
-// @Router /calculation/net-amount [post]
-func (h *handler) NetAmount(c *gin.Context) {
-	var entry Entry
-	if err := util.BindAndValidate(c, &entry); err != nil {
+// @Security BearerToken
+// @Router /calculate/live [post]
+func (h *handler) LiveCalculate(c *gin.Context) {
+	var req RqLiveCalculate
+	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	result, err := h.svc.NetAmount(c.Request.Context(), &entry)
+
+	result, err := h.svc.LiveCalculate(c.Request.Context(), &req)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, result)
+
+	response.JSON(c, http.StatusOK, result, "Live calculation completed successfully")
 }
 
-// @Summary Calculate net result
+// FormPreview godoc
+// @Summary Form preview with complete calculation
+// @Description Provides a complete preview of form entry including all fields (manual + computed) and calculation summary.
+// @Description Returns all field values with net/gst/gross breakdown and method-specific summary (SERVICE_FEE or INDEPENDENT_CONTRACTOR).
+// @Description Pass form_version_id, clinic_id, and field entries with net_amount for each field.
 // @Tags calculation
 // @Accept json
 // @Produce json
-// @Param request body Entry true "Calculation Entry Data"
-// @Success 200 {object} NetResult
+// @Param request body RqFormPreview true "Form version ID, clinic ID, and field entries"
+// @Success 200 {object} RsFormPreview
 // @Failure 400 {object} response.RsError
 // @Failure 500 {object} response.RsError
-// @Router /calculation/net-result [post]
-func (h *handler) NetResult(c *gin.Context) {
-	var entry Entry
-	if err := util.BindAndValidate(c, &entry); err != nil {
+// @Security BearerToken
+// @Router /calculate/preview [post]
+func (h *handler) FormPreview(c *gin.Context) {
+	var req RqFormPreview
+	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	result, err := h.svc.NetResult(c.Request.Context(), &entry)
+
+	// Get role and actor ID for permission checks
+	role := c.GetString("role")
+	var actorID uuid.UUID
+	var ok bool
+
+	if strings.EqualFold(role, util.RoleAccountant) {
+		actorID, ok = util.GetAccountantID(c)
+	} else {
+		actorID, ok = util.GetPractitionerID(c)
+	}
+
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, errors.New("unauthorized"))
+		return
+	}
+
+	result, err := h.svc.FormPreview(c.Request.Context(), &req, actorID, role)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, result)
+
+	response.JSON(c, http.StatusOK, result, "Form preview completed successfully")
 }
 
-// @Summary Calculate gross result
+//Legacy code
+
+// Calculation godoc
+// @Summary Run calculation for a form
+// @Description Calculate results for a specific form by ID
 // @Tags calculation
-// @Accept json
 // @Produce json
-// @Param request body Entry true "Calculation Entry Data"
-// @Success 200 {object} GrossResult
+// @Param id path string true "Form ID"
+// @Param super_component query number false "Super component value override"
+// @Success 200 {object} map[string]interface{}
 // @Failure 400 {object} response.RsError
+// @Failure 404 {object} response.RsError
 // @Failure 500 {object} response.RsError
-// @Router /calculation/gross-result [post]
-func (h *handler) GrossResult(c *gin.Context) {
-	var entry Entry
-	if err := util.BindAndValidate(c, &entry); err != nil {
+// @Security BearerToken
+// @Router /calculate/{id} [get]
+// Calculation implements [IHandler].
+func (h *handler) Calculation(c *gin.Context) {
+	ctx := c.Request.Context()
+	var actorID, formID uuid.UUID
+	var ok bool
+
+	formID, ok = util.ParseUuidID(c, "id")
+	if !ok {
+		return
+	}
+
+	// Get Role and appropriate ID
+	role := c.GetString("role")
+
+	if strings.EqualFold(role, util.RoleAccountant) {
+		actorID, ok = util.GetAccountantID(c)
+	} else {
+		actorID, ok = util.GetPractitionerID(c)
+	}
+
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, nil)
+		return
+	}
+
+	var filter NetFilter
+
+	if superComponent := c.Query("super_component"); superComponent != "" {
+		val, err := strconv.ParseFloat(superComponent, 64)
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, fmt.Errorf("super_component must be a number"))
+			return
+		}
+		if val < 0 || val > 100 {
+			response.Error(c, http.StatusBadRequest, fmt.Errorf("super_component must be between 0 and 100 (e.g. 11.5 for 11.5%%)"))
+			return
+		}
+		filter.SuperComponent = &val
+	}
+
+	result, err := h.svc.Calculate(ctx, formID, &filter, actorID, role)
+	if err != nil {
+		if errors.Is(err, entry.ErrNotFound) || errors.Is(err, version.ErrNotFound) {
+			response.Error(c, http.StatusNotFound, err)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, result, "Calculation completed successfully")
+}
+
+// CalculateFromEntries godoc
+// @Summary Calculate from supplied entries
+// @Description Run GrossMethod or NetMethod using entries provided in the request body.
+// @Description No database lookup of entries is performed — suitable for previewing
+// @Description calculations before an entry is submitted.
+// @Tags calculation
+// @Accept  json
+// @Produce json
+// @Param request body RqCalculateFromEntries true "Form ID, entries, and optional super component"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} response.RsError
+// @Failure 404 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /calculate [post]
+func (h *handler) CalculateFromEntries(c *gin.Context) {
+	// Get Role and appropriate ID
+	role := c.GetString("role")
+	var actorID uuid.UUID
+	var ok bool
+
+	if strings.EqualFold(role, util.RoleAccountant) {
+		actorID, ok = util.GetAccountantID(c)
+	} else {
+		actorID, ok = util.GetPractitionerID(c)
+	}
+
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, nil)
+		return
+	}
+	var req RqCalculateFromEntries
+	if err := util.BindAndValidate(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, err)
 		return
 	}
-	result, err := h.svc.GrossResult(c.Request.Context(), &entry)
+
+	result, err := h.svc.CalculateFromEntries(c.Request.Context(), &req, actorID, role)
+	if err != nil {
+		if errors.Is(err, entry.ErrNotFound) {
+			response.Error(c, http.StatusNotFound, err)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, result, "Calculation completed successfully")
+}
+
+// FormulaCalculate godoc
+// @Summary Calculate computed fields for a form
+// @Description Evaluates all is_computed=true fields using manual field key→amount query params.
+// @Description Returns net amount for each computed field; net/gst/gross when the field has a tax_type.
+// @Description Pass each non-computed field key as a query param, e.g. ?A=5000&B=300&C=55&D=20
+// @Tags calculation
+// @Produce json
+// @Param form_id path string true "Form ID"
+// @Param A query number false "Value for field A"
+// @Param B query number false "Value for field B"
+// @Param C query number false "Value for field C"
+// @Param D query number false "Value for field D"
+// @Success 200 {object} RsFormulaCalculate
+// @Failure 400 {object} response.RsError
+// @Failure 500 {object} response.RsError
+// @Security BearerToken
+// @Router /calculate/formula/{form_id} [get]
+func (h *handler) FormulaCalculate(c *gin.Context) {
+	formID, ok := util.ParseUuidID(c, "form_id")
+	if !ok {
+		return
+	}
+
+	// Parse all query params as field key → float64 amount.
+	values := make(map[string]float64)
+	for key, vals := range c.Request.URL.Query() {
+		if len(vals) == 0 {
+			continue
+		}
+		v, err := strconv.ParseFloat(vals[0], 64)
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, fmt.Errorf("invalid value for field %q: must be a number", key))
+			return
+		}
+		values[key] = v
+	}
+
+	if len(values) == 0 {
+		response.Error(c, http.StatusBadRequest, fmt.Errorf("at least one field value is required as a query param (e.g. ?A=5000&B=300)"))
+		return
+	}
+
+	req := &RqFormulaCalculate{Values: values}
+
+	result, err := h.svc.FormulaCalculate(c.Request.Context(), formID, req)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, result)
+
+	response.JSON(c, http.StatusOK, result, "Formula calculation completed successfully")
 }
 
-// @Summary Calculate outwork result
-// @Tags calculation
-// @Accept json
-// @Produce json
-// @Param request body Entry true "Calculation Entry Data"
-// @Success 200 {object} OutWorkResult
-// @Failure 400 {object} response.RsError
-// @Failure 500 {object} response.RsError
-// @Router /calculation/outwork-result [post]
-func (h *handler) OutWorkResult(c *gin.Context) {
-	var entry Entry
-	if err := util.BindAndValidate(c, &entry); err != nil {
-		response.Error(c, http.StatusBadRequest, err)
+// GetFormSummary godoc
+// @Summary      Get form summary by form ID
+// @Description  Fetches all individual entries/transactions for a specific form ID, including field names, COA details, and tax information.
+// @Tags         calculation
+// @Produce      json
+// @Param        id   path      string  true  "Form ID (UUID)"
+// @Success      200  {array}  RsTransactionRow "List of transactions"
+// @Failure      400  {object}  response.RsError
+// @Failure      401  {object}  response.RsError
+// @Failure      500  {object}  response.RsError
+// @Security     BearerToken
+// @Router       /summary/{id} [get]
+func (h *handler) GetFormSummary(c *gin.Context) {
+	id, ok := util.ParseUuidID(c, "id")
+	if !ok {
 		return
 	}
-	result, err := h.svc.OutWorkResult(c.Request.Context(), &entry)
+
+	// Extract security context
+	role := c.GetString("role")
+	var actorID uuid.UUID
+
+	if strings.EqualFold(role, util.RoleAccountant) {
+		actorID, ok = util.GetAccountantID(c)
+	} else {
+		actorID, ok = util.GetPractitionerID(c)
+	}
+
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, fmt.Errorf("unauthorized access"))
+		return
+	}
+
+	// Call service and return the raw util.RsList
+	data, err := h.svc.GetFormSummary(c.Request.Context(), id.String(), actorID, role)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.JSON(c, http.StatusOK, result)
+
+	response.JSON(c, http.StatusOK, data, "Form summary fetched successfully")
 }

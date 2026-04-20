@@ -16,6 +16,12 @@ type IRepository interface {
 	Update(ctx context.Context, f *FormField) (*FormField, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	ListByFormVersionID(ctx context.Context, formVersionID uuid.UUID) ([]*FormField, error)
+	ListRsByFormVersionID(ctx context.Context, formVersionID uuid.UUID) ([]*RsFormField, error)
+
+	// Transaction-based variants
+	CreateTx(ctx context.Context, tx *sqlx.Tx, f *FormField) error
+	UpdateTx(ctx context.Context, tx *sqlx.Tx, f *FormField) (*FormField, error)
+	DeleteTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID) error
 }
 
 type Repository struct {
@@ -26,16 +32,85 @@ func NewRepository(db *sqlx.DB) IRepository {
 	return &Repository{db: db}
 }
 
+// fieldRow is used to scan field + coa join results.
+type fieldRow struct {
+	ID                    uuid.UUID  `db:"id"`
+	FormVersionID         uuid.UUID  `db:"form_version_id"`
+	FieldKey              string     `db:"field_key"`
+	Slug                  *string    `db:"slug"`
+	Label                 string     `db:"label"`
+	IsComputed            bool       `db:"is_computed"`
+	SectionType           *string    `db:"section_type"`
+	PaymentResponsibility *string    `db:"payment_responsibility"`
+	TaxType               *string    `db:"tax_type"`
+	CoaID                 *uuid.UUID `db:"coa_id"`
+	SortOrder             int        `db:"sort_order"`
+	CreatedAt             string     `db:"created_at"`
+	UpdatedAt             string     `db:"updated_at"`
+	IsFormula             bool       `db:"is_formula"`
+	IsHighlighted         bool       `db:"is_highlighted"`
+	CoaCode               *int16     `db:"coa_code"`
+	CoaName               *string    `db:"coa_name"`
+	CoaAccountTypeID      *int16     `db:"coa_account_type_id"`
+	CoaAccountTaxID       *int16     `db:"coa_account_tax_id"`
+}
+
+func (r *fieldRow) toFormField() *FormField {
+	return &FormField{
+		ID:                    r.ID,
+		FormVersionID:         r.FormVersionID,
+		FieldKey:              r.FieldKey,
+		Slug:                  r.Slug,
+		Label:                 r.Label,
+		IsComputed:            r.IsComputed,
+		SectionType:           r.SectionType,
+		PaymentResponsibility: r.PaymentResponsibility,
+		IsHighlighted:         r.IsHighlighted,
+		TaxType:               r.TaxType,
+		CoaID:                 r.CoaID,
+		SortOrder:             r.SortOrder,
+		CreatedAt:             r.CreatedAt,
+		UpdatedAt:             r.UpdatedAt,
+		IsFormula:             r.IsFormula,
+	}
+}
+
+func (r *fieldRow) toRs() *RsFormField {
+	rs := r.toFormField().ToRs()
+	if r.CoaCode != nil && r.CoaName != nil && r.CoaID != nil {
+		rs.Coa = &RsCoaDetail{
+			ID:            *r.CoaID,
+			Code:          *r.CoaCode,
+			Name:          *r.CoaName,
+			AccountTypeID: *r.CoaAccountTypeID,
+			AccountTaxID:  *r.CoaAccountTaxID,
+		}
+	}
+	return rs
+}
+
+const fieldWithCoaSelect = `
+	SELECT
+		ff.id, ff.form_version_id, ff.field_key, ff.slug, ff.label, ff.is_computed,
+		ff.section_type, ff.payment_responsibility, ff.tax_type, ff.coa_id,
+		ff.sort_order, ff.created_at, ff.updated_at, ff.is_formula,
+		ff.is_highlighted,
+		coa.code  AS coa_code,
+		coa.name  AS coa_name,
+		coa.account_type_id AS coa_account_type_id,
+		coa.account_tax_id  AS coa_account_tax_id
+	FROM tbl_form_field ff
+	LEFT JOIN tbl_chart_of_accounts coa ON coa.id = ff.coa_id AND coa.deleted_at IS NULL
+`
+
 // Create implements [IRepository].
 func (r *Repository) Create(ctx context.Context, f *FormField) error {
 	query := `
-		INSERT INTO tbl_form_field (id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, sort_order)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO tbl_form_field (id, form_version_id, field_key, slug, label, is_computed, section_type, payment_responsibility, tax_type, coa_id, sort_order, is_formula, is_highlighted)
+		VALUES ($1, $2, $3, $4, $5, $6, $7::section_type, $8::payment_responsibility, $9::tax_type, $10, $11, $12, $13)
 		RETURNING created_at, updated_at
 	`
-	if err := r.db.QueryRowContext(ctx, query,
-		f.ID, f.FormVersionID, f.Label, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.SortOrder,
-	).Scan(&f.CreatedAt, &f.UpdatedAt); err != nil {
+	if err := r.db.QueryRowContext(ctx, query, f.ID, f.FormVersionID, f.FieldKey, f.Slug, f.Label, f.IsComputed, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.SortOrder, f.IsFormula, f.IsHighlighted).Scan(&f.CreatedAt, &f.UpdatedAt); err != nil {
 		return fmt.Errorf("create form field: %w", err)
 	}
 	return nil
@@ -43,38 +118,35 @@ func (r *Repository) Create(ctx context.Context, f *FormField) error {
 
 // GetByID implements [IRepository].
 func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*FormField, error) {
-	query := `SELECT id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, sort_order, created_at, updated_at
-		FROM tbl_form_field WHERE id = $1 AND deleted_at IS NULL`
-	var f FormField
-	if err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&f.ID, &f.FormVersionID, &f.Label, &f.SectionType, &f.PaymentResponsibility, &f.TaxType, &f.CoaID, &f.SortOrder, &f.CreatedAt, &f.UpdatedAt,
-	); err != nil {
+	query := fieldWithCoaSelect + `WHERE ff.id = $1 AND ff.deleted_at IS NULL`
+	var row fieldRow
+	if err := r.db.QueryRowxContext(ctx, query, id).StructScan(&row); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("form field not found")
 		}
 		return nil, fmt.Errorf("get form field: %w", err)
 	}
-	return &f, nil
+	return row.toFormField(), nil
 }
 
 // Update implements [IRepository].
 func (r *Repository) Update(ctx context.Context, f *FormField) (*FormField, error) {
 	query := `
 		UPDATE tbl_form_field
-		SET label = $1, section_type = $2, payment_responsibility = $3, tax_type = $4, coa_id = $5, sort_order = $6, updated_at = now()
-		WHERE id = $7 AND deleted_at IS NULL
-		RETURNING id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, sort_order, created_at, updated_at
+		SET label = $1, section_type = $2::section_type, payment_responsibility = $3::payment_responsibility, tax_type = $4::tax_type, coa_id = $5, sort_order = $6, is_formula = $7, is_highlighted = $8, updated_at = now()
+		WHERE id = $9 AND deleted_at IS NULL
+		RETURNING id, form_version_id, field_key, slug, label, is_computed, section_type, payment_responsibility, tax_type, coa_id, sort_order, created_at, updated_at, is_formula, is_highlighted
 	`
-	var out FormField
-	if err := r.db.QueryRowContext(ctx, query,
-		f.Label, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.SortOrder, f.ID,
-	).Scan(&out.ID, &out.FormVersionID, &out.Label, &out.SectionType, &out.PaymentResponsibility, &out.TaxType, &out.CoaID, &out.SortOrder, &out.CreatedAt, &out.UpdatedAt); err != nil {
+	var row fieldRow
+	if err := r.db.QueryRowxContext(ctx, query,
+		f.Label, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.SortOrder, f.IsFormula, f.IsHighlighted, f.ID,
+	).StructScan(&row); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("form field not found")
 		}
 		return nil, fmt.Errorf("update form field: %w", err)
 	}
-	return &out, nil
+	return row.toFormField(), nil
 }
 
 // Delete implements [IRepository].
@@ -93,12 +165,77 @@ func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
 
 // ListByFormVersionID implements [IRepository].
 func (r *Repository) ListByFormVersionID(ctx context.Context, formVersionID uuid.UUID) ([]*FormField, error) {
-	query := `SELECT id, form_version_id, label, section_type, payment_responsibility, tax_type, coa_id, sort_order, created_at, updated_at
-		FROM tbl_form_field WHERE form_version_id = $1 AND deleted_at IS NULL
-		ORDER BY sort_order ASC, created_at ASC`
-	var list []*FormField
-	if err := r.db.SelectContext(ctx, &list, query, formVersionID); err != nil {
+	query := fieldWithCoaSelect + `WHERE ff.form_version_id = $1 AND ff.deleted_at IS NULL ORDER BY ff.sort_order ASC, ff.created_at ASC`
+	var rows []fieldRow
+	if err := r.db.SelectContext(ctx, &rows, query, formVersionID); err != nil {
 		return nil, fmt.Errorf("list form fields: %w", err)
 	}
+	list := make([]*FormField, 0, len(rows))
+	for i := range rows {
+		list = append(list, rows[i].toFormField())
+	}
 	return list, nil
+}
+
+// ListRsByFormVersionID implements [IRepository] — returns fields with COA detail populated.
+func (r *Repository) ListRsByFormVersionID(ctx context.Context, formVersionID uuid.UUID) ([]*RsFormField, error) {
+	query := fieldWithCoaSelect + `WHERE ff.form_version_id = $1 AND ff.deleted_at IS NULL ORDER BY ff.sort_order ASC, ff.created_at ASC`
+	var rows []fieldRow
+	if err := r.db.SelectContext(ctx, &rows, query, formVersionID); err != nil {
+		return nil, fmt.Errorf("list form fields with coa: %w", err)
+	}
+	list := make([]*RsFormField, 0, len(rows))
+	for i := range rows {
+		list = append(list, rows[i].toRs())
+	}
+	return list, nil
+}
+
+// CreateTx - Transaction variant of Create
+func (r *Repository) CreateTx(ctx context.Context, tx *sqlx.Tx, f *FormField) error {
+	query := `
+		INSERT INTO tbl_form_field (id, form_version_id, field_key, slug, label, is_computed, section_type, payment_responsibility, tax_type, coa_id, sort_order, is_formula,is_highlighted)
+		VALUES ($1, $2, $3, $4, $5, $6, $7::section_type, $8::payment_responsibility, $9::tax_type, $10, $11, $12, $13)
+		RETURNING created_at, updated_at
+	`
+	if err := tx.QueryRowContext(ctx, query,
+		f.ID, f.FormVersionID, f.FieldKey, f.Slug, f.Label, f.IsComputed, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.SortOrder, f.IsFormula, f.IsHighlighted,
+	).Scan(&f.CreatedAt, &f.UpdatedAt); err != nil {
+		return fmt.Errorf("create form field tx: %w", err)
+	}
+	return nil
+}
+
+// UpdateTx - Transaction variant of Update
+func (r *Repository) UpdateTx(ctx context.Context, tx *sqlx.Tx, f *FormField) (*FormField, error) {
+	query := `
+		UPDATE tbl_form_field
+		SET label = $1, section_type = $2::section_type, payment_responsibility = $3::payment_responsibility, tax_type = $4::tax_type, coa_id = $5, sort_order = $6, is_formula = $7, is_highlighted = $8, updated_at = now()
+		WHERE id = $9 AND deleted_at IS NULL
+		RETURNING id, form_version_id, field_key, slug, label, is_computed, section_type, payment_responsibility, tax_type, coa_id, sort_order, created_at, updated_at, is_formula, is_highlighted
+	`
+	var row fieldRow
+	if err := tx.QueryRowxContext(ctx, query,
+		f.Label, f.SectionType, f.PaymentResponsibility, f.TaxType, f.CoaID, f.SortOrder, f.IsFormula, f.IsHighlighted, f.ID,
+	).StructScan(&row); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("form field not found")
+		}
+		return nil, fmt.Errorf("update form field tx: %w", err)
+	}
+	return row.toFormField(), nil
+}
+
+// DeleteTx - Transaction variant of Delete
+func (r *Repository) DeleteTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID) error {
+	query := `UPDATE tbl_form_field SET deleted_at = now(), updated_at = now() WHERE id = $1 AND deleted_at IS NULL`
+	res, err := tx.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("delete form field tx: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return errors.New("form field not found")
+	}
+	return nil
 }

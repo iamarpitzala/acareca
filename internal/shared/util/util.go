@@ -3,9 +3,11 @@ package util
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,7 +20,13 @@ import (
 )
 
 const UserIDKey = "userID"
-const PractitionerIDKey = "practitionerID"
+const EntityIDKey = "EntityID"
+
+var validate = validator.New()
+
+func ValidateStruct(v any) error {
+	return validate.Struct(v)
+}
 
 func NewUUID() string {
 	return uuid.New().String()
@@ -37,31 +45,55 @@ func CompareHash(password, hash string) error {
 }
 
 func BindAndValidate(c *gin.Context, v any) error {
-	validate := validator.New()
-	if err := c.ShouldBindJSON(v); err != nil {
-		return err
+	if c.Request.Body != nil && c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(v); err != nil {
+			return err
+		}
 	}
-	if err := validate.Struct(v); err != nil {
-		return err
-	}
+
+	// Sanitize query parameters - remove or replace invalid values like NaN, Infinity
+	sanitizeQueryParams(c)
 
 	if err := c.ShouldBindQuery(v); err != nil {
 		return err
 	}
 
-	return nil
+	return validate.Struct(v)
+}
+
+// sanitizeQueryParams removes or replaces invalid numeric values in query parameters
+func sanitizeQueryParams(c *gin.Context) {
+	query := c.Request.URL.Query()
+	modified := false
+
+	for _, values := range query {
+		for i, value := range values {
+			// Replace NaN and Infinity with 0 to prevent parsing errors
+			if value == "NaN" || value == "Infinity" || value == "-Infinity" {
+				values[i] = "0"
+				modified = true
+			}
+		}
+	}
+
+	if modified {
+		c.Request.URL.RawQuery = query.Encode()
+	}
 }
 
 type CustomClaims struct {
-	PractitionerID string `json:"prac"`
+	ID   string `json:"id"`
+	Role string `json:"role"`
 	jwt.RegisteredClaims
 }
 
-func SignToken(userID string, practitionerID string, ttl time.Duration, jwtSecret string) (string, error) {
+func SignToken(userID string, id string, role string, ttl time.Duration, jwtSecret string) (string, error) {
 	now := time.Now()
 
 	claims := CustomClaims{
-		PractitionerID: practitionerID,
+		ID:   id,
+		Role: role,
+
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -88,7 +120,7 @@ func ParseUUID(s string) (uuid.UUID, error) {
 }
 
 func GetPractitionerID(c *gin.Context) (uuid.UUID, bool) {
-	idVal, exists := c.Get(PractitionerIDKey)
+	idVal, exists := c.Get(EntityIDKey)
 	if !exists {
 		response.Error(c, http.StatusBadRequest, errors.New("practitioner id not in context"))
 		return uuid.Nil, false
@@ -101,21 +133,19 @@ func GetPractitionerID(c *gin.Context) (uuid.UUID, bool) {
 	return id, true
 }
 
-// const ClinicIDKey = "clinicID"
-
-// func GetClinicID(c *gin.Context) (uuid.UUID, bool) {
-// 	idVal, exists := c.Get(ClinicIDKey)
-// 	if !exists {
-// 		response.Error(c, http.StatusBadRequest, errors.New("clinic id not in context"))
-// 		return uuid.Nil, false
-// 	}
-// 	id, ok := idVal.(uuid.UUID)
-// 	if !ok {
-// 		response.Error(c, http.StatusInternalServerError, errors.New("invalid clinic id type"))
-// 		return uuid.Nil, false
-// 	}
-// 	return id, true
-// }
+func GetAccountantID(c *gin.Context) (uuid.UUID, bool) {
+	idVal, exists := c.Get(EntityIDKey)
+	if !exists {
+		response.Error(c, http.StatusBadRequest, errors.New("accountant id not in context"))
+		return uuid.Nil, false
+	}
+	id, ok := idVal.(uuid.UUID)
+	if !ok {
+		response.Error(c, http.StatusInternalServerError, errors.New("invalid accountant id type"))
+		return uuid.Nil, false
+	}
+	return id, true
+}
 
 func ParseIntID(c *gin.Context, param string) (int, bool) {
 	id, err := strconv.Atoi(c.Param(param))
@@ -146,4 +176,131 @@ func RunInTransaction(ctx context.Context, db *sqlx.DB, fn func(ctx context.Cont
 		return err
 	}
 	return tx.Commit()
+}
+
+type RsList struct {
+	Items interface{} `json:"items"`
+	Total int         `json:"total"`
+	Page  int         `json:"page"`
+	Limit int         `json:"limit"`
+}
+
+func (rs *RsList) MapToList(data interface{}, total, page, limit int) {
+	rs.Items = data
+	rs.Total = total
+	rs.Page = page
+	rs.Limit = limit
+}
+
+func GetMonthRange(monthName string) (time.Time, time.Time, error) {
+	now := time.Now()
+	loc := now.Location()
+
+	if strings.ToLower(monthName) == "all" {
+		startOfYear := time.Date(now.Year(), time.January, 1, 0, 0, 0, 0, loc)
+		endOfYear := startOfYear.AddDate(1, 0, 0).Add(-time.Nanosecond)
+		return startOfYear, endOfYear, nil
+	}
+
+	months := map[string]time.Month{
+		"january":   time.January,
+		"february":  time.February,
+		"march":     time.March,
+		"april":     time.April,
+		"may":       time.May,
+		"june":      time.June,
+		"july":      time.July,
+		"august":    time.August,
+		"september": time.September,
+		"october":   time.October,
+		"november":  time.November,
+		"december":  time.December,
+	}
+
+	month, ok := months[strings.ToLower(monthName)]
+	if !ok {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid month")
+	}
+
+	start := time.Date(now.Year(), month, 1, 0, 0, 0, 0, loc)
+	end := start.AddDate(0, 1, 0).Add(-time.Nanosecond)
+
+	return start, end, nil
+}
+
+func GetUserID(c *gin.Context) (uuid.UUID, bool) {
+	idVal, exists := c.Get(UserIDKey)
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, errors.New("user id not in context"))
+		return uuid.Nil, false
+	}
+
+	idStr, ok := idVal.(string)
+	if !ok {
+		response.Error(c, http.StatusInternalServerError, errors.New("invalid user id type"))
+		return uuid.Nil, false
+	}
+
+	// Parse the string into a UUID
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, errors.New("failed to parse user uuid"))
+		return uuid.Nil, false
+	}
+
+	return id, true
+}
+
+func GetEntityID(c *gin.Context) (uuid.UUID, bool) {
+	idVal, exists := c.Get(EntityIDKey)
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, nil)
+		return uuid.Nil, false
+	}
+	id, ok := idVal.(uuid.UUID)
+	if !ok || id == uuid.Nil {
+		response.Error(c, http.StatusUnauthorized, nil)
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+// Helper function to return pointers to Practitioner or Accountant IDs based on the user's role.
+func GetRoleBasedID(c *gin.Context) (actorId *uuid.UUID, role string, ok bool) {
+	role = strings.ToUpper(c.GetString("role"))
+
+	switch role {
+	case RolePractitioner:
+		id, exists := GetPractitionerID(c)
+		if !exists || id == uuid.Nil {
+			return nil, role, false
+		}
+		return &id, role, true
+
+	case RoleAccountant:
+		id, exists := GetAccountantID(c)
+		if !exists || id == uuid.Nil {
+			return nil, role, false
+		}
+		return &id, role, true
+
+	default:
+		return nil, role, false
+	}
+}
+
+// InvitationConfig holds configurable values for invitation management
+type InvitationConfig struct {
+	ExpirationDays   int
+	DailyInviteLimit int
+	EmailTimeout     time.Duration
+}
+
+// DefaultConfig returns default invitation configuration
+func InviteDefaultConfig() InvitationConfig {
+	return InvitationConfig{
+		ExpirationDays:   7,
+		DailyInviteLimit: 5,
+		EmailTimeout:     10 * time.Second,
+	}
 }
